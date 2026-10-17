@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { z } from 'zod';
 import type { createService } from './service.ts';
 import { launchWorker } from './worker.ts';
 import type { Policy } from '../01-approved-attempt/dist/recovery/engine.js';
@@ -69,8 +70,10 @@ export async function startHttp(service:Service,policy:Policy) {
         let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>8192) throw new Error('STRUCTURE');}
         let command:any;try{command=JSON.parse(body);}catch{throw new Error('STRUCTURE');}
         let result;
-        if(command?.type==='recover') {
-          const id=command.attemptId;
+        if(command?.type==='recover'&&z.uuid().safeParse(command.attemptId).success) {
+          // Validate before deriving the internal key; preserve the literal
+          // command for common service validation and authorization below.
+          const id=command.attemptId.toLowerCase();
           // Retain the arrival generation through command completion, not just
           // worker launch: another request may arrive during advisory unlock.
           const group=recoveries.get(id)??{generation:generations.get(id)??0,callers:0};

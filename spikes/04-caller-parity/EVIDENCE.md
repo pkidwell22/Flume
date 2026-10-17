@@ -1,6 +1,27 @@
 # Execution evidence and constrained verdict
 
-## Second correction: mixed recovery and POST-phase oracle
+## Authorized UUID-key follow-up
+
+This follow-up is limited to the confirmed valid-UUID case mismatch at `b5d3e0ee38bc794ff150c615679621a370fa86ce`. The only implementation change is in `http.ts`: validate the attempt UUID before deriving a lowercase **internal** key for the existing arrival-generation/recovery-group coordination. The validated service callback already supplies PostgreSQL's canonical lowercase ID for worker coordination. Arrival capture remains before command serialization; the original command is passed unchanged to the common structural, principal, revision and attempt-ownership checks. No schema, dependency, core 01/02, license, UI implementation or broader scheduling change is included.
+
+| Gate | Observed UUID follow-up result |
+|---|---|
+| Full `npm run verify` → mutations → normal `npm run verify` | Typecheck and **38 tests pass twice**, zero skipped/cancelled; the original 33 remain unchanged and five UUID cases are added |
+| `node scripts/check-mutations.mjs` | **29 mutations rejected** at specific assertions; all 26 prior controls retained unchanged, plus arrival-key canonicalization, recovery-group key and malformed-input repair controls |
+| Parent probes | **Four tests pass**: both original tests byte-for-byte, the previously adapted serialized mixed-recovery test unchanged, and the uppercase probe copied verbatim from the parent's final-review evidence |
+| Frozen baseline reuse | **38 tracked 01/02 files** and root MIT license byte-identical to both the follow-up base and main `55d2d64d56869d1490b459352a4db21a17c88e72`; reuse prior **71 core tests, 3 acceptance + 6 recovery mutations, 43 media tests**, not newly rerun suites |
+| Fresh local dependency audits | **Zero vulnerabilities** in each of 01, 02 and 04; no install or lockfile change |
+| Evidence preservation / cleanup | **122 earlier artifacts hash-verified preserved**; 27 previous mutation artifacts archived before rerunning their output paths. **115 observed owned-cluster roots** independently absent, with zero matching live processes. Tests also assert postmaster/worker/demo PID death and HTTP listener refusal |
+
+**Observed implementation RED → GREEN:** before the fix, the parent's verbatim uppercase probe and both new uppercase/mixed-case regressions used real PG/HTTP, started an actual worker via HTTP, paused it at intent and sent OS SIGKILL. Both new UUID-variant regressions returned HTTP 200 and the canonical receipt but failed with the original job **active** rather than completed; the parent's report additionally confirmed `available=false` and zero takes. After the key correction, the same probe and regressions complete the original job, return `available=true` and **two takes**; SQL retains one attempt, receipt, reservation, queue job and dispatch key, and the provider receives one submission/job. No additional user command or reroll is needed.
+
+**Additional coverage with negative controls:** mixed-case recovery and a canonical caller overlap at a real queue-read barrier and after a new worker launches but before the first command returns. They share one arrival generation; the new activation is neither killed nor invalidated, and it completes after its real `after-fetch` barrier is released. A raw recovery-group-key mutation fails the no-replacement assertion. Malformed UUIDs (including surrounding whitespace, braces, missing hyphens, invalid hex and nonstrings) produce exact `STRUCTURE`/400 responses through the common service, preserve literal input and leave durable rows, the held worker and provider untouched. Invalid principals, stale revisions, unknown owned-attempt candidates and extra fields still reject. A trim/repair mutation fails that rejection assertion. These coverage-only checks are not represented as separate historical implementation defects.
+
+The canonical-key mutation independently restores the original uppercase failure. The original two parent probe outcomes still pass, and the previously adapted mixed probe still observes **two actual queue reads**, a completed job and two takes. No original probe, negative report or failure log was rewritten. New execution logs and preserved mutation artifacts are ignored under `output/uuid-key/`; parent probe reports use separate working directories. The fixture provider stays alive throughout worker interruption tests. All three retained live demo worktrees/processes and their session files were left untouched; no new retained preview was launched.
+
+Submitted for independent parent re-review, not author approval. Browser rendering/playback, production authentication, arbitrary media intake, provider-process disaster recovery, interrupted-export restart and live model/provider spending remain outside this proof. PR/issue remain open; GitGuardian, strict current-base checks and squash-only/no-bypass rules remain in force.
+
+## Second correction: mixed recovery and POST-phase oracle (historical)
 
 This focused correction is based on `526d3e9354435e107f13b4d472652c9a1c0be375`. Both retained demo worktrees/processes remain untouched. The original five fixes are retained; only HTTP recovery coordination, its internal validated service callback, tests, mutation controls and this documentation change. UI implementation, schemas, dependencies, lockfiles, license and all **38** frozen 01/02 files are unchanged.
 
