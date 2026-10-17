@@ -1,0 +1,40 @@
+{
+  "label": "Actual offline execution only; no provider response or media observation",
+  "testStartedAt": "2026-10-17T02:59:54.665000+00:00",
+  "toolchain": {
+    "node": "26.8.1",
+    "npm": "11.19.0"
+  },
+  "commands": [
+    "npm ci --ignore-scripts --no-audit --no-fund",
+    "npm run typecheck",
+    "npm test -- --reporter=json --outputFile=.local/vitest.json",
+    "npm run --silent report > .local/report.json"
+  ],
+  "typecheck": "passed",
+  "testFiles": 4,
+  "tests": {
+    "numTotalTests": 107,
+    "numPassedTests": 107,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "fixtureCases": 82,
+  "fixtureCounts": {
+    "blocked": 35,
+    "pass": 34,
+    "not-evaluated": 13
+  },
+  "allFixtureExpectationsMet": true,
+  "fixtureBodySha256": "98d40ae9dfbef5379770b60f22f459571b0f6fbcd822ee05e1e89876c8a218e5",
+  "packageLockSha256": "a6f8b049ac9ea3e8db1fc8050dade5d04d8fcbd35aec72fca333cf07ea4c062a",
+  "runtime": {
+    "status": "not-run",
+    "accountEntitlement": "unknown",
+    "estimate": "unknown",
+    "mediaReadiness": "unverified"
+  },
+  "independentReview": "pending coordinator review",
+  "livePermission": "not granted"
+}

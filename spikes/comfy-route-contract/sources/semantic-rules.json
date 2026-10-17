@@ -1,0 +1,234 @@
+{
+  "version": "h3-semantics/v1",
+  "authorship": "Local conservative interpretation; not provider code or runtime observation",
+  "rules": [
+    {
+      "codes": [
+        "TEXT_COUNT"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/text/description",
+      "evidence": "The prompt text. Exactly one non-empty text item is required per request.",
+      "interpretation": "Require exactly one text item."
+    },
+    {
+      "codes": [
+        "TEXT_EMPTY"
+      ],
+      "basis": "local-policy",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/text/description",
+      "evidence": "The prompt text. Exactly one non-empty text item is required per request.",
+      "interpretation": "Require a string with non-whitespace content; trimming is a local blankness test only, never a prompt rewrite."
+    },
+    {
+      "codes": [
+        "MODEL_MODALITY"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/x-comfy-router-input-modalities",
+      "evidence": [
+        "text",
+        "image"
+      ],
+      "interpretation": "Block shared-schema video/audio items for this text/image-only model; output audio is not input-audio support."
+    },
+    {
+      "codes": [
+        "UNKNOWN_MODALITY"
+      ],
+      "basis": "unknown-capability",
+      "source": "h3",
+      "pointer": "/x-comfy-router-input-modalities",
+      "evidence": [
+        "text",
+        "image"
+      ],
+      "interpretation": "Unknown media kinds are blocked, not presumed supported."
+    },
+    {
+      "codes": [
+        "UNKNOWN_ROLE"
+      ],
+      "basis": "unknown-capability",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/role/description",
+      "evidence": "Role of a media item. Options: first_frame, last_frame, reference_image, reference_video, reference_audio, base_video. Keyframe roles and reference_* roles are mutually exclusive within a request; base_video marks the source video of a video regeneration request.",
+      "interpretation": "This lane maps only exact first_frame, last_frame, reference_image image roles. Domain character/style/etc and sibling-video roles are not silently converted."
+    },
+    {
+      "codes": [
+        "FRAME_REFERENCE_CONFLICT"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/role/description",
+      "evidence": "Role of a media item. Options: first_frame, last_frame, reference_image, reference_video, reference_audio, base_video. Keyframe roles and reference_* roles are mutually exclusive within a request; base_video marks the source video of a video regeneration request.",
+      "interpretation": "Block any keyframe plus reference_image mixture."
+    },
+    {
+      "codes": [
+        "DUPLICATE_FRAME_ROLE"
+      ],
+      "basis": "local-policy",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/role/description",
+      "evidence": "Role of a media item. Options: first_frame, last_frame, reference_image, reference_video, reference_audio, base_video. Keyframe roles and reference_* roles are mutually exclusive within a request; base_video marks the source video of a video regeneration request.",
+      "interpretation": "One binding per first/last slot is a local intent invariant, not an observed provider count limit."
+    },
+    {
+      "codes": [
+        "REFERENCE_LIMIT_UNKNOWN"
+      ],
+      "basis": "unknown-capability",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/content",
+      "evidence": {
+        "description": "Content items driving the generation. Must contain one non-empty text item; optionally add first_frame/last_frame images or reference_* media.",
+        "items": {
+          "$ref": "#/components/schemas/MinimaxV2ContentItem"
+        },
+        "type": "array"
+      },
+      "interpretation": "No maxItems or per-role numeric maximum is published. This experiment covers one reference only; more is blocked pending evidence, not advertised as a provider max=1."
+    },
+    {
+      "codes": [
+        "IMAGE_SOURCE_EMPTY"
+      ],
+      "basis": "local-policy",
+      "source": "h3",
+      "pointer": "/components/schemas/MinimaxV2ContentItem/properties/image_url/description",
+      "evidence": "Image source. Required for image_url items.",
+      "interpretation": "Require a non-blank source locator. No network reachability, data-URI decoding, file ownership, pixel/byte limits or transport safety is established."
+    },
+    {
+      "codes": [
+        "RATIO_OPTION"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/ratio/description",
+      "evidence": "Aspect ratio. Options: adaptive (default), 21:9, 16:9, 4:3, 1:1, 3:4, 9:16. Required and must not be adaptive for text-to-video; ignored (treated as adaptive) for first-frame or last-frame generation.",
+      "interpretation": "Allow only listed values. Even when frames ignore ratio, an unlisted spelling is blocked conservatively rather than assumed accepted."
+    },
+    {
+      "codes": [
+        "TEXT_RATIO_REQUIRED"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/ratio/description",
+      "evidence": "Aspect ratio. Options: adaptive (default), 21:9, 16:9, 4:3, 1:1, 3:4, 9:16. Required and must not be adaptive for text-to-video; ignored (treated as adaptive) for first-frame or last-frame generation.",
+      "interpretation": "Neither frames nor references means text-to-video: explicit non-adaptive ratio required. First/last frames make ratio frame-determined; preserve any explicit requested value unchanged."
+    },
+    {
+      "codes": [
+        "REFERENCE_RATIO_UNKNOWN"
+      ],
+      "basis": "unknown-capability",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/ratio/description",
+      "evidence": "Aspect ratio. Options: adaptive (default), 21:9, 16:9, 4:3, 1:1, 3:4, 9:16. Required and must not be adaptive for text-to-video; ignored (treated as adaptive) for first-frame or last-frame generation.",
+      "interpretation": "Reference-only effective geometry is not described as frame-conditioned. Allow a listed explicit non-adaptive ratio as a candidate; block omitted/adaptive instead of inventing geometry behavior."
+    },
+    {
+      "codes": [
+        "SEED_RANGE"
+      ],
+      "basis": "documented-prose",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/seed/description",
+      "evidence": "Random seed in [-1, 2^32 - 1]; omitted or -1 is random.",
+      "interpretation": "Check -1 through 2^32-1. Retain -1, zero and omission distinctly; do not claim deterministic reruns."
+    },
+    {
+      "codes": [
+        "FIELD_NOT_IN_LANE"
+      ],
+      "basis": "local-policy",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties",
+      "evidence": {
+        "aigc_watermark": {
+          "description": "Whether to add an AIGC watermark to the output. Defaults to false.",
+          "type": "boolean"
+        },
+        "callback_url": {
+          "description": "Optional. URL to receive task state changes after challenge verification.",
+          "type": "string"
+        },
+        "content": {
+          "description": "Content items driving the generation. Must contain one non-empty text item; optionally add first_frame/last_frame images or reference_* media.",
+          "items": {
+            "$ref": "#/components/schemas/MinimaxV2ContentItem"
+          },
+          "type": "array"
+        },
+        "duration": {
+          "description": "Video length in seconds. Comfy Router accepts 4 to 15 and refuses anything outside it before the provider is called. MiniMax's own documentation for this model states 5 to 15; the ComfyUI MiniMax H3 nodes offer 4 to 15 and a 4-second generation has been observed to succeed, so 4 is accepted here.",
+          "maximum": 15,
+          "minimum": 4,
+          "type": "integer"
+        },
+        "model": {
+          "description": "ID of model. Options: MiniMax-H3. Router callers may omit this field or send null; Router injects the model selected by the request path before provider dispatch.",
+          "nullable": true,
+          "type": "string"
+        },
+        "ratio": {
+          "description": "Aspect ratio. Options: adaptive (default), 21:9, 16:9, 4:3, 1:1, 3:4, 9:16. Required and must not be adaptive for text-to-video; ignored (treated as adaptive) for first-frame or last-frame generation.",
+          "type": "string"
+        },
+        "resolution": {
+          "description": "Video resolution. Options: 2K, 768P. The value is matched case-insensitively and canonicalised before dispatch, so `2k` and `768p` are accepted and sent as `2K` and `768P`.",
+          "enum": [
+            "2K",
+            "2k",
+            "768P",
+            "768p"
+          ],
+          "type": "string"
+        },
+        "seed": {
+          "description": "Random seed in [-1, 2^32 - 1]; omitted or -1 is random.",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "interpretation": "Strict bounded lane refuses extras at top/item/image-source levels. model and callback_url exist publicly but are deliberately not emitted; no invented audio switch, overrides or arbitrary callback destinations."
+    },
+    {
+      "codes": [],
+      "basis": "json-schema",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/duration",
+      "evidence": {
+        "description": "Video length in seconds. Comfy Router accepts 4 to 15 and refuses anything outside it before the provider is called. MiniMax's own documentation for this model states 5 to 15; the ComfyUI MiniMax H3 nodes offer 4 to 15 and a 4-second generation has been observed to succeed, so 4 is accepted here.",
+        "maximum": 15,
+        "minimum": 4,
+        "type": "integer"
+      },
+      "interpretation": "Use actual integer minimum/maximum, not a guessed prose-only minimum. 4 is structurally admitted by this snapshot; the source-reported success is NOT our observed success. Proposed live shot uses 5."
+    },
+    {
+      "codes": [],
+      "basis": "json-schema",
+      "source": "h3",
+      "pointer": "/paths/~1v2~1models~1minimax~1minimax-h3/post/requestBody/content/application~1json/schema/properties/resolution",
+      "evidence": {
+        "description": "Video resolution. Options: 2K, 768P. The value is matched case-insensitively and canonicalised before dispatch, so `2k` and `768p` are accepted and sent as `2K` and `768P`.",
+        "enum": [
+          "2K",
+          "2k",
+          "768P",
+          "768p"
+        ],
+        "type": "string"
+      },
+      "interpretation": "Use exact enum spellings. Keep submitted spelling; report documented uppercase canonicalization separately, never as measured output."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "retrievedAt": "2026-10-17T02:37:27Z",
+  "retrieval": "Unauthenticated public HTTPS GET; original response body bytes, not historical private research",
+  "h3": {
+    "url": "https://docs.comfy.org/router-schemas/minimax/minimax-h3.json",
+    "file": "minimax-h3.json",
+    "sha256": "a0ba226c836c1154e21a14818746c63dca9b145fce4220b87a6383d4e16af03b",
+    "openapi": "3.0.2",
+    "version": "c0e2e941ffff",
+    "model": "minimax/minimax-h3"
+  },
+  "router": {
+    "url": "https://docs.comfy.org/router-openapi.yaml",
+    "file": "router-openapi.yaml",
+    "sha256": "55e5dc8f97847cb35fac9f3dcdb667c4e81d3a5fb30b26ffab0f636ca877f5bc",
+    "openapi": "3.0.2",
+    "version": "1.0"
+  },
+  "semanticsVersion": "h3-semantics/v1",
+  "fixtureVersion": "h3-fixtures/v1",
+  "liveObservation": "none",
+  "accountEntitlement": "unknown",
+  "estimate": "unknown"
+}
