@@ -10,9 +10,12 @@
     "build": "tsc",
     "test": "node scripts/disposable-postgres.mjs",
     "test:runner": "npm run build && node --test scripts/disposable-postgres.test.mjs",
-    "verify": "npm run typecheck && npm run test:runner && npm test",
+    "verify": "npm run typecheck && npm run test:runner && npm test && npm run test:recovery",
+    "test:recovery": "node scripts/disposable-postgres.mjs recovery",
+    "test:recovery:db": "node --test --test-concurrency=1 dist/recovery/recovery.test.js",
     "test:mutations": "npm run build && node scripts/check-mutations.mjs",
-    "test:db": "node --test --test-concurrency=1 dist/test/*.test.js"
+    "test:recovery:mutations": "npm run build && node scripts/check-mutations.mjs recovery",
+    "test:db": "node --test --test-concurrency=1 dist/test/acceptance.test.js"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
