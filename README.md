@@ -36,4 +36,6 @@ Before product scaffolding, the proposed next step is the bounded [contract expe
 
 ## Publication and licensing
 
-No license has been selected; public visibility alone does not grant an open-source license. This PR establishes the planning baseline only. No application scaffolding, dependency installation, paid generation, or deployment is included. Raw third-party browser bundles, private source snapshots, and detailed local investigation reports are not included. Choose the license and supply owned/licensed example media before competition submission.
+Original code and documentation in this repository are licensed under the [MIT License](LICENSE). Third-party dependencies and reference-schema snapshots retain their upstream terms.
+
+This PR establishes the planning baseline only. No application scaffolding, dependency installation, paid generation, or deployment is included. Raw third-party browser bundles, private source snapshots, and detailed local investigation reports are not included. Supply owned/licensed example media before competition submission.

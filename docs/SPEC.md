@@ -194,7 +194,7 @@ Use Vitest for domain, composition, capability, and adapter contracts; exercise 
 
 Use original implementation and owned/licensed media. Downloaded Higgsfield code is private research evidence, not code to redistribute. Existing Studio architecture can inform the new project; publishing Studio itself is not required by this plan. Any reused source/assets still need a rights/dependency check.
 
-Open decisions: final public product name; timeline/sequence-editor depth; source-video demonstration priority; license; hosted deployment/storage/authentication choices; live-test spend and transfer consent. The application stack is selected in §5. Patrick owns product/publication/spend decisions; engineering owns the detailed contracts, version pinning, and capability mappings. The Git repository and this planning PR establish the documentation baseline. No application implementation, paid generation, credentials changes, deployment, or competition submission is included.
+Open decisions: final public product name; timeline/sequence-editor depth; source-video demonstration priority; hosted deployment/storage/authentication choices; live-test spend and transfer consent. The application stack is selected in §5. Patrick owns product/publication/spend decisions; engineering owns the detailed contracts, version pinning, and capability mappings. The Git repository and this planning PR establish the documentation baseline. No application implementation, paid generation, credentials changes, deployment, or competition submission is included.
 
 ## 10. Research and document status
 

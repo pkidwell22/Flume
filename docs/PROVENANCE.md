@@ -35,4 +35,6 @@ Downloaded browser JavaScript/HTML, proprietary source snapshots, raw REA export
 
 ## Licensing
 
-An open-source license has not yet been selected. Before competition submission, choose the license, verify dependency and asset rights, and provide owned/licensed examples. Do not redistribute Higgsfield code or media as part of the application.
+Original code and documentation in this repository are licensed under the [MIT License](../LICENSE). Third-party dependencies and reference-schema snapshots retain their upstream terms and are not relicensed by this repository's MIT license. Retain required upstream copyright and license notices.
+
+Before competition submission, verify dependency and asset rights, and provide owned/licensed examples. Do not redistribute Higgsfield code or media as part of the application.
