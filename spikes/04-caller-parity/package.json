@@ -1,0 +1,30 @@
+{
+  "name": "caller-parity-experiment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "26.8.1",
+    "npm": "11.19.0"
+  },
+  "packageManager": "npm@11.19.0",
+  "scripts": {
+    "build:core": "npm --prefix ../01-approved-attempt run build -- --declaration",
+    "fixtures": "node scripts/prepare-media.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "verify": "npm run build:core && npm run fixtures && npm run typecheck && npm test",
+    "demo": "node demo.ts",
+    "agent": "node agent.ts"
+  },
+  "dependencies": {
+    "pg": "8.20.0",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.0",
+    "@types/pg": "8.16.0",
+    "linkedom": "0.18.13",
+    "typescript": "5.9.3"
+  }
+}
