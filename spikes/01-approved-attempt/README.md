@@ -132,8 +132,8 @@ settings are explicit and do not establish a future production policy.
 
 ## Assertions and observed results
 
-The final author run passed **22 DB/contract tests and 7 runner tests**, with no
-skips. The acceptance suite then passed on **three additional fresh clusters**.
+The latest author run passed **22 DB/contract tests and 11 runner tests**, with no
+skips. The initial acceptance validation also passed on **three additional fresh clusters**.
 `npm ci --ignore-scripts --no-fund`, strict typechecking, and `npm audit
 --audit-level=moderate` also succeeded; the audit reported zero vulnerabilities
 in that run. Audit output is not a comprehensive security review.
@@ -179,11 +179,20 @@ The following are observed runs, not expected-output transcripts. Commands used
 | `08-runner-signal-{red,green}.log` (`npm run test:runner`) | 4 passed, startup SIGTERM missed cleanup; test's ownership-checked fallback stopped/removed its child cluster | 5 passed after installing handlers before initialization |
 | `10-scope-red.log` → `11-verify-green.log` | 21 passed, mismatched frozen project incorrectly accepted | 22 DB tests + 6 safety tests passed |
 | `15-canonical-path-red.log` → `15-final-verify-green.log` | Canonical-path helper failed to reject a safe-looking symlink to an unsafe path | 22 DB tests + 7 safety tests passed after validating resolved paths |
+| `correction-1/01-second-acquisition-red.log` → `02-second-acquisition-green.log` | Injected second acquisition failure left the first real postmaster alive before the guarded fallback | First PID gone and owned directory removed before fallback |
+| `correction-1/03-independent-cleanup-red.log` → `04-independent-cleanup-green.log` | First cleanup rejection skipped the second cluster's cleanup | Cleanup error propagated; second PID gone and directory removed before fallback |
+| `correction-1/05-marker-read-red.log` → `06-marker-read-green.log` | Marker-read failure in the wrong-data-directory scenario left its real postmaster alive | Acquired clusters cleaned on marker-read failure in both scenarios |
 
 Final confirmation: `16-final-mutations.log` rejects all three deliberate faults;
 `17-final-normal.log` passes all 22 DB tests after restoring the implementation.
 The canonical-path RED used `node --test --test-name-pattern='canonical temp-parent'
 scripts/disposable-postgres.test.mjs`; full GREEN used `npm run verify`.
+
+Correction confirmation: `correction-1/07-verify-green.log` passes strict
+typechecking, 11 runner tests and 22 DB tests; `08-mutations.log` rejects all
+three mutations; `09-final-normal.log` passes 22 DB tests after restoration.
+The two-cluster marker-read regression passed when added after the acquisition
+fix; the adjacent wrong-data-directory regression failed first as recorded above.
 
 An injected throw already rolled back with the first real Drizzle transaction;
 that test passed when introduced. Later SQL-failure/strict-schema safety tests
@@ -217,6 +226,10 @@ postmaster PID and PID-file data directory before using `pg_ctl -D <owned-dir>`.
 It verifies stopped status, absent PID file, dead recorded PID, and removed root.
 It never stops a service by name or port. The tests keep another newly owned
 cluster alive while stopping the first to verify isolation.
+
+The test scenarios protect each acquired cluster before further setup or marker
+reads. Separate cleanup `finally` blocks ensure one cleanup error cannot skip
+the other cluster; marker restoration is itself inside cleanup protection.
 
 Normal completion, test failure and the primary runner's tested startup SIGTERM
 path clean up. SIGKILL, machine failure, and hostile same-user filesystem/PID

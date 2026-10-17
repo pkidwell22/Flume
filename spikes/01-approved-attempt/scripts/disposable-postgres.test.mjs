@@ -64,54 +64,147 @@ test('connection environment cannot select a shared server', () => {
   }
 });
 
-test('tampered ownership marker refuses cleanup, and stopping one owned cluster leaves the other running', async () => {
-  const one = await createOwnedCluster();
-  const two = await createOwnedCluster();
-  const markerPath = path.join(one.root, '.owner');
-  const marker = await readFile(markerPath, 'utf8');
+async function checkIndependentClusters(createCluster = createOwnedCluster, readMarker = readFile) {
+  const one = await createCluster();
+  let two;
   try {
-    await writeFile(markerPath, '{}', { mode: 0o600 });
-    await assert.rejects(() => one.cleanup(), /ownership marker changed/);
-    await writeFile(markerPath, marker, { mode: 0o600 });
-    await one.cleanup();
-    const client = new pg.Client(two.config);
+    two = await createCluster();
+    const markerPath = path.join(one.root, '.owner');
+    const marker = await readMarker(markerPath, 'utf8');
     try {
-      await client.connect();
-      const { rows: [identity] } = await client.query("SELECT current_database() as db, current_setting('data_directory') as directory");
-      assert.equal(identity.db, two.database);
-      assert.equal(identity.directory, two.dataDirectory);
-    } finally { await client.end(); }
+      await writeFile(markerPath, '{}', { mode: 0o600 });
+      await assert.rejects(() => one.cleanup(), /ownership marker changed/);
+      await writeFile(markerPath, marker, { mode: 0o600 });
+      await one.cleanup();
+      const client = new pg.Client(two.config);
+      try {
+        await client.connect();
+        const { rows: [identity] } = await client.query("SELECT current_database() as db, current_setting('data_directory') as directory");
+        assert.equal(identity.db, two.database);
+        assert.equal(identity.directory, two.dataDirectory);
+      } finally { await client.end(); }
+    } finally {
+      if (!one.stopped) await writeFile(markerPath, marker, { mode: 0o600 });
+    }
   } finally {
-    if (!one.stopped) { await writeFile(markerPath, marker, { mode: 0o600 }); await one.cleanup(); }
-    await two.cleanup();
+    try { await one.cleanup(); }
+    finally { await two?.cleanup(); }
+  }
+}
+
+test('tampered ownership marker refuses cleanup, and stopping one owned cluster leaves the other running', () => checkIndependentClusters());
+
+test('second cluster acquisition failure stops and removes the first owned cluster', async () => {
+  const failure = new Error('injected second acquisition failure');
+  let one;
+  let pid;
+  try {
+    await assert.rejects(() => checkIndependentClusters(async () => {
+      if (one) throw failure;
+      one = await createOwnedCluster();
+      pid = Number((await readFile(path.join(one.dataDirectory, 'postmaster.pid'), 'utf8')).split('\n')[0]);
+      return one;
+    }), error => error === failure);
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'first owned postmaster must be gone before fallback');
+    await assert.rejects(() => stat(one.root), { code: 'ENOENT' });
+    console.log(`REGRESSION verified: second acquisition failed; PID ${pid} gone; ${one.root} removed`);
+  } finally {
+    // RED-safety fallback retains the exact acquired cluster's ownership guards.
+    await one?.cleanup();
   }
 });
 
-test('a wrong expected data directory is rejected before application or pg-boss schema mutation', async () => {
-  const cluster = await createOwnedCluster();
-  const markerPath = path.join(cluster.root, '.owner');
-  const original = await readFile(markerPath, 'utf8');
-  const wrong = path.join(cluster.root, 'wrong');
+test('a cleanup failure still stops and removes the other owned cluster', async () => {
+  const failure = new Error('injected first cluster cleanup failure');
+  let one;
+  let two;
+  let cleanupOne;
+  let pid;
   try {
-    await mkdir(wrong, { mode: 0o700 });
-    await writeFile(markerPath, JSON.stringify({ ...JSON.parse(original), dataDirectory: wrong }), { mode: 0o600 });
-    const exec = promisify(execFile);
-    await assert.rejects(() => exec(process.execPath, ['--input-type=module', '-e',
-      "import { openExperiment } from './dist/src/database.js'; await openExperiment();"], {
-      cwd: fileURLToPath(new URL('../', import.meta.url)), timeout: 15_000,
-      env: { ...cleanEnvironment(), SPIKE_DATABASE: cluster.database, SPIKE_SOCKET: cluster.socketDirectory, SPIKE_DATA_DIRECTORY: wrong },
-    }), error => error.code === 1 && error.stderr.includes(cluster.dataDirectory) && error.stderr.includes(wrong));
-    const client = new pg.Client(cluster.config);
-    try {
-      await client.connect();
-      const { rows } = await client.query("SELECT nspname FROM pg_namespace WHERE nspname IN ('spike', 'pgboss')");
-      assert.deepEqual(rows, []);
-    } finally { await client.end(); }
+    await assert.rejects(() => checkIndependentClusters(async () => {
+      const cluster = await createOwnedCluster();
+      if (!one) {
+        one = cluster;
+        cleanupOne = one.cleanup;
+        let calls = 0;
+        one.cleanup = async () => {
+          // Exercise the real marker refusal, then fail subsequent cleanup.
+          if (++calls === 1) return cleanupOne();
+          throw failure;
+        };
+      } else {
+        two = cluster;
+        pid = Number((await readFile(path.join(two.dataDirectory, 'postmaster.pid'), 'utf8')).split('\n')[0]);
+      }
+      return cluster;
+    }), error => error === failure);
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'second owned postmaster must be gone before fallback');
+    await assert.rejects(() => stat(two.root), { code: 'ENOENT' });
+    console.log(`REGRESSION verified: cleanup error propagated; PID ${pid} gone; ${two.root} removed`);
   } finally {
-    await writeFile(markerPath, original, { mode: 0o600 });
-    await cluster.cleanup();
+    try { await cleanupOne?.(); }
+    finally { await two?.cleanup(); }
   }
 });
+
+async function checkWrongDataDirectory(createCluster = createOwnedCluster, readMarker = readFile) {
+  const cluster = await createCluster();
+  try {
+    const markerPath = path.join(cluster.root, '.owner');
+    const original = await readMarker(markerPath, 'utf8');
+    const wrong = path.join(cluster.root, 'wrong');
+    try {
+      await mkdir(wrong, { mode: 0o700 });
+      await writeFile(markerPath, JSON.stringify({ ...JSON.parse(original), dataDirectory: wrong }), { mode: 0o600 });
+      const exec = promisify(execFile);
+      await assert.rejects(() => exec(process.execPath, ['--input-type=module', '-e',
+        "import { openExperiment } from './dist/src/database.js'; await openExperiment();"], {
+        cwd: fileURLToPath(new URL('../', import.meta.url)), timeout: 15_000,
+        env: { ...cleanEnvironment(), SPIKE_DATABASE: cluster.database, SPIKE_SOCKET: cluster.socketDirectory, SPIKE_DATA_DIRECTORY: wrong },
+      }), error => error.code === 1 && error.stderr.includes(cluster.dataDirectory) && error.stderr.includes(wrong));
+      const client = new pg.Client(cluster.config);
+      try {
+        await client.connect();
+        const { rows } = await client.query("SELECT nspname FROM pg_namespace WHERE nspname IN ('spike', 'pgboss')");
+        assert.deepEqual(rows, []);
+      } finally { await client.end(); }
+    } finally {
+      await writeFile(markerPath, original, { mode: 0o600 });
+    }
+  } finally {
+    await cluster.cleanup();
+  }
+}
+
+test('a wrong expected data directory is rejected before application or pg-boss schema mutation', () => checkWrongDataDirectory());
+
+for (const [name, check, count] of [
+  ['independent clusters', checkIndependentClusters, 2],
+  ['wrong data directory', checkWrongDataDirectory, 1],
+]) {
+  test(`marker read failure cleans all acquired clusters: ${name}`, async () => {
+    const failure = new Error('injected marker read failure');
+    const acquired = [];
+    try {
+      await assert.rejects(() => check(async () => {
+        const cluster = await createOwnedCluster();
+        const entry = { cluster };
+        acquired.push(entry);
+        entry.pid = Number((await readFile(path.join(cluster.dataDirectory, 'postmaster.pid'), 'utf8')).split('\n')[0]);
+        return cluster;
+      }, async () => { throw failure; }), error => error === failure);
+      assert.equal(acquired.length, count);
+      for (const { cluster, pid } of acquired) {
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'owned postmaster must be gone before fallback');
+        await assert.rejects(() => stat(cluster.root), { code: 'ENOENT' });
+        console.log(`REGRESSION verified: marker read failed; PID ${pid} gone; ${cluster.root} removed`);
+      }
+    } finally {
+      const results = await Promise.allSettled(acquired.map(({ cluster }) => cluster.cleanup()));
+      for (const result of results) if (result.status === 'rejected') throw result.reason;
+    }
+  });
+}
 
 test('SIGTERM at the first verified identity still stops the owned postmaster', { timeout: 40_000 }, async () => {
   const runner = fileURLToPath(new URL('./disposable-postgres.mjs', import.meta.url));
