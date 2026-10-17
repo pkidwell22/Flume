@@ -52,10 +52,10 @@
     "--run-budget",
     "120",
     "--query-file",
-    "/Users/patrickk/Desktop/Repositories/comfy-creative-studio-worktrees/06-director-rehearsal/spikes/director-rehearsal/prompt.txt",
+    "<spike>/prompt.txt",
     "--quiet"
   ],
-  "cwd": "/Users/patrickk/Desktop/Repositories/comfy-creative-studio-worktrees/06-director-rehearsal/spikes/director-rehearsal",
+  "cwd": "<spike>",
   "elapsedSeconds": 15.54,
   "exitCode": 0,
   "status": "blocked_or_transport_failure",

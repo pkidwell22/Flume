@@ -4,7 +4,7 @@
 
 ## Outcome
 
-One identical eight-case batch was submitted once per exact Ollama Cloud ID, after live public catalogue verification and `hermes auth status ollama-cloud`. The frozen prompt/oracle/scorer commit is `1945a40`; all pre-run file hashes remain unchanged. No manual model retries, generation/upload calls, executed application proposals, or Astra author-baseline run.
+One identical eight-case batch was submitted once per exact Ollama Cloud ID, after live public catalogue verification and `hermes auth status ollama-cloud`. The frozen prompt/oracle/scorer commit is `1945a40`; those protocol bytes remain unchanged. The active dependency files received the explicitly post-run security update below; their original bytes are retained as inert snapshots, not relabeled as the new environment. No manual model retries, generation/upload calls, executed application proposals, or Astra author-baseline run.
 
 | Frozen exact-protocol score (out of 8) | `kimi-k3` | `glm-5.3-flash` |
 |---|---:|---:|
@@ -54,26 +54,46 @@ cd spikes/director-rehearsal
 npm ci --ignore-scripts --no-audit --no-fund
 npm test
 python3 -m unittest discover -s test -p '*_test.py'
+npm audit --json
 node score.mjs evidence/kimi-k3.response.txt
 node score.mjs evidence/glm-5.3-flash.response.txt
 ```
 
-`npm test`: 50 Node tests pass. Python capture regression tests: 3 pass. Each scoring command exits **2**, intentionally reporting the retained nonpassing exact-protocol score; 0 means all cases pass. `node score.mjs -` accepts a new response on stdin. No command above invokes a model or any application operation.
+`npm test`: 56 Node tests pass (the original 50 plus 6 post-run security/preservation/privacy checks). Python capture regression tests: 3 pass. `npm audit --json`: 0 reported vulnerabilities in the updated local dependency tree. Each scoring command exits **2**, intentionally reporting the retained nonpassing exact-protocol score; 0 means all cases pass. `node score.mjs -` accepts a new response on stdin. No command above invokes a model or any application operation.
 
-Only spike-local `ajv@8.17.1` and its locked dependencies were installed; no global install or root/shared package changes. Observed Node `v26.8.1`, npm `11.19.0`, capture Python `3.9.6`; Hermes `v0.22.0 (2026.9.24)`, local commit `e06df9c2eae6`. No runtime configuration or credential changes.
+The original inference/scoring environment installed spike-local `ajv@8.17.1` and its locked dependencies. The current offline-check environment uses `ajv@8.20.0` after the post-run security update. Neither installation changed global dependencies or root/shared packages. Observed Node `v26.8.1`, npm `11.19.0`, capture Python `3.9.6`; Hermes `v0.22.0 (2026.9.24)`, local commit `e06df9c2eae6`. No runtime configuration or credential changes.
 
 Four RED→GREEN scorer/artifact slices were exercised before inference; retained counts/hashes are in `evidence/test-summary.json`, with raw logs under ignored `local-evidence/`. The offline session-capture repair has a separate recorded RED→GREEN regression; it changed no prompt, oracle, scorer or response bytes.
 
-## Exact inference commands and capture issue
+## Post-run security update — distinct from the frozen experiment
 
-Executed once each from this directory:
+The direct Ajv pin changed **8.17.1 → 8.20.0** for [GHSA-2g4f-4pwh-qvx6](https://github.com/advisories/GHSA-2g4f-4pwh-qvx6), a moderate ReDoS advisory involving `$data` (fixed in 8.18.0 and later). The frozen scorer does not enable `$data`; removing the avoidable vulnerable dependency does not imply an observed exploit. Only the direct pin and Ajv's version/tarball/integrity changed; transitive packages are unchanged.
+
+**Historical boundary:** commit `1945a40f44172a49a8ea51a0e56bd056fb3b0f17` remains the pre-inference source of truth. `evidence/pre-run-lock.json` keeps its original bytes, timestamp and hashes. Its two dependency entries now verify these exact Git-blob copies:
+
+| Original locked path | Inert historical verification target |
+|---|---|
+| `package.json` | `evidence/pre-inference-environment/package.json.txt` |
+| `package-lock.json` | `evidence/pre-inference-environment/package-lock.json.txt` |
+
+The `.txt` snapshots still state **8.17.1**, truthfully; they are not active npm manifests and must not be installed. The mapping in the post-run `test/evidence.test.mjs` is closed to those two paths. Every other frozen entry—13 live files, including prompt, fixtures, oracle, schema, scorer, runner and original tests—is still checked at its original path. No historical hash was regenerated to bless a changed protocol.
+
+`test/security-update.test.mjs` pins 11 original evidence files to their bytes at `01befa22169ee179f5160fe52a75665e87b4924e`, including the original responses, scores and verification reports. The only other evidence changes are privacy redactions in the two `.run.json` files: their `cwd` and `--query-file` argument now use `<spike>` instead of a private absolute path. Every other metadata byte, including the original capture failures, is unchanged. The report records original and published hashes for each redaction; exact originals remain in ignored local retention and the existing Git history, which this patch does not rewrite. It runs the unchanged scoring CLI under the updated Ajv and requires **byte-identical complete scores**, not merely equal totals, for both retained responses. Both still exit 2 with their historical nonpasses; no oracle/scorer tuning or new model-quality claim follows.
+
+The new dependency-pin test failed on 8.17.1 before the update and passed on 8.20.0. A separate privacy regression failed on the original absolute-path fields and passed after only those fields were redacted. A separate disposable-copy check rejected newline tampering in each of the 15 frozen verification targets and 13 published evidence files (11 unchanged originals plus 2 path-redacted run records; 28 rejections); originals were never mutated. New execution/audit/hash results are recorded separately in `evidence/post-run-security-update.json`; `evidence/final-verification.json` and `evidence/test-summary.json` remain historical records, not current test totals. Raw logs remain ignored in `local-evidence/security-update/`.
+
+**No inference was rerun, including Astra.** The frozen `run-cloud.py`, including its old capture bug and original live-file hash guard, is unchanged; that guard intentionally does not accept the updated dependency files. This patch does not retrofit or rerun the historical runner. Parent-owned native Astra evidence stays separate and private.
+
+## Exact historical inference commands and capture issue
+
+Executed once each before this security update; these are historical records, not rerun instructions:
 
 ```sh
 python3 run-cloud.py kimi-k3
 python3 run-cloud.py glm-5.3-flash
 ```
 
-Each historical runner invoked this exact argument shape (full paths/argv/times retained in `evidence/<model>.run.json`):
+Each historical runner invoked this argument shape (argument order/times retained in `evidence/<model>.run.json`; only the private `cwd` and query-file prefix are redacted as `<spike>`):
 
 ```sh
 hermes chat --oneshot --provider ollama-cloud --model MODEL_ID \
@@ -101,9 +121,10 @@ Timings are observations of single calls, not performance comparisons. Session m
 - **Real final responses:** `evidence/kimi-k3.response.txt`, `evidence/glm-5.3-flash.response.txt`, copied exactly from each session's assistant content and matching stdout apart from surrounding whitespace.
 - **Run metadata / verified route:** `evidence/<model>.run.json`, `evidence/<model>.session.json`, `evidence/catalog.json`.
 - **Scores / descriptive differences:** `evidence/<model>.score.json`, `evidence/diagnostics.json`.
+- **Post-run dependency boundary:** inert original manifests in `evidence/pre-inference-environment/`; separate verification in `evidence/post-run-security-update.json`.
 - **Raw CLI and RED/GREEN logs:** ignored `local-evidence/` (local retention, not published private runtime logs).
 
-The parent should provide **only `prompt.txt`** to a fresh native Astra context, save its unchanged final response and real model/session/limits, then score it with `node score.mjs PATH_TO_RESPONSE`. Do not relabel the hand-authored safe control as Astra, reuse the author's context, normalize a failing response, or feed observed cloud outputs into the baseline prompt. A native-client baseline has different runtime context and must be labeled accordingly. Astra execution and independent review remain with the parent.
+The independent native Astra baseline is parent-owned, separate private evidence; it is not copied, modified or rerun by this correction. The reusable baseline handoff is **only `prompt.txt`**, never the oracle, tests or observed cloud outputs. Do not relabel the hand-authored safe control as Astra or normalize a failing response. A native-client baseline has different runtime context and must be labeled accordingly. Independent rereview remains with the parent; this patch requests no further inference.
 
 ## What this cannot prove
 

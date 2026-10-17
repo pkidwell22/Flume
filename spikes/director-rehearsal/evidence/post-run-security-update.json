@@ -1,0 +1,261 @@
+{
+  "verifiedAt": "2026-10-17T03:34:03.722445+00:00",
+  "kind": "post-run security update; not the original inference environment",
+  "frozenCommit": "1945a40f44172a49a8ea51a0e56bd056fb3b0f17",
+  "originalEvidenceCommit": "01befa22169ee179f5160fe52a75665e87b4924e",
+  "preRunLockSha256": "3e0f7e0f3832312ff3cbd01ece4879414932e933697d2a3cbd65091c80e5289e",
+  "advisory": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6",
+  "historicalAjvVersion": "8.17.1",
+  "currentAjvVersion": "8.20.0",
+  "currentEnvironment": {
+    "node": "v26.8.1",
+    "npm": "11.19.0",
+    "python": "Python 3.9.6"
+  },
+  "activeDependencyHashes": {
+    "package.json": "2259c20e8ad3bad4e3f499c681a4cd2dab2c010d05b856483586c0f442b866cf",
+    "package-lock.json": "23261be07ec6025cf852d66871a7bca3db37a46b3e0fcfa17c011c0208195f74"
+  },
+  "historicalDependencyMapping": [
+    {
+      "originalPath": "package.json",
+      "verificationPath": "evidence/pre-inference-environment/package.json.txt",
+      "sha256": "ea2e6864f496f0cdaeb902215b9fc09e18b5875e648824051e287094fe2f5eed"
+    },
+    {
+      "originalPath": "package-lock.json",
+      "verificationPath": "evidence/pre-inference-environment/package-lock.json.txt",
+      "sha256": "e3feb4a27ae7ab46555803a544ae42f6d17d7250cc8ce9df4af428bdc5a77567"
+    }
+  ],
+  "liveFrozenPaths": [
+    "manifest.json",
+    "fixtures.json",
+    "oracle.json",
+    "schema.mjs",
+    "scorer.mjs",
+    "build-prompt.mjs",
+    "prompt.txt",
+    "score.mjs",
+    "run-cloud.py",
+    "test/artifacts.test.mjs",
+    "test/authority.test.mjs",
+    "test/scoring.test.mjs",
+    "test/syntax.test.mjs"
+  ],
+  "unchangedOriginalEvidencePaths": [
+    "evidence/catalog.json",
+    "evidence/diagnostics.json",
+    "evidence/final-verification.json",
+    "evidence/glm-5.3-flash.response.txt",
+    "evidence/glm-5.3-flash.score.json",
+    "evidence/glm-5.3-flash.session.json",
+    "evidence/kimi-k3.response.txt",
+    "evidence/kimi-k3.score.json",
+    "evidence/kimi-k3.session.json",
+    "evidence/pre-run-lock.json",
+    "evidence/test-summary.json"
+  ],
+  "runMetadataRedactions": [
+    {
+      "path": "evidence/glm-5.3-flash.run.json",
+      "originalSha256": "9319bb1e404b4f187b8d39352d861e61410b132d239ece228897ed3f0576c519",
+      "publishedSha256": "dca3c87109e8dafddecb9371285100a8c3f51cf5856aed08dec94af7ad350290",
+      "changedFields": [
+        "cwd",
+        "command --query-file argument"
+      ],
+      "replacementPrefix": "<spike>",
+      "allOtherBytesUnchanged": true
+    },
+    {
+      "path": "evidence/kimi-k3.run.json",
+      "originalSha256": "ea7995617b7774012890bf87cd52457b0059f0fee1a95cd79e3044617b64291a",
+      "publishedSha256": "8a315a92f4941d59350fd21dc3321dbe769a89899a2e2e34c0a66dda377af47e",
+      "changedFields": [
+        "cwd",
+        "command --query-file argument"
+      ],
+      "replacementPrefix": "<spike>",
+      "allOtherBytesUnchanged": true
+    }
+  ],
+  "checks": {
+    "frozenInputs": 15,
+    "liveFrozenInputs": 13,
+    "inertHistoricalDependencySnapshots": 2,
+    "unchangedOriginalEvidenceFiles": 11,
+    "pathRedactedRunRecords": 2,
+    "privacyRedGreen": {
+      "before": {
+        "tests": 1,
+        "fail": 1
+      },
+      "after": {
+        "tests": 1,
+        "pass": 1
+      }
+    },
+    "nodeTests": {
+      "tests": 56,
+      "pass": 56,
+      "fail": 0,
+      "skipped": 0
+    },
+    "pythonTests": {
+      "tests": 3,
+      "passed": true
+    },
+    "auditVulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "pinRedGreen": {
+      "before": {
+        "tests": 1,
+        "fail": 1,
+        "reason": "8.17.1 differs from required 8.20.0"
+      },
+      "after": {
+        "tests": 1,
+        "pass": 1
+      }
+    },
+    "isolatedMutationRejections": 28,
+    "mutationMethod": "Append a newline to each frozen verification target and published evidence file in disposable copies; require the hash-guard assertion to fail. Originals were not mutated by these checks."
+  },
+  "commands": [
+    "npm install --save-exact --package-lock-only --ignore-scripts --no-audit --no-fund ajv@8.20.0",
+    "npm ci --ignore-scripts --no-audit --no-fund",
+    "npm test",
+    "python3 -m unittest discover -s test -p '*_test.py'",
+    "npm audit --omit=dev --json",
+    "npm audit --json",
+    "python3 local-evidence/security-update/verify-history.py"
+  ],
+  "rescoredOriginalResponses": [
+    {
+      "command": [
+        "node",
+        "score.mjs",
+        "evidence/kimi-k3.response.txt"
+      ],
+      "exitCode": 2,
+      "scoreSha256": "d4ec4bd7e80db9d9935edc50a705068d466627fc45cb28411da8010de40130e7",
+      "byteIdentical": true,
+      "summary": {
+        "cases": 8,
+        "syntax": 8,
+        "actionChoice": 4,
+        "authority": 8,
+        "referencePreservation": 5,
+        "all": 4
+      }
+    },
+    {
+      "command": [
+        "node",
+        "score.mjs",
+        "evidence/glm-5.3-flash.response.txt"
+      ],
+      "exitCode": 2,
+      "scoreSha256": "72ea254c32ab0955ac10b43f328f4a02932a2b5bad713cfce33cd24c0d697bbb",
+      "byteIdentical": true,
+      "summary": {
+        "cases": 8,
+        "syntax": 8,
+        "actionChoice": 4,
+        "authority": 8,
+        "referencePreservation": 4,
+        "all": 3
+      }
+    }
+  ],
+  "inferenceReruns": 0,
+  "note": "No scorer/oracle/prompt/fixture/runner changes; no native Astra evidence copied or rerun. Only cwd/query-file prefixes in two run metadata records were redacted to <spike>; unredacted originals remain at the original evidence commit and in ignored local retention, not newly republished. Complete historical response/score bytes and exit 2 remain unchanged. Counts here do not replace the original verification reports or imply a model ranking.",
+  "localLogHashes": {
+    "local-evidence/security-update/01-pin-red.log": "973dfcf72cd605dd4cbbb9e64d41e3edf955227ea205a43b27b5be455135f424",
+    "local-evidence/security-update/02-pin-green.log": "b95303431447fcf9a98885594e01c9cbc2d78796e2fbb628a3ac1e4fb10419e3",
+    "local-evidence/security-update/03-live-dependency-hash-red.log": "32ca6b0887ec43e4cfadf6ffc63e497c55de4b4a9e7e88cc39b8e08b6d26f9d0",
+    "local-evidence/security-update/04-npm-ci.log": "59a75e8cf41afa361f34e198aa69e610ba9a2253f0632298e8e8196fafd2b561",
+    "local-evidence/security-update/05-node-tests.log": "b7a45dd18a4758d61f1bedd498dfa39418fdbb3568bb22b6870395667a4da8a1",
+    "local-evidence/security-update/06-python-tests.log": "33060fd73862c5e1af97335504d5b45211fce6d229657f556d8deceeadc52ce4",
+    "local-evidence/security-update/07-audit.log": "b8ad8ccce5417e5c46c79c79e5606b44df0dac8c7e5bd604f910d3c9474c5392",
+    "local-evidence/security-update/08-final-node-tests.log": "7ceee40fc623f4dcf96047b0991491569b2da93f2f315b5391cfb38b5f604272",
+    "local-evidence/security-update/09-full-audit.json": "b8ad8ccce5417e5c46c79c79e5606b44df0dac8c7e5bd604f910d3c9474c5392",
+    "local-evidence/security-update/10-privacy-red.log": "3cfe20ccd3bd99694a10389a27c288ad453ada516d7e67e52ea8c0af3637123c",
+    "local-evidence/security-update/11-privacy-green.log": "bd482ee7461e4d6db1f5d7261c7edce2a40b5df147bb2bb0d3b367170198dbc1",
+    "local-evidence/security-update/12-node-tests.log": "ac09d87587417a276742a9c88502dea88bde44c937b3c0790f9c2f1f8d45a89f",
+    "local-evidence/security-update/12-npm-ci.log": "be6b179b21650ac3e20f9c1aab8e830a3d89eacea436c1cd6e3a25a1298cdfaf",
+    "local-evidence/security-update/13-python-tests.log": "33060fd73862c5e1af97335504d5b45211fce6d229657f556d8deceeadc52ce4",
+    "local-evidence/security-update/14-audit.json": "b8ad8ccce5417e5c46c79c79e5606b44df0dac8c7e5bd604f910d3c9474c5392",
+    "local-evidence/security-update/commands.json": "2af1df799be92a1fa7c35662bf72b6f66d17b8a4e3ba21001b236d9643c1283b",
+    "local-evidence/security-update/glm-5.3-flash.original-run.json": "9319bb1e404b4f187b8d39352d861e61410b132d239ece228897ed3f0576c519",
+    "local-evidence/security-update/glm-5.3-flash.rescored.json": "72ea254c32ab0955ac10b43f328f4a02932a2b5bad713cfce33cd24c0d697bbb",
+    "local-evidence/security-update/history-checks.json": "a206770d694820aaa6c3cc1cd0be650479f2a7992c18436f6bb65ac2636c8004",
+    "local-evidence/security-update/kimi-k3.original-run.json": "ea7995617b7774012890bf87cd52457b0059f0fee1a95cd79e3044617b64291a",
+    "local-evidence/security-update/kimi-k3.rescored.json": "d4ec4bd7e80db9d9935edc50a705068d466627fc45cb28411da8010de40130e7",
+    "local-evidence/security-update/mutation-00.log": "cb702e5baa48df0c2f1e11bec741204d60f423b02a360a7ade60cd4bc672d943",
+    "local-evidence/security-update/mutation-01.log": "1c78b18cf0e3d8f9f86ff2c5a1b84b7fee9560c020ded7c8b8ac5861058b0996",
+    "local-evidence/security-update/mutation-02.log": "1ad7bb4825f1fba29438400a50c55107e0029cb8d8329f90ba328df05d9d982a",
+    "local-evidence/security-update/mutation-03.log": "e9a20b65134957a14c498de3b7d231c610f39257884a061f19d663780057fb7b",
+    "local-evidence/security-update/mutation-04.log": "abe5e3ae7905bfc8b04120dde1ecdeb7ff2e78ca05790bbede7e1a9699237474",
+    "local-evidence/security-update/mutation-05.log": "3ba01ed8a145e571fc91aca17ab6c301e703d1e714acb726081c65dfd7a56d84",
+    "local-evidence/security-update/mutation-06.log": "43006f7bea894069aacab4579ec597a96b2d86b9721a948558dc9559f929deb1",
+    "local-evidence/security-update/mutation-07.log": "d024cadb8b1756e479432c422abfd1fbacd02ac1578abf4136703980d16938c0",
+    "local-evidence/security-update/mutation-08.log": "5a9cf7b28b7a29569876d259e954d6ced640d9306ef5ce4d289db38dc9bdfe8d",
+    "local-evidence/security-update/mutation-09.log": "58a51a7a6bc15b8f0da0b36cc4bd04b32795cedc93d90756e2f36eb06389fae4",
+    "local-evidence/security-update/mutation-10.log": "92b8cfbb4b664e945049ec27f48c1e5f64431a6e8878bfdface4cbb8e9d3d791",
+    "local-evidence/security-update/mutation-11.log": "a13474688291fb6337e90cb4c88695d52589ba57e6d8e86780a7e953fb171f1e",
+    "local-evidence/security-update/mutation-12.log": "18e7b7f1247f7b600a39765328cb6285cb1d288c06668578a76ec6d85e9610dc",
+    "local-evidence/security-update/mutation-13.log": "8c55ecf3e29ac80ae4cd855de8bafb43de95dbe1cb9b9a51de8c473613643957",
+    "local-evidence/security-update/mutation-14.log": "4fecc7c50684c111d3779afc9212fab0da18dfa49e5b07209ab356326ec240c0",
+    "local-evidence/security-update/mutation-15.log": "861b546d571ac6de4b8e31d91ca8da33e52d3c359ddccc5f1d58f3a63c602e7d",
+    "local-evidence/security-update/mutation-16.log": "95e80c49c87e8949a263112064e49a3bfb1457fb74a32aeb966685b6911b54a1",
+    "local-evidence/security-update/mutation-17.log": "70d137075a98058c190952a2875762a3330174010244742a7baeb73d57315518",
+    "local-evidence/security-update/mutation-18.log": "9bcb38b2a39089c80461b41fd6e86c87a74ffd2116fa9e8efc5538ed13dbd64f",
+    "local-evidence/security-update/mutation-19.log": "d5dad0a3a22085ba77d71734b128357dc054326a9c588365bd6e3f8ff04542e6",
+    "local-evidence/security-update/mutation-20.log": "90fe088f51fdcf958b8eae92032d67470a37ea51edf1b2ae9f07003d877825b6",
+    "local-evidence/security-update/mutation-21.log": "e7b291e1c422fa4d13aead9e5d0de9f325944961507f7f7b1008442cd0161c9d",
+    "local-evidence/security-update/mutation-22.log": "7d76b9731f4cf7440acc836233bed36ab9c51c71131681f1b3d639d3f467bf34",
+    "local-evidence/security-update/mutation-23.log": "cfee344284be3b2f62c0b9bb50ebdbd1869e700eb8b22ee8883e9368356d8549",
+    "local-evidence/security-update/mutation-24.log": "7ea051ddb6eae07b351972bec6fbc4b7987db19752359fe5c02bf78d6d127904",
+    "local-evidence/security-update/mutation-25.log": "3fa1122446b77fa32e984a1dedb52fad86cc95d8e66d42df468ce87d7383cc63",
+    "local-evidence/security-update/mutation-26.log": "fea1491d3926b040f52184861ef010e02fbdca9ca7fbb0800db5fa9467b5d92d",
+    "local-evidence/security-update/mutation-27.log": "5a1cd7dd547cbb2efb0ca29272fc251d9a0b3d38ea44926bc5a7c3ae4112307e",
+    "local-evidence/security-update/recheck-mutation-00.log": "4a3b6b82b6016762d935a8dd4a92a9a8827f6d134a383d142a2108d358d8bda5",
+    "local-evidence/security-update/recheck-mutation-01.log": "fdf841023800679c99744a65824e79a04bb063ae233c3cb03b30db62142a7261",
+    "local-evidence/security-update/recheck-mutation-02.log": "bcd4a39338faf4461a974c3fe6253796fe8df2c198599bad03aa6ac390de6555",
+    "local-evidence/security-update/recheck-mutation-03.log": "70b9758dd2b9740d64ed6c4a7db170163e144ac1bff5e3d362efbdf2635748a7",
+    "local-evidence/security-update/recheck-mutation-04.log": "8b5e22830384b9a28ff3643b51cd1f9bbd06b39ab80e5e5986fe274abab1a0fc",
+    "local-evidence/security-update/recheck-mutation-05.log": "b436458f47656e1347424ef2bcf71e377753dc625b32e97e142ad1e86bd118fc",
+    "local-evidence/security-update/recheck-mutation-06.log": "784e52b5c0e68e9caddbb03e001a03e0df0f75c5b645a4d63d9af051b2cf0b47",
+    "local-evidence/security-update/recheck-mutation-07.log": "d82b74a845c8df094fd4453e9a7851ab04ab2b66c565dbe70b0f2f969598df07",
+    "local-evidence/security-update/recheck-mutation-08.log": "bac56315d7d86368af5ca2e096e6dad9ab3768e965cdd8d472c3c276b4025645",
+    "local-evidence/security-update/recheck-mutation-09.log": "506f8aaf38bb048329c0d17bff6276c88d40dce509dc1218e21327c4cd5f8e6a",
+    "local-evidence/security-update/recheck-mutation-10.log": "b68500965b7c0553507c84e92cce35078144c55f85fbc8df9378c6d315f0a4f0",
+    "local-evidence/security-update/recheck-mutation-11.log": "cc4b3db23151250641f1dd7326745f3a657df4e88ac047df3970b919e0a16122",
+    "local-evidence/security-update/recheck-mutation-12.log": "a57d4f4e227685157f102be5b91ed8e9aab22fdbedd2712070f4a17b56b4a422",
+    "local-evidence/security-update/recheck-mutation-13.log": "931626f63dd71dc3bcf8283cafcf2f731ecfdb8cd1465a026693da62c2eb6f90",
+    "local-evidence/security-update/recheck-mutation-14.log": "8070c4946721cb6a0c1bccae10f5ff75c6667737427355f70725a219c45ddde7",
+    "local-evidence/security-update/recheck-mutation-15.log": "3d696015d14df56d460087a7a075852572806066eac7840d3dc2d3fcc57d2ccf",
+    "local-evidence/security-update/recheck-mutation-16.log": "04ead17bd6633900784746823448a8647066c3ead08c13338ae6a1b100bc8ad1",
+    "local-evidence/security-update/recheck-mutation-17.log": "adc751d8fb59f42d54aed3fccd1109eb36eb6196e24acf2fe8e93f74e9e1bfe5",
+    "local-evidence/security-update/recheck-mutation-18.log": "bce98e962328f0b02f6ecd208a461191a38cb799aa2e06bbd9bcf0cd02ba01c8",
+    "local-evidence/security-update/recheck-mutation-19.log": "48017465cbe26f39c3331092a97f10861c700f7665a3e1ef766644ba6f63439e",
+    "local-evidence/security-update/recheck-mutation-20.log": "385ffe09d11415d226875db30605ed9ea991d4efd920f5974bfe086ae7950cfd",
+    "local-evidence/security-update/recheck-mutation-21.log": "7f8e7e6e6451247d56c309523c332a88cc64fdf063047382834e6bdc29ca8223",
+    "local-evidence/security-update/recheck-mutation-22.log": "eb03ea460c61af8af0e6dade32476c141f6054a728739b130ac45a2814b0083b",
+    "local-evidence/security-update/recheck-mutation-23.log": "6a2d9b22966a922779804c259a8e06ce4b8a68e6b47242af1854ae1e31e13057",
+    "local-evidence/security-update/recheck-mutation-24.log": "a1db2aeb985599799b93a2d55cf8ec75371eba1f1a4e06988087ab176f88a8e3",
+    "local-evidence/security-update/recheck-mutation-25.log": "c13119efd41e803b84dd51165947e06a14d3dbf77cd495892fb938a0407f9c03",
+    "local-evidence/security-update/recheck-mutation-26.log": "3c3c4b6872775ffd698ba563984902577942491ce46ffe26b8bc0e855deaad32",
+    "local-evidence/security-update/recheck-mutation-27.log": "4acae2032eace2fd12ca0f04a4c696b241e35574e6bc0ec7501c83dcd1ab9deb",
+    "local-evidence/security-update/summarize.py": "1620d1b79472df210a8cb8d9ae3c4d2eb84ccedb600006617cb3a1beab4468c6",
+    "local-evidence/security-update/verify-history.py": "aad2daf11a1bf3532ac2e18aa8ae7ff0c841dabfe03e1fdf502ff362b798694c"
+  }
+}
