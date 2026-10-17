@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flume · Fixture review</title><link rel="stylesheet" href="/ui.css"><script src="/ui.js" defer></script></head>
+<body><header><h1>Flume</h1><p>One draft, two callers, explicit review.</p></header>
+<main>
+<section id="session"><h2>Open local review</h2><p>This disposable fixture uses a server-issued review key. It is not production sign-in. The key is in the local <code>output/human-session.txt</code> file; never put it in a URL.</p><form id="login"><label for="key">Local review key</label><input id="key" type="password" autocomplete="off" required><button>Open review</button></form></section>
+<p id="message" role="status" aria-live="polite">Owned media only. No live generation, uploads or spending.</p>
+<div id="workflow" hidden>
+<div class="workbench"><section><h2>Shot draft</h2><p id="revision"></p><form id="edit"><label for="prompt">Direction</label><textarea id="prompt" rows="4" maxlength="1000" required></textarea><div class="actions"><button>Save draft</button><button id="refresh" type="button">Refresh saved state</button></div></form><p>Saving invalidates previous review. A conflict keeps your unsaved text here; refresh deliberately to load the saved draft.</p>
+<h3>Input references</h3><div id="references" class="references"></div><p>First and end are input roles, not a guarantee of generated endpoints. The next first reference is the measured last frame of the owned VFR source.</p></section>
+<section><h2>First look</h2><video id="look" controls loop playsinline preload="metadata"></video><p id="look-description">Prebuilt owned fixture preview, not a model response to your direction. Review binds these exact bytes to the current draft.</p><div class="actions"><button id="inspect-look">Inspect fixture first look</button><button id="approve" disabled>Approve this plan</button><button id="submit">Run owned fixture</button></div><pre id="inspection"></pre><div id="attempts"></div></section></div>
+<section><h2>Received takes</h2><p>Arrival never selects a take. Preview it, inspect its bytes, then explicitly select it.</p><div id="takes" class="takes"></div></section>
+<section><h2>Export selected take</h2><p id="selection"></p><button id="export">Freeze and export selection</button><p>Later edits or selection changes mark an export stale. Its frozen inputs stay unchanged.</p><div id="exports"></div></section>
+</div></main><footer>Caller-parity fixture experiment. Headless adapter proof is not evidence of actual LLM usability.</footer></body></html>
