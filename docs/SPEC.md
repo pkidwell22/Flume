@@ -1,6 +1,6 @@
 # Comfy creative studio — architecture-transfer spec
 
-**Draft 0.3 · Stack selected · New project · Not implemented**
+**Draft 0.4 · Stack and agent-first direction selected · Foundation refinements proposed · Not implemented**
 
 ## 1. Direction
 
@@ -8,9 +8,13 @@ We are building a **new creative-production application**, informed by the best 
 
 **Confirmed direction:** transfer Studio's canonical generation model, first/last-frame controls, role-based references, shot continuity, model-aware controls, project assets, provenance, and non-destructive selection of takes. Do not reduce the product to a prompt box and a model dropdown.
 
+**Agent-ready first:** an agent can act as a creative director over the same project, shot, reference, generation, review, and edit operations as the human workspace. This is a foundation requirement, not a later chat add-on. Slop Cannon's director model is a research reference; its production architecture is not assumed. See [agent-first direction](AGENT-FIRST-DIRECTION.md).
+
 **Selected implementation:** a TypeScript web application with React/Vite, Fastify on Node.js, PostgreSQL/Drizzle, pg-boss background jobs, and FFmpeg/ffprobe media processing. Patrick approved recording this stack in the spec. It is designed to run locally and support a hosted demonstration; nothing has been installed or implemented. No Swift, AppKit, AVFoundation, App Store, or macOS-only dependency is required.
 
 Working name: **Comfy creative studio**. The repository is `pkidwell22/comfy-creative-studio`; the final public product name remains open. Studio is the architectural reference, not necessarily the new product name.
+
+The [foundation blueprint](FOUNDATION-BLUEPRINT.md) proposes the detailed ownership and recovery contracts; [competitive lessons](COMPETITIVE-LESSONS.md) explains the evidence behind them. The [verification plan](VERIFICATION-PLAN.md) defines proof obligations. These proposals refine this spec without claiming implementation or silently deciding the remaining product scope.
 
 ## 2. The architecture we transfer
 
