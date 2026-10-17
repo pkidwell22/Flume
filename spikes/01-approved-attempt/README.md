@@ -2,6 +2,12 @@
 
 **Disposable contract experiment. Refs #3. Not application scaffolding.**
 
+**Recovery extension (Refs #5):** see [recovery/README.md](recovery/README.md).
+The acceptance evidence below describes the original no-worker suite. The current
+`verify` command additionally runs the recovery suite on a separate fresh owned
+cluster, using real child workers and an explicitly simulated local HTTP provider.
+The frozen acceptance schema, contracts and acceptance tests remain unchanged.
+
 ## Verdict: VALIDATED within the tested acceptance boundary
 
 On the pinned set below, one transaction can consume a frozen review, reserve one
