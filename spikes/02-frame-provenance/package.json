@@ -1,0 +1,17 @@
+{
+  "name": "frame-provenance-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fixtures": "node fixtures.ts",
+    "test": "vitest run --reporter=verbose --no-file-parallelism",
+    "typecheck": "tsc --noEmit",
+    "demo": "node cli.ts demo",
+    "select": "node cli.ts select"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}
