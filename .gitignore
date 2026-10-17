@@ -1,0 +1,44 @@
+# Dependencies and generated build artifacts
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Local credentials and machine configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+
+# Persistent runtime data and private media
+/data/
+/storage/
+/uploads/
+/outputs/
+/.local/
+/secrets/
+
+# Research captures are not submission source
+/evidence/
+/research-private/
+/docs/evidence/
+
+# Detailed local investigations are not part of the public planning baseline
+/docs/RESEARCH.md
+/docs/CINEMA-STATIC-FINDINGS.md
+/docs/COMFY-CAPABILITY-FINDINGS.md
+/docs/STUDIO-INTEGRATION-FINDINGS.md
+
+# Test artifacts and logs
+playwright-report/
+test-results/
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
