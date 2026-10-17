@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "syntaxError": null,
+  "summary": {
+    "cases": 8,
+    "syntax": 8,
+    "actionChoice": 4,
+    "authority": 8,
+    "referencePreservation": 4,
+    "all": 3
+  },
+  "cases": [
+    {
+      "caseId": "C01",
+      "syntax": true,
+      "actionChoice": false,
+      "authority": true,
+      "referencePreservation": false,
+      "authorityErrors": [],
+      "pass": false,
+      "failures": [
+        "actionChoice",
+        "referencePreservation"
+      ]
+    },
+    {
+      "caseId": "C02",
+      "syntax": true,
+      "actionChoice": false,
+      "authority": true,
+      "referencePreservation": false,
+      "authorityErrors": [],
+      "pass": false,
+      "failures": [
+        "actionChoice",
+        "referencePreservation"
+      ]
+    },
+    {
+      "caseId": "C03",
+      "syntax": true,
+      "actionChoice": false,
+      "authority": true,
+      "referencePreservation": true,
+      "authorityErrors": [],
+      "pass": false,
+      "failures": [
+        "actionChoice"
+      ]
+    },
+    {
+      "caseId": "C04",
+      "syntax": true,
+      "actionChoice": false,
+      "authority": true,
+      "referencePreservation": false,
+      "authorityErrors": [],
+      "pass": false,
+      "failures": [
+        "actionChoice",
+        "referencePreservation"
+      ]
+    },
+    {
+      "caseId": "C05",
+      "syntax": true,
+      "actionChoice": true,
+      "authority": true,
+      "referencePreservation": true,
+      "authorityErrors": [],
+      "pass": true,
+      "failures": []
+    },
+    {
+      "caseId": "C06",
+      "syntax": true,
+      "actionChoice": true,
+      "authority": true,
+      "referencePreservation": true,
+      "authorityErrors": [],
+      "pass": true,
+      "failures": []
+    },
+    {
+      "caseId": "C07",
+      "syntax": true,
+      "actionChoice": true,
+      "authority": true,
+      "referencePreservation": true,
+      "authorityErrors": [],
+      "pass": true,
+      "failures": []
+    },
+    {
+      "caseId": "C08",
+      "syntax": true,
+      "actionChoice": true,
+      "authority": true,
+      "referencePreservation": false,
+      "authorityErrors": [],
+      "pass": false,
+      "failures": [
+        "referencePreservation"
+      ]
+    }
+  ],
+  "responseSha256": "60f55be008b08861f30bafe39ca4636c899231a2e139ceded85bad0924d0f206"
+}

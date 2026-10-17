@@ -1,0 +1,66 @@
+{
+  "frozenAt": "2026-10-17T02:48:31.820508+00:00",
+  "note": "Frozen before either model run; oracle and tests are NOT in prompt.txt.",
+  "files": [
+    {
+      "path": "manifest.json",
+      "sha256": "adbf4e81b20a3f76db84a0c69547538f8c7f8e2db5c0a3224cb81591f655efb5"
+    },
+    {
+      "path": "fixtures.json",
+      "sha256": "01b106ce702501107064feacdcb1bf3a69bf908161844c6bfc290e595c305d32"
+    },
+    {
+      "path": "oracle.json",
+      "sha256": "7a2a4de2d1cbba2ff3767c4b7b41dc65dd3e6bafe229da6de57ed22aa9f84cfc"
+    },
+    {
+      "path": "schema.mjs",
+      "sha256": "cfe218aeda9443fedbf8313843e12f8a929aa2b72f336d27c58f4122580aec4f"
+    },
+    {
+      "path": "scorer.mjs",
+      "sha256": "c8a16fbf520bf2320ef77391085ae7e23718f5079ddfa156784dddf5a9a2aab7"
+    },
+    {
+      "path": "build-prompt.mjs",
+      "sha256": "87480fcd1e456079a06f619f6c098d315a01da378fbed47fd4b31b5e37c950e6"
+    },
+    {
+      "path": "prompt.txt",
+      "sha256": "4465514e933d1972e73a704af080762dbe8e6c05bd76d0f6fdec07bb0d576146"
+    },
+    {
+      "path": "score.mjs",
+      "sha256": "9f0cce2e1d2a0fad97d7b9fe9f2cfdfdd28efa74dfc649b399c44048b7568f09"
+    },
+    {
+      "path": "run-cloud.py",
+      "sha256": "9120cb4543e316c36dae66f7c127550d41d36be6a2bf2d9eeec6db38f9fa1aa0"
+    },
+    {
+      "path": "package.json",
+      "sha256": "ea2e6864f496f0cdaeb902215b9fc09e18b5875e648824051e287094fe2f5eed"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "e3feb4a27ae7ab46555803a544ae42f6d17d7250cc8ce9df4af428bdc5a77567"
+    },
+    {
+      "path": "test/artifacts.test.mjs",
+      "sha256": "0a09fb971f06d7967bac5bf118db0f6d3a9db177dd3fba9474bb14d102c039f2"
+    },
+    {
+      "path": "test/authority.test.mjs",
+      "sha256": "f67352d45439b32801e30a18e9b8fc5c2779acf8a9f535f3df2ee8528db27a23"
+    },
+    {
+      "path": "test/scoring.test.mjs",
+      "sha256": "81f16ad9d762a6ede65d939ddf546a35d10b2309a53f21bb556ce099202c52b8"
+    },
+    {
+      "path": "test/syntax.test.mjs",
+      "sha256": "36cd9e55019b0c5f09ad8dd9c7be17ddafcadb8480c4afbce59fc18452b173cc"
+    }
+  ]
+}

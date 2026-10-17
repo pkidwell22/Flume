@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "decisions": [
+    {
+      "caseId": "C01",
+      "disposition": "hold",
+      "reason": "capability_conflict",
+      "actions": [
+        {
+          "op": "inspect_project",
+          "args": {
+            "projectId": "project-synthetic"
+          }
+        }
+      ],
+      "suggestedRouteId": "synth:paired:v1",
+      "basis": {
+        "draftRevision": 4,
+        "prompt": "Move from the red doorway to the blue window.",
+        "routeId": "synth:first-only:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-door",
+            "revision": 2
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-window",
+            "revision": 3
+          }
+        ],
+        "attemptId": null,
+        "specId": null,
+        "ownedTakeIds": [],
+        "selectedTakeId": null
+      },
+      "state": {
+        "remoteKnowledge": "not_dispatched",
+        "cancellation": "none",
+        "reservation": "none"
+      }
+    },
+    {
+      "caseId": "C02",
+      "disposition": "hold",
+      "reason": "revision_conflict",
+      "actions": [
+        {
+          "op": "inspect_project",
+          "args": {
+            "projectId": "project-synthetic"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 6,
+        "prompt": "Human edit: keep the lighthouse and the storm.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-lighthouse",
+            "revision": 4
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-storm",
+            "revision": 2
+          }
+        ],
+        "attemptId": null,
+        "specId": null,
+        "ownedTakeIds": [
+          "take-human"
+        ],
+        "selectedTakeId": "take-human"
+      },
+      "state": {
+        "remoteKnowledge": "not_dispatched",
+        "cancellation": "none",
+        "reservation": "none"
+      }
+    },
+    {
+      "caseId": "C03",
+      "disposition": "propose",
+      "reason": "acceptance_uncertain",
+      "actions": [
+        {
+          "op": "resume_attempt",
+          "args": {
+            "attemptId": "attempt-uncertain",
+            "mode": "read_only"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 2,
+        "prompt": "A paper crane unfolds.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-crane",
+            "revision": 1
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-paper",
+            "revision": 1
+          }
+        ],
+        "attemptId": "attempt-uncertain",
+        "specId": "spec-uncertain",
+        "ownedTakeIds": [],
+        "selectedTakeId": null
+      },
+      "state": {
+        "remoteKnowledge": "unknown",
+        "cancellation": "requested",
+        "reservation": "held"
+      }
+    },
+    {
+      "caseId": "C04",
+      "disposition": "hold",
+      "reason": "allowance_exhausted",
+      "actions": [
+        {
+          "op": "inspect_project",
+          "args": {
+            "projectId": "project-synthetic"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 3,
+        "prompt": "A lantern floats over a lake.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-lake",
+            "revision": 1
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-lantern",
+            "revision": 2
+          }
+        ],
+        "attemptId": "attempt-budget",
+        "specId": "spec-budget-old",
+        "ownedTakeIds": [],
+        "selectedTakeId": null
+      },
+      "state": {
+        "remoteKnowledge": "running",
+        "cancellation": "none",
+        "reservation": "held"
+      }
+    },
+    {
+      "caseId": "C05",
+      "disposition": "propose",
+      "reason": "recover_receipt",
+      "actions": [
+        {
+          "op": "replay_command",
+          "args": {
+            "commandId": "command-original"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 9,
+        "prompt": "Human edit: use the green bridge instead.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-green",
+            "revision": 5
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-bridge",
+            "revision": 2
+          }
+        ],
+        "attemptId": "attempt-original",
+        "specId": "spec-original",
+        "ownedTakeIds": [],
+        "selectedTakeId": null
+      },
+      "state": {
+        "remoteKnowledge": "accepted",
+        "cancellation": "none",
+        "reservation": "held"
+      }
+    },
+    {
+      "caseId": "C06",
+      "disposition": "propose",
+      "reason": "recover_output",
+      "actions": [
+        {
+          "op": "retry_retrieval",
+          "args": {
+            "attemptId": "attempt-retrieval",
+            "outputId": "output-pending"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 7,
+        "prompt": "Snow settles on a quiet roof.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-roof",
+            "revision": 1
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-snow",
+            "revision": 2
+          }
+        ],
+        "attemptId": "attempt-retrieval",
+        "specId": "spec-retrieval",
+        "ownedTakeIds": [
+          "take-previous",
+          "take-ready"
+        ],
+        "selectedTakeId": "take-previous"
+      },
+      "state": {
+        "remoteKnowledge": "succeeded",
+        "cancellation": "none",
+        "reservation": "held"
+      }
+    },
+    {
+      "caseId": "C07",
+      "disposition": "propose",
+      "reason": "authorized",
+      "actions": [
+        {
+          "op": "submit_review",
+          "args": {
+            "commandId": "command-first-look",
+            "reviewId": "review-first-look",
+            "grantId": "grant-first-look"
+          }
+        }
+      ],
+      "suggestedRouteId": null,
+      "basis": {
+        "draftRevision": 2,
+        "prompt": "A toy train crosses a wooden bridge.",
+        "routeId": "synth:paired:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-train",
+            "revision": 1
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-crossing",
+            "revision": 1
+          }
+        ],
+        "attemptId": null,
+        "specId": "spec-first-look",
+        "ownedTakeIds": [],
+        "selectedTakeId": null
+      },
+      "state": {
+        "remoteKnowledge": "not_dispatched",
+        "cancellation": "none",
+        "reservation": "none"
+      }
+    },
+    {
+      "caseId": "C08",
+      "disposition": "propose",
+      "reason": "authorized",
+      "actions": [
+        {
+          "op": "save_draft",
+          "args": {
+            "shotId": "shot-save",
+            "expectedRevision": 11,
+            "patch": {
+              "prompt": "A slow move from doorway to window.",
+              "routeId": "synth:first-only:v1",
+              "bindings": [
+                {
+                  "role": "first_frame",
+                  "assetId": "asset-door-save",
+                  "revision": 3
+                },
+                {
+                  "role": "last_frame",
+                  "assetId": "asset-window-save",
+                  "revision": 6
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "suggestedRouteId": "synth:paired:v1",
+      "basis": {
+        "draftRevision": 11,
+        "prompt": "Move from doorway to window.",
+        "routeId": "synth:first-only:v1",
+        "bindings": [
+          {
+            "role": "first_frame",
+            "assetId": "asset-door-save",
+            "revision": 3
+          },
+          {
+            "role": "last_frame",
+            "assetId": "asset-window-save",
+            "revision": 6
+          }
+        ],
+        "attemptId": null,
+        "specId": null,
+        "ownedTakeIds": [
+          "take-saved"
+        ],
+        "selectedTakeId": "take-saved"
+      },
+      "state": {
+        "remoteKnowledge": "not_dispatched",
+        "cancellation": "none",
+        "reservation": "none"
+      }
+    }
+  ]
+}

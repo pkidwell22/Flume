@@ -1,0 +1,64 @@
+{
+  "requestedModel": "kimi-k3",
+  "requestedProvider": "ollama-cloud",
+  "startedAt": "2026-10-17T02:48:44.965322+00:00",
+  "promptSha256": "4465514e933d1972e73a704af080762dbe8e6c05bd76d0f6fdec07bb0d576146",
+  "limits": {
+    "hermesRunBudgetSeconds": 120,
+    "outerTimeoutSeconds": 180,
+    "maxTurns": 3,
+    "manualRetries": 0,
+    "caseCount": 8
+  },
+  "note": "Only LLM inference. No application/media operations; proposals never executed. web is a narrow read-only toolset, NOT a no-tools sandbox. No-tools compliance is checked in session records. Run budget is wall-clock, not a monetary cap.",
+  "catalogueMatch": [
+    {
+      "name": "kimi-k3",
+      "model": "kimi-k3",
+      "modified_at": "2026-07-27T08:00:00-07:00",
+      "size": 1560860324864,
+      "digest": "d189309738f0",
+      "details": {
+        "parent_model": "",
+        "format": "",
+        "family": "",
+        "families": null,
+        "parameter_size": "",
+        "quantization_level": ""
+      },
+      "capabilities": [
+        "vision",
+        "thinking",
+        "completion",
+        "tools"
+      ]
+    }
+  ],
+  "command": [
+    "hermes",
+    "chat",
+    "--oneshot",
+    "--provider",
+    "ollama-cloud",
+    "--model",
+    "kimi-k3",
+    "--toolsets",
+    "web",
+    "--ignore-rules",
+    "--source",
+    "tool",
+    "--max-turns",
+    "3",
+    "--run-budget",
+    "120",
+    "--query-file",
+    "<spike>/prompt.txt",
+    "--quiet"
+  ],
+  "cwd": "<spike>",
+  "elapsedSeconds": 24.184,
+  "exitCode": 0,
+  "status": "blocked_or_transport_failure",
+  "error": "AssertionError: No unambiguous exact session ID in CLI output; inspect retained logs, do not rerun",
+  "endedAt": "2026-10-17T02:49:09.434091+00:00"
+}

@@ -1,0 +1,35 @@
+{
+  "verifiedAt": "2026-10-17T02:53:30.565363+00:00",
+  "commands": [
+    "npm ci --ignore-scripts --no-audit --no-fund",
+    "npm test",
+    "python3 -m unittest discover -s test -p '*_test.py'"
+  ],
+  "nodeTests": {
+    "tests": 50,
+    "pass": 50,
+    "fail": 0
+  },
+  "pythonTests": {
+    "tests": 3,
+    "passed": true
+  },
+  "captureRegression": {
+    "red": {
+      "tests": 3,
+      "failures": 1,
+      "errors": 1
+    },
+    "green": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0
+    }
+  },
+  "logHashes": {
+    "local-evidence/final-node-tests.txt": "7f0c88910794fac4b35dd31c1b8fd2a329afdf2bd1ec7674575578ef82af778a",
+    "local-evidence/final-python-tests.txt": "33060fd73862c5e1af97335504d5b45211fce6d229657f556d8deceeadc52ce4",
+    "local-evidence/09-capture-red.txt": "8aa70f40bc17f576f81cb9c0a0a0efc651836714a944894d786ad3b0da147273",
+    "local-evidence/10-capture-green.txt": "33060fd73862c5e1af97335504d5b45211fce6d229657f556d8deceeadc52ce4"
+  }
+}
