@@ -1,0 +1,46 @@
+{
+  "version": "h3-intent/v1",
+  "model": "minimax/minimax-h3",
+  "schemaVersion": "c0e2e941ffff",
+  "schemaSha256": "a0ba226c836c1154e21a14818746c63dca9b145fce4220b87a6383d4e16af03b",
+  "semanticsVersion": "h3-semantics/v1",
+  "prompt": {
+    "user": "  Keep the red mug.\n",
+    "composed": "  Keep the red mug.\nA modest camera push-in.",
+    "compositionVersion": "fixture-composer/v1"
+  },
+  "controls": {
+    "duration": 5,
+    "resolution": "768p",
+    "ratio": "16:9",
+    "seed": 0,
+    "aigc_watermark": false
+  },
+  "bindings": [
+    {
+      "modality": "image",
+      "role": "last_frame",
+      "assetId": "fixture-last",
+      "revision": "fixture-last-r1",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "uri": "https://example.invalid/last.png"
+    },
+    {
+      "modality": "image",
+      "role": "first_frame",
+      "assetId": "fixture-first",
+      "revision": "fixture-first-r1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "uri": "https://example.invalid/first.png",
+      "continuity": {
+        "sourceTakeId": "fixture-prior-take",
+        "sourceAssetId": "fixture-prior-clip",
+        "sourceRevision": "fixture-clip-r1",
+        "sourceSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "streamIndex": 0,
+        "framePts": "23",
+        "timebase": "1/24"
+      }
+    }
+  ]
+}

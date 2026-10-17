@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://docs.comfy.org/router-schemas/minimax/minimax-h3.json",
+      "title": "",
+      "accessed": "2026-10-16"
+    },
+    {
+      "id": 2,
+      "url": "https://docs.comfy.org/router-openapi.yaml",
+      "title": "",
+      "accessed": "2026-10-16"
+    }
+  ]
+}
