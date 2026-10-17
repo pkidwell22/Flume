@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 
 export const queue = 'approved-generation-v1';
-export async function openExperiment() {
+export async function openExperiment({ initialize = true }: { initialize?: boolean } = {}) {
   const database = process.env.SPIKE_DATABASE;
   const dataDirectory = process.env.SPIKE_DATA_DIRECTORY;
   const host = process.env.SPIKE_SOCKET;
@@ -23,7 +23,7 @@ export async function openExperiment() {
     max: 16, connectionTimeoutMillis: 5_000, options: '-c search_path=spike -c statement_timeout=10000 -c lock_timeout=5000' };
   const pool = new pg.Pool(config);
   const boss = new PgBoss({ db: { executeSql: (text, values) => pool.query(text, values) },
-    schema: 'pgboss', supervise: false, schedule: false, migrate: true, createSchema: true });
+    schema: 'pgboss', supervise: false, schedule: false, migrate: initialize, createSchema: initialize });
   const errors: Error[] = [];
   boss.on('error', error => errors.push(error));
   try {
@@ -35,19 +35,21 @@ export async function openExperiment() {
     assert.equal(identity.listen, '');
     assert.equal(identity.socket, host);
     // Both our DDL and pg-boss migrations follow the target identity check.
-    const schema = await readFile(new URL('../../schema.sql', import.meta.url), 'utf8');
-    await drizzle(pool).transaction(async tx => { await tx.execute(sql.raw(schema)); });
+    if (initialize) {
+      const schema = await readFile(new URL('../../schema.sql', import.meta.url), 'utf8');
+      await drizzle(pool).transaction(async tx => { await tx.execute(sql.raw(schema)); });
+    }
     await boss.start();
-    await boss.createQueue(queue, { policy: 'standard', retryLimit: 0, expireInSeconds: 60,
+    if (initialize) await boss.createQueue(queue, { policy: 'standard', retryLimit: 0, expireInSeconds: 60,
       retentionSeconds: 3600, deleteAfterSeconds: 3600 });
     return { pool, boss, config, errors, async close() {
-      await boss.stop({ graceful: true, timeout: 5000 });
-      await pool.end();
+      try { await boss.stop({ graceful: true, timeout: 5000 }); }
+      finally { await pool.end(); }
       assert.deepEqual(errors, [], 'pg-boss emitted an asynchronous error');
     } };
   } catch (error) {
-    await boss.stop();
-    await pool.end();
+    try { await boss.stop(); }
+    finally { await pool.end(); }
     throw error;
   }
 }

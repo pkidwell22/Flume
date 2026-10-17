@@ -6,9 +6,24 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createOwnedCluster, cleanEnvironment } from './disposable-postgres.mjs';
 
-const file = new URL('../dist/src/accept.js', import.meta.url);
+assert([undefined, 'recovery'].includes(process.argv[2]), 'unknown mutation suite');
+const recovery = process.argv[2] === 'recovery';
+const file = new URL(recovery ? '../dist/recovery/engine.js' : '../dist/src/accept.js', import.meta.url);
 const original = await readFile(file, 'utf8');
-const mutations = [
+const mutations = recovery ? [
+  { name: 'skip-cancellation-gate', before: 'const reason = current.cancel_requested ?', after: 'const reason = false ?',
+    pattern: '^cancel before authorization', evidence: /must not create work to obtain a cancel/ },
+  { name: 'remove-epoch-fencing', before: 'AND owner=$2 AND epoch=$3', after: 'AND $2::uuid IS NOT NULL AND $3::integer IS NOT NULL', all: true,
+    pattern: '^late valid acceptance', evidence: /stale delivery cannot write the checkpoint/ },
+  { name: 'ignore-output-attribution', before: "return saved.remote_id === remote.id && saved.sha256 === output.sha256 && saved.size === output.size ? 'claimed' : 'OUTPUT_CONFLICT';",
+    after: "return 'claimed';", pattern: '^stable output identity', evidence: /OUTPUT_CONFLICT/ },
+  { name: 'skip-publication-owner', before: 'if (current.owner !== owner || current.epoch !== epoch)\n                    return false;',
+    after: 'if (false) return false;', pattern: '^concurrent import delivery', evidence: /stale importer must not publish a take before current owner/ },
+  { name: 'skip-claim-activation', before: 'if (!await lockActivation(client))', after: 'if (false)',
+    pattern: '^delayed older fetch', evidence: /older fetch must not replace newer claimed owner/ },
+  { name: 'skip-ack-activation', before: 'const currentOwner = currentActivation &&', after: 'const currentOwner =',
+    pattern: '^fetch-to-claim gap', evidence: /older activation must not acknowledge newer fetch before claim/ },
+] : [
   { name: 'ignore-missing-job', before: "if (jobId === null)", after: 'if (false)',
     alsoBefore: 'if (jobId !== attemptId)', alsoAfter: 'if (false)',
     pattern: 'duplicate-ID suppression', evidence: /Missing expected rejection/ },
@@ -19,10 +34,11 @@ const mutations = [
 ];
 
 for (const mutation of mutations) {
-  assert.equal(original.split(mutation.before).length, 2, `mutation ${mutation.name} must match exactly once`);
+  if (mutation.all) assert(original.includes(mutation.before));
+  else assert.equal(original.split(mutation.before).length, 2, `mutation ${mutation.name} must match exactly once`);
   const cluster = await createOwnedCluster();
   try {
-    let mutant = original.replace(mutation.before, mutation.after);
+    let mutant = mutation.all ? original.replaceAll(mutation.before, mutation.after) : original.replace(mutation.before, mutation.after);
     if (mutation.alsoBefore) {
       assert.equal(mutant.split(mutation.alsoBefore).length, 2);
       mutant = mutant.replace(mutation.alsoBefore, mutation.alsoAfter);
@@ -30,7 +46,8 @@ for (const mutation of mutations) {
     await writeFile(file, mutant);
     const { code, output } = await new Promise((resolve, reject) => {
       let output = '';
-      const child = spawn(process.execPath, ['--test', '--test-reporter=spec', `--test-name-pattern=${mutation.pattern}`, 'dist/test/acceptance.test.js'], {
+      const child = spawn(process.execPath, ['--test', '--test-reporter=spec', `--test-name-pattern=${mutation.pattern}`,
+        recovery ? 'dist/recovery/recovery.test.js' : 'dist/test/acceptance.test.js'], {
         cwd: fileURLToPath(new URL('../', import.meta.url)),
         env: { ...cleanEnvironment(), SPIKE_DATABASE: cluster.database, SPIKE_DATA_DIRECTORY: cluster.dataDirectory, SPIKE_SOCKET: cluster.socketDirectory },
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -46,8 +63,8 @@ for (const mutation of mutations) {
     console.log(`MUTATION KILLED: ${mutation.name}; test exit=1; expected assertion observed`);
     console.log(output);
   } finally {
-    await writeFile(file, original);
-    await cluster.cleanup();
+    try { await writeFile(file, original); }
+    finally { await cluster.cleanup(); }
   }
 }
-console.log('All mutations rejected; original compiled acceptance code restored.');
+console.log('All mutations rejected; original compiled code restored.');

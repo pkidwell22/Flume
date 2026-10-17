@@ -122,6 +122,8 @@ export async function createOwnedCluster({ tempParent = process.env.TMPDIR } = {
 }
 
 async function runTests() {
+  assert([undefined, 'recovery'].includes(process.argv[2]), 'unknown isolated suite');
+  const testScript = process.argv[2] === 'recovery' ? 'test:recovery:db' : 'test:db';
   let cluster;
   let child;
   let interrupted = false;
@@ -143,7 +145,7 @@ async function runTests() {
     cluster = await createOwnedCluster();
     const env = { ...cleanEnvironment(), SPIKE_DATABASE: cluster.database,
       SPIKE_DATA_DIRECTORY: cluster.dataDirectory, SPIKE_SOCKET: cluster.socketDirectory };
-    for (const args of [['run', 'build'], ['run', 'test:db']]) {
+    for (const args of [['run', 'build'], ['run', testScript]]) {
       if (interrupted) break;
       const code = await new Promise((resolve, reject) => {
         child = spawn('npm', args, { cwd: packageRoot, env, stdio: 'inherit', detached: true });
