@@ -1,4 +1,4 @@
-# Comfy creative studio
+# Flume
 
 A new browser-based creative-production application informed by Studio's strongest architecture and controls: first/last frames, role-based references, shot continuity, model-aware generation, reusable recipes, and non-destructive take selection.
 

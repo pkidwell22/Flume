@@ -1,4 +1,4 @@
-# Comfy creative studio — architecture-transfer spec
+# Flume — architecture-transfer spec
 
 **Draft 0.4 · Stack and agent-first direction selected · Foundation refinements proposed · Not implemented**
 
@@ -12,7 +12,7 @@ We are building a **new creative-production application**, informed by the best 
 
 **Selected implementation:** a TypeScript web application with React/Vite, Fastify on Node.js, PostgreSQL/Drizzle, pg-boss background jobs, and FFmpeg/ffprobe media processing. Patrick approved recording this stack in the spec. It is designed to run locally and support a hosted demonstration; nothing has been installed or implemented. No Swift, AppKit, AVFoundation, App Store, or macOS-only dependency is required.
 
-Working name: **Comfy creative studio**. The repository is `pkidwell22/comfy-creative-studio`; the final public product name remains open. Studio is the architectural reference, not necessarily the new product name.
+Product name: **Flume**. The canonical repository is `pkidwell22/Flume`. Studio remains the architectural reference.
 
 The [foundation blueprint](FOUNDATION-BLUEPRINT.md) proposes the detailed ownership and recovery contracts; [competitive lessons](COMPETITIVE-LESSONS.md) explains the evidence behind them. The [verification plan](VERIFICATION-PLAN.md) defines proof obligations. These proposals refine this spec without claiming implementation or silently deciding the remaining product scope.
 
@@ -194,7 +194,7 @@ Use Vitest for domain, composition, capability, and adapter contracts; exercise 
 
 Use original implementation and owned/licensed media. Downloaded Higgsfield code is private research evidence, not code to redistribute. Existing Studio architecture can inform the new project; publishing Studio itself is not required by this plan. Any reused source/assets still need a rights/dependency check.
 
-Open decisions: final public product name; timeline/sequence-editor depth; source-video demonstration priority; hosted deployment/storage/authentication choices; live-test spend and transfer consent. The application stack is selected in §5. Patrick owns product/publication/spend decisions; engineering owns the detailed contracts, version pinning, and capability mappings. The Git repository and this planning PR establish the documentation baseline. No application implementation, paid generation, credentials changes, deployment, or competition submission is included.
+Open decisions: timeline/sequence-editor depth; source-video demonstration priority; hosted deployment/storage/authentication choices; live-test spend and transfer consent. The application stack is selected in §5. Patrick owns product/publication/spend decisions; engineering owns the detailed contracts, version pinning, and capability mappings. The Git repository and this planning PR establish the documentation baseline. No application implementation, paid generation, credentials changes, deployment, or competition submission is included.
 
 ## 10. Research and document status
 
