@@ -35,25 +35,36 @@ async function request(d: Dispatch, endpoint: string, method = 'GET'): Promise<R
 }
 
 export async function runDelivery(e: Experiment, policy: Policy, checkpoint: Checkpoint) {
-  const [job] = await e.boss.fetch(queue); assert(job, 'no queued delivery');
+  const [job] = await e.boss.fetch(queue, { includeMetadata: true }); assert(job, 'no queued delivery');
+  await checkpoint('after-fetch');
   const { attemptId } = z.strictObject({ version: z.literal(1), attemptId: z.uuid() }).parse(job.data);
   const owner = randomUUID();
-  const epoch: number = await transaction(e, async client => {
+  // pg-boss 12.11.1 increments this integer on every reactivation of a job.
+  // Do not compare startedOn via JS Date: it truncates PostgreSQL microseconds.
+  // Both claim and acknowledgement lock the job BEFORE the lifecycle row.
+  const lockActivation = async (client: PoolClient) => {
+    const { rows: [active] } = await client.query('SELECT state,retry_count FROM pgboss.job WHERE name=$1 AND id=$2 FOR UPDATE', [queue, job.id]);
+    return active?.state === 'active' && active.retry_count === job.retryCount;
+  };
+  const epoch: number | null = await transaction(e, async client => {
+    if (!await lockActivation(client)) return null;
     const { rows: [row] } = await client.query(`UPDATE recovery.lifecycle SET epoch=epoch+1, owner=$2
       WHERE attempt_id=$1 RETURNING epoch`, [attemptId, owner]); assert(row);
     await client.query('INSERT INTO recovery.deliveries VALUES ($1,$2,$3,$4,NULL)', [owner, job.id, attemptId, row.epoch]);
     return row.epoch;
   });
+  if (epoch === null) return 'stale'; // A superseded fetch cannot take ownership or do provider work.
   const owns = async () => (await e.pool.query('SELECT 1 FROM recovery.lifecycle WHERE attempt_id=$1 AND owner=$2 AND epoch=$3',
     [attemptId, owner, epoch])).rowCount === 1;
   const finish = async (outcome: string) => {
     await checkpoint('finish');
     return transaction(e, async client => {
+      const currentActivation = await lockActivation(client);
       const { rows: [current] } = await client.query('SELECT * FROM recovery.lifecycle WHERE attempt_id=$1 FOR UPDATE', [attemptId]);
-      const currentOwner = current.owner === owner && current.epoch === epoch;
+      const currentOwner = currentActivation && current.owner === owner && current.epoch === epoch;
       const result = currentOwner ? outcome : 'stale';
       await client.query('UPDATE recovery.deliveries SET outcome=$2 WHERE owner=$1', [owner, result]);
-      // The owner check and queue acknowledgement share one transaction/lock.
+      // Neither activation nor ownership can change before transaction-bound completion.
       if (currentOwner) await e.boss.complete(queue, job.id, null, { db: { executeSql: (text, values) => client.query(text, values) } });
       return result;
     });

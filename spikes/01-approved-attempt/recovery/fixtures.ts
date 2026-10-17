@@ -50,9 +50,9 @@ export async function resources(t: { after: (fn: () => Promise<void>) => void },
     cleanup.push(stop);
     assert(child.pid); workers.push(child.pid);
     return { child, messages, stop, resume() { child.send('continue'); },
-      async point(name: string) {
+      async point(name: string, occurrence = 1) {
         const deadline = Date.now() + 8000;
-        while (!messages.some(m => m.point === name)) {
+        while (messages.filter(m => m.point === name).length < occurrence) {
           assert(child.exitCode === null && child.signalCode === null, `worker exited before ${name}: ${logs}`);
           assert(Date.now() < deadline, `checkpoint timeout ${name}: ${logs}`);
           await new Promise(resolve => setTimeout(resolve, 10));
@@ -84,7 +84,7 @@ export async function resources(t: { after: (fn: () => Promise<void>) => void },
       for (const table of ['lifecycle', 'dispatch', 'observations', 'deliveries', 'imports', 'takes']) {
         result[table] = (await client.query(`SELECT * FROM recovery.${table} WHERE attempt_id=$1`, [receipt.attemptId])).rows;
       }
-      result.jobs = (await client.query("SELECT id,state,data FROM pgboss.job WHERE data->>'attemptId'=$1", [receipt.attemptId])).rows;
+      result.jobs = (await client.query("SELECT id,state,data,retry_count FROM pgboss.job WHERE data->>'attemptId'=$1", [receipt.attemptId])).rows;
       result.selection = (await client.query('SELECT * FROM recovery.selections WHERE shot_id=$1', [fixture.request.shotId])).rows;
       await client.query('COMMIT'); return result;
     } finally { await client.end(); }

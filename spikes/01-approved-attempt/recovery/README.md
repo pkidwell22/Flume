@@ -78,9 +78,11 @@ build/test in this package. No server is installed or left running.
 1. Acceptance is the unchanged reviewed-request transaction: one command/review,
    attempt, count reservation and initial pg-boss job. A fixture adds its initial
    lifecycle row and an explicit preexisting editorial-selection sentinel.
-2. A real `boss.fetch` activates the job. The worker claims a fresh owner UUID and
-   monotonic epoch. Queue job identity, delivery owner and business attempt
-   identity remain separate; delivery count is not creative history.
+2. A real `boss.fetch(queue, { includeMetadata: true })` activates the job and returns its
+   integer `retryCount`. Before claiming a fresh owner UUID/epoch, lock that job
+   row and require both active state and the same counter. A delayed older fetch
+   returns stale without changing ownership or reaching provider work. Queue job,
+   activation, delivery owner and business attempt are separate identities.
 3. Before any possible submit, persist an immutable dispatch row containing the
    original attempt key, exact envelope body, adapter, account, route, simulator
    origin, replay-safety declaration and replay deadline. Database triggers reject
@@ -102,11 +104,13 @@ build/test in this package. No server is installed or left running.
    append-only even if its worker lost ownership. Only a current delivery applies
    checkpoints; succeeded/cancelled state cannot regress to running. Conflicting
    known handles hold. A separate test forces old running evidence after success.
-8. Queue acknowledgement itself must share the lifecycle owner lock and the
-   transaction-bound pg-boss adapter. A check-then-`complete()` race was reproduced:
-   an old process incorrectly completed a newer fetch of the **same** job. The
-   fixed test proves that newer delivery remains active until its current owner
-   acknowledges it.
+8. Claim and acknowledgement both lock **queue job → lifecycle**, in that order.
+   Acknowledgement requires the fetched activation counter **and** owner/epoch;
+   both row locks remain held through the transaction-bound `boss.complete()`.
+   Lifecycle ownership alone is insufficient: a newer fetch commits before its
+   claim, while the lifecycle can still name the old worker. The regression pauses
+   the newer worker in exactly that gap and proves its activation stays active.
+   A separate reversed-order test prevents an older fetch stealing a newer claim.
 9. Stable import identity is `(attempt, remote output ID)`, with remote job,
    immutable hash and length pinned at claim time. Download to private staging,
    verify bounded bytes/hash, publish immutable bytes, then transactionally publish
@@ -141,6 +145,11 @@ build/test in this package. No server is installed or left running.
   on explicit read-only recovery commands. Running/held work needs an explicit
   subsequent recovery command; a completed queue job is not a completed take.
 - No guessed refund on cancel/unknown/failed import. Reserved count remains one.
+- The activation fence depends on pinned pg-boss **12.11.1**: fetch increments the
+  integer counter on reactivation; fail/retry preserve it. No timestamp is compared
+  through JavaScript `Date`. Direct counter resets or deleting/recreating a job
+  with the same ID are outside this protocol. Distinct job IDs still arbitrate
+  lifecycle ownership by claim epoch, not a global fetch-time ordering.
 
 ## Independent oracles and exercised faults
 
@@ -161,24 +170,27 @@ absence. IPC barriers force ordering instead of sleeps guessing a race.
 | Cancellation before/after authorization | Prevention vs confirmed remote cancel/too-late success are separately observed; late output remains unselected |
 | Late acceptance from stale owner | Receipt retained; old checkpoint blocked; current worker reconciles it without request-creating POST |
 | Old running reply after success | Success checkpoint does not regress |
-| Stale queue acknowledgement | Old process cannot complete a newer activation of the same pg-boss job |
+| Newer fetch paused before claim | Old owner cannot complete the newer activation of the same pg-boss job |
+| Older fetch resumes after newer claim | New owner/epoch, dispatch and delivery rows stay unchanged; no stale provider work |
 | Unsupported/expired replay, changed adapter/origin, slot exhaustion | Explicit holds, no new key/attempt |
 | Duplicate import/delivery | Same take IDs, no repeated download of finalized bytes |
 | Partial HTTP transfer | Staging removed, no finalized bytes/take; later import-only recovery succeeds |
 | Kill after finalized bytes, before SQL | Claimed identity and actual immutable bytes survive; restart publishes same output once |
 | Kill after first output SQL commit | One take before kill, exactly two after restart; first identity unchanged |
 | Actual PostgreSQL trigger rejects take INSERT | Publication transaction rolls back; finalized bytes/claim recover on next delivery |
-| Concurrent importer after bytes | Stale worker cannot publish SQL over current owner |
+| Both importers paused after bytes, before SQL | Resume stale worker first: fresh connection sees zero takes and unpublished import; current worker then succeeds |
 | Equal bytes across two approved attempts | Two remote jobs, four separately attributed takes, two byte objects |
 | Descriptor drift for existing output ID | Explicit conflict before download; original claim unchanged |
 | Resource acquisition/read/cleanup failures | Acquired simulator closed; one cleanup rejection cannot strand another resource |
 
 ## Retained execution evidence
 
-Raw logs are ignored under `../evidence/`. The author ran strict typechecking,
-**11 existing runner tests**, **22 unchanged acceptance tests** and **36 recovery
-and recovery-resource tests** successfully, with no skips. npm audit reported
-zero vulnerabilities in that run (not a comprehensive security assessment).
+Raw logs are ignored under `../evidence/`. After the review correction, strict
+typechecking, **11 existing runner tests**, **22 unchanged acceptance tests** and
+**38 recovery/resource tests** passed twice, including after both mutation suites,
+with no skips. npm audit reported zero vulnerabilities (not a comprehensive
+security assessment). The following table records the original historical runs;
+their raw evidence is preserved, not rewritten as proof of the correction.
 
 | Logs | Actual RED → GREEN observation |
 |---|---|
@@ -205,6 +217,28 @@ storage protocol itself failed. Current mutation probes make assertion
 sensitivity reproducible: bypass cancellation, remove epoch predicates, or skip
 output-attribution validation; each named test must fail, then compiled code is
 restored. Author validation remains separate from the coordinator's review.
+
+### Review correction: activation fencing and publication oracle
+
+The original acknowledgement test transferred lifecycle ownership before resuming
+the old worker. It missed the fetch-to-claim gap reproduced independently in
+`parent-review/ack-fetch-gap.json`. New deterministic child-process regressions
+failed **before** the fix: the newer active job became completed; an older fetch
+also replaced the newer owner/epoch and consumed another submit authorization.
+The shared activation lock/check at claim and acknowledgement fixes both orders.
+
+The importer test now pauses the current owner before SQL publication instead of
+letting it finish first. Removing only the publication owner predicate produces
+an observable phantom take, even though uniqueness would hide it after both
+workers finished. No storage protocol change was needed.
+
+Separate ignored `correction/` evidence records activation RED/GREEN, publication
+mutation RED, two full verifies, all **3 acceptance + 6 recovery mutations** rejected
+on their named assertions, audit and exact owned-resource cleanup checks. The
+three additional recovery mutations separately remove publication ownership,
+claim activation validation and acknowledgement activation validation. Normal
+compiled output was restored and verified after mutations; historical evidence,
+acceptance sources/tests/schema, dependency lock and recovery schema are unchanged.
 
 ## Cleanup and remaining uncertainty
 

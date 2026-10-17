@@ -282,10 +282,23 @@ test('real SQL publication failure after bytes leaves claim recoverable and no p
 test('concurrent import delivery fences old SQL publication after immutable bytes', async t => {
   const f = await resources(t, experiment);
   const old = f.launch('bytes'); await old.point('bytes');
-  await f.duplicate(); await f.launch().done();
-  const newer = await f.state(); assert.equal(newer.takes!.length, 2);
+  await f.duplicate();
+  const current = f.launch('bytes'); await current.point('bytes');
+  const newer = await f.state();
+  assert.equal(newer.takes!.length, 0); assert.equal(newer.imports![0].published, false);
   old.resume(); assert.equal(await old.done(), 'stale');
-  assert.deepEqual((await f.state()).takes!.sort((a,b) => a.id.localeCompare(b.id)), newer.takes!.sort((a,b) => a.id.localeCompare(b.id)));
+  const fenced = await f.state(); // Fresh connection, while the current owner is still before SQL publication.
+  assert.equal(fenced.takes!.length, 0, 'stale importer must not publish a take before current owner');
+  assert.equal(fenced.imports![0].published, false, 'stale importer must leave the import unpublished');
+  assert.deepEqual(fenced.lifecycle, newer.lifecycle); assert.deepEqual(fenced.imports, newer.imports);
+  assert.equal((await f.files()).length, 1);
+  // The bytes barrier is reached once per output; release the second output too.
+  current.resume(); await current.point('bytes', 2); current.resume();
+  assert.equal(await current.done(), 'ready');
+  const published = await f.state();
+  assert.equal(published.takes!.length, 2); assert(published.imports!.every(row => row.published));
+  assert.equal(published.lifecycle![0].available, true);
+  assert.deepEqual(published.selection, newer.selection);
   assert.equal(f.sim.calls.filter(c => c.path === '/submit').length, 1);
 });
 
@@ -299,6 +312,50 @@ test('equal fixture bytes from separately approved attempts retain distinct outp
   assert.equal(a.sim.jobs.size, 2); assert.equal(a.sim.outputs.length, 4);
   assert.equal(a.sim.calls.filter(c => c.path.includes('/outputs/')).length, 2);
   assert.equal((await a.files()).length, 2);
+});
+
+test('fetch-to-claim gap cannot let an old owner acknowledge the newer activation', async t => {
+  const f = await resources(t, experiment); f.sim.modes.dropSubmit = true;
+  const old = f.launch('finish'); await old.point('finish');
+  const original = await f.state();
+  assert.equal(original.lifecycle![0].remote_state, 'unknown');
+  assert.equal(original.jobs![0].retry_count, 0);
+  await f.retry();
+  const current = f.launch('after-fetch', { lookup: true }); await current.point('after-fetch');
+  const fetched = await f.state();
+  assert.equal(fetched.jobs![0].id, original.jobs![0].id);
+  assert.equal(fetched.jobs![0].retry_count, 1); assert.equal(fetched.jobs![0].state, 'active');
+  assert.deepEqual(fetched.lifecycle, original.lifecycle, 'new fetch has not claimed lifecycle ownership');
+  old.resume(); const outcome = await old.done();
+  const fenced = await f.state();
+  assert.equal(fenced.jobs![0].state, 'active', 'older activation must not acknowledge newer fetch before claim');
+  assert.equal(outcome, 'stale'); assert.deepEqual(fenced.lifecycle, original.lifecycle);
+  current.resume(); assert.equal(await current.done(), 'ready');
+  const recovered = await f.state();
+  assert.equal(recovered.jobs![0].state, 'completed'); assert.equal(recovered.jobs![0].retry_count, 1);
+  assert.equal(recovered.lifecycle![0].epoch, original.lifecycle![0].epoch + 1);
+  assert.equal(recovered.takes!.length, 2); assert.equal(f.sim.jobs.size, 1);
+  assert.equal(f.sim.calls.filter(c => c.path === '/submit').length, 1);
+});
+
+test('delayed older fetch cannot claim over a newer activation owner', async t => {
+  const f = await resources(t, experiment);
+  const old = f.launch('after-fetch'); await old.point('after-fetch');
+  assert.equal((await f.state()).lifecycle![0].epoch, 0);
+  await f.retry();
+  const current = f.launch('intent'); await current.point('intent');
+  const newer = await f.state();
+  assert.equal(newer.jobs![0].retry_count, 1); assert.equal(newer.lifecycle![0].epoch, 1);
+  old.resume(); const outcome = await old.done();
+  const fenced = await f.state();
+  assert.deepEqual(fenced.lifecycle, newer.lifecycle, 'older fetch must not replace newer claimed owner');
+  assert.equal(outcome, 'stale'); assert.deepEqual(fenced.deliveries, newer.deliveries);
+  assert.deepEqual(fenced.dispatch, newer.dispatch); assert.equal(fenced.jobs![0].state, 'active');
+  assert.equal(f.sim.calls.length, 0, 'rejected activation must not reach provider work');
+  current.resume(); assert.equal(await current.done(), 'ready');
+  const recovered = await f.state();
+  assert.equal(recovered.jobs![0].state, 'completed'); assert.equal(recovered.lifecycle![0].epoch, 1);
+  assert.equal(recovered.takes!.length, 2); assert.equal(f.sim.calls.filter(c => c.path === '/submit').length, 1);
 });
 
 test('stale owner cannot acknowledge a redelivery of the same pg-boss job', async t => {

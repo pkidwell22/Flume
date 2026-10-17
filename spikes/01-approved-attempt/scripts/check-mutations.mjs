@@ -17,6 +17,12 @@ const mutations = recovery ? [
     pattern: '^late valid acceptance', evidence: /stale delivery cannot write the checkpoint/ },
   { name: 'ignore-output-attribution', before: "return saved.remote_id === remote.id && saved.sha256 === output.sha256 && saved.size === output.size ? 'claimed' : 'OUTPUT_CONFLICT';",
     after: "return 'claimed';", pattern: '^stable output identity', evidence: /OUTPUT_CONFLICT/ },
+  { name: 'skip-publication-owner', before: 'if (current.owner !== owner || current.epoch !== epoch)\n                    return false;',
+    after: 'if (false) return false;', pattern: '^concurrent import delivery', evidence: /stale importer must not publish a take before current owner/ },
+  { name: 'skip-claim-activation', before: 'if (!await lockActivation(client))', after: 'if (false)',
+    pattern: '^delayed older fetch', evidence: /older fetch must not replace newer claimed owner/ },
+  { name: 'skip-ack-activation', before: 'const currentOwner = currentActivation &&', after: 'const currentOwner =',
+    pattern: '^fetch-to-claim gap', evidence: /older activation must not acknowledge newer fetch before claim/ },
 ] : [
   { name: 'ignore-missing-job', before: "if (jobId === null)", after: 'if (false)',
     alsoBefore: 'if (jobId !== attemptId)', alsoAfter: 'if (false)',
