@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 export const ROOT = fileURLToPath(new URL('.', import.meta.url));
 export const OUTPUT = resolve(ROOT, 'output');
@@ -68,7 +68,17 @@ export function generateFixtures(): void {
     },
     rgbSha256: Array.from({ length: 6 }, (_, i) => sha256(pixels(i))),
     files: FIXTURE_IDS.map(id => ({ id, path: fixturePath(id), sha256: sha256(readFileSync(fixturePath(id))) })),
-    tools: [FFMPEG, FFPROBE].map(executable => ({ executable, version: spawnSync(executable, ['-version'], { encoding: 'utf8' }).stdout.split('\n')[0] })),
+    tools: [FFMPEG, FFPROBE].map(executable => {
+      const result = spawnSync(executable, ['-version'], { encoding: 'utf8', timeout: 30_000, maxBuffer: 8_000_000 });
+      if (result.error || result.status !== 0) {
+        throw new Error(`fixture version probe failed (${executable}): ${result.error?.message ?? `status ${result.status}, signal ${result.signal}: ${result.stderr}`}`);
+      }
+      const version = result.stdout?.split('\n')[0].trim();
+      if (!version || !new RegExp(`^${basename(executable)} version \\S+`).test(version)) {
+        throw new Error(`fixture version probe failed (${executable}): invalid version output`);
+      }
+      return { executable, version };
+    }),
     commands,
   };
   writeFileSync(resolve(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));

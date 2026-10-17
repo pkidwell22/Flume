@@ -23,7 +23,7 @@ node cli.ts map vfr 5.04 5.4 0.05 5.04 2
 node cli.ts select vfr custom 5.04 5.4 5.4
 ```
 
-The only accepted media arguments are the generated fixture IDs. No file paths, URLs, user-supplied filters, shell commands, or FFmpeg flags are accepted. FFmpeg/ffprobe paths are fixed to `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe`. Child processes use argument arrays, no shell, a 30-second timeout and bounded captured output. This trusted local harness is **not** a hostile-media sandbox.
+The only accepted media arguments are the generated fixture IDs. No file paths, URLs, user-supplied filters, shell commands, or FFmpeg flags are accepted. FFmpeg/ffprobe paths are fixed to `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe`. Child processes use argument arrays, no shell, a 30-second timeout and bounded captured output. Fixture version probes share the generation limit of 8,000,000 bytes and reject process errors, nonzero exits, and missing/invalid tool-version banners before writing the manifest. This trusted local harness is **not** a hostile-media sandbox.
 
 `output/demo/index.html` is a local image gallery, not a mock UI. Open it in a browser or inspect the PNG paths in `output/demo/report.json`. All images are actually extracted by FFmpeg. The report has nine asserted selection cases, seven observed holds, and the controlled delayed-delivery race. `demo` exits nonzero if any literal frame/time/hash oracle or expected hold disagrees.
 
@@ -95,7 +95,9 @@ Clearing and changing pending source also invalidate late results. Current compl
 
 Tested on macOS 27.0.1 / arm64, Node **26.8.1**, npm **11.19.0**, FFmpeg/ffprobe **9.0.1** (Homebrew build), Vitest **5.0.5**, TypeScript **7.0.2**, `@types/node` **26.6.5**. See the generated manifest for complete media build information. Lockfile clean install (`npm ci --ignore-scripts`) was exercised, not just initial install.
 
-Final author run: **3 test files / 34 tests passed**, zero skips; `npm run typecheck` passed; `npm run demo` asserted **9 selections, 7 holds, stale delivery**. `npm audit` reported zero known vulnerabilities at execution time. No independent formatter/linter is configured in this disposable directory; TypeScript and `git diff --check` are the static gates.
+Final author run after the version-probe correction: **4 test files / 43 tests passed**, zero skips; `npm run typecheck` passed; `npm run demo` asserted **9 selections, 7 holds, stale delivery**. `npm audit` reported zero known vulnerabilities at the original execution time. No independent formatter/linter is configured in this disposable directory; TypeScript and `git diff --check` are the static gates.
+
+The focused correction observed one missing-bounds failure, then eight failure-validation cases RED before the fix; all nine passed afterward. `test/fixtures.test.ts` fault-injects fixture-generation I/O to check both tools' execution options, rejected results, and prevention of manifest publication. It does not replace the actual-media tests. The full fixture/typecheck/test/demo rerun used a byte-matched isolated source copy with the existing local dependencies so prior ignored review evidence stayed untouched. Correction logs are retained under ignored `output/correction-cycle-1/`.
 
 | RED→GREEN slice (log prefix in `output/tdd`) | Observed RED | GREEN total |
 |---|---|---:|
