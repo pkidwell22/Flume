@@ -6,7 +6,9 @@ import type { createService } from './service.ts';
 import { launchWorker } from './worker.ts';
 import type { Policy } from '../01-approved-attempt/dist/recovery/engine.js';
 type Service=Awaited<ReturnType<typeof createService>>;
-export async function startHttp(service:Service,policy:Policy) {
+export async function startHttp(service:Service,policy:Policy,mode?:'trusted-local-fixture-review') {
+  // Opt-in by demo.ts only, never by request headers, URLs or environment.
+  const localReview=mode==='trusted-local-fixture-review';
   const tasks=new Set<Promise<unknown>>(), workers=new Map<string,ReturnType<typeof launchWorker>>();
   const failures=new Map<string,string>(), starts=new Map<string,Promise<void>>(), generations=new Map<string,number>();let origin='',closing=false;
   const recoveries=new Map<string,{generation:number;callers:number}>();
@@ -42,16 +44,24 @@ export async function startHttp(service:Service,policy:Policy) {
       if(req.headers.origin&&req.headers.origin!==origin) {send({error:'AUTHORIZATION'},403);return;}
       const url=new URL(req.url!,origin);
       const bearer=req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
-      const cookie=req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('flume='))?.slice(6);
-      const token=bearer??cookie??'';
+      if(req.headers.authorization!==undefined&&(!bearer||req.headersDistinct.authorization?.length!==1)) throw new Error('AUTHORIZATION');
+      const cookies=req.headers.cookie?.split(';').map(s=>s.trim()).filter(s=>s.startsWith('flume='));
+      const cookie=cookies?.length===1?cookies[0].slice(6):'';
+      // Presence matters: invalid supplied credentials never become local trust.
+      const token=bearer??(req.headers.cookie!==undefined?cookie:(localReview?service.localFixtureReviewer:''));
       if(req.method==='POST'&&!token) throw new Error('AUTHORIZATION');
       if(req.method==='POST'&&!bearer&&req.headers.origin!==origin) {send({error:'AUTHORIZATION'},403);return;}
       if(req.method==='GET'&&url.pathname==='/health'){send({ready:true});return;}
       const staticFiles:Record<string,[string,string]>={'/':['index.html','text/html'],'/ui.js':['ui.js','text/javascript'],'/ui.css':['ui.css','text/css']};
       if(req.method==='GET'&&staticFiles[url.pathname]) {
-        const [file,type]=staticFiles[url.pathname];res.setHeader('content-type',type);res.end(await readFile(new URL(`./ui/${file}`,import.meta.url)));return;
+        const [file,type]=staticFiles[url.pathname];
+        let content=await readFile(new URL(`./ui/${file}`,import.meta.url),'utf8');
+        if(file==='index.html'&&localReview)content=content.replace(/<section id="session">.*?<\/section>/s,
+          '<p>Trusted local fixture review. No sign-in; not an authentication barrier against local processes or proof of human identity. Owned fixtures only, no live provider or spending.</p>');
+        res.setHeader('content-type',type);res.end(content);return;
       }
       if(req.method==='POST'&&url.pathname==='/session') {
+        if(typeof token!=='string')throw new Error('AUTHORIZATION');
         await service.read(token);res.setHeader('set-cookie',`flume=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600`);send({signedIn:true});return;
       }
       if(req.method==='GET'&&url.pathname==='/state') {send({...await service.read(token),interruptions:Object.fromEntries(failures)});return;}

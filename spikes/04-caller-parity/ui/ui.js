@@ -22,7 +22,7 @@ function button(text,fn){const b=node('button',text);b.onclick=()=>act(fn);retur
 async function refresh(loadDraft=true){
   const next=await api('/state');
   if(state&&state.revision!==next.revision){firstLook=null;inspections.clear();}
-  state=next;$('session').hidden=true;$('workflow').hidden=false;
+  state=next;if($('session'))$('session').hidden=true;$('workflow').hidden=false;
   if(loadDraft){$('prompt').value=state.prompt;editorRevision=state.revision;}
   $('revision').textContent=`Draft revision ${state.revision}`;
   editorState();
@@ -54,11 +54,11 @@ PNG ${binding.image.sha256}`));$('references').append(f);
   for(const exp of state.exports){const row=node('div');row.className='export';row.append(node('p',`Draft ${exp.revision}, selection ${exp.selection_revision}: ${exp.status}${exp.stale?' — stale; frozen inputs retained':''}`));
     if(exp.status==='complete'){const a=node('a','View frozen export');a.href=`/media/export-${exp.id}`;a.target='_blank';a.rel='noopener';row.append(a);} $('exports').append(row);}
 }
-$('login').onsubmit=event=>{event.preventDefault();act(async()=>{await api('/session',{}, {authorization:`Bearer ${$('key').value.trim()}`});$('key').value='';await refresh();message('Local review opened.');});};
+if($('login'))$('login').onsubmit=event=>{event.preventDefault();act(async()=>{await api('/session',{}, {authorization:`Bearer ${$('key').value.trim()}`});$('key').value='';await refresh();message('Local review opened.');});};
 $('edit').onsubmit=event=>{event.preventDefault();return act(async()=>{const saved=await command({type:'edit',revision:editorRevision,prompt:$('prompt').value});editorRevision=saved.revision;firstLook=null;inspections.clear();await refresh(false);message($('prompt').value===saved.prompt?'Draft saved. Previous approval is no longer valid.':'Submitted draft saved; newer editor text is still unsaved.');});};
 $('refresh').onclick=()=>act(async()=>{await refresh();message('Loaded the current saved draft.');});
 $('inspect-look').onclick=()=>act(async()=>{firstLook=await command({type:'inspect',artifact:'first-look'});$('inspection').textContent=JSON.stringify(firstLook,null,2);await refresh(false);message('Exact fixture bytes inspected for this draft. Approval is still separate.');});
 $('approve').onclick=()=>act(async()=>{await command({type:'approve',inspectionId:firstLook.id});message('Plan approved for one local fixture attempt; no money or upload authority exists.');});
 $('submit').onclick=()=>act(async()=>{await command({type:'submit',commandId:crypto.randomUUID()});message('Local run accepted. Refresh to see results; nothing will be selected automatically.');await refresh(false);});
 $('export').onclick=()=>act(async()=>{await command({type:'export',selectionRevision:state.selection_revision});message('Export inputs frozen. Refresh to view the completed file.');await refresh(false);});
-refresh().catch(()=>message('Open a local review session to continue.'));
+refresh().catch(()=>message($('login')?'Open a local review session to continue.':'Unable to load the local fixture. Reload to retry.',true));

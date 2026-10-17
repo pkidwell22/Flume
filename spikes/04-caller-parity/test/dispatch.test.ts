@@ -26,7 +26,7 @@ test('mixed recovery cannot lose intent behind a false replay observation',async
       if(++reads===1){assert.equal(queued,false);captured.resolve();await release.promise;}
       return queued;
     },
-    async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+    async command(token:Parameters<typeof s.command>[0],body:any,recover?:Parameters<typeof s.command>[2]){
       return s.command(token,body,async(id,reactivate)=>{
         const result=recover!(id,reactivate);recovered.resolve();return result;
       });
@@ -80,7 +80,7 @@ for(const first of ['replay','recover','recover-response'] as const) test(`overl
   t.mock.method(e.boss,'fail',async(...args:any[])=>{reactivations++;return (fail as any)(...args);});
   const wrapped={...s,
     async isQueued(id:string){const queued=await s.isQueued(id);if(++reads===1){assert.equal(queued,true);captured.resolve();await release.promise;}return queued;},
-    async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+    async command(token:Parameters<typeof s.command>[0],body:any,recover?:Parameters<typeof s.command>[2]){
       const number=++commands;if(number===2)secondArrived.resolve();
       const result=await s.command(token,body,recover);
       if(first==='recover-response'&&number===1){responseHeld.resolve();await releaseResponse.promise;}
@@ -167,7 +167,7 @@ test('concurrent identical HTTP submits coalesce the real queue read and worker 
   const gate=new Promise<void>(r=>{release=r;}), firstRead=new Promise<void>(r=>{firstReady=r;});
   let submits=0,queueQueries=0,reads=0;
   const wrapped={...s,
-    async command(token:string,body:any){
+    async command(token:Parameters<typeof s.command>[0],body:any){
       const result=await s.command(token,body);
       if(body.type==='submit'&&++submits===2) setImmediate(()=>{if(queueQueries<2)release();});
       return result;

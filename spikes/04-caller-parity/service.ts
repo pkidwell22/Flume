@@ -33,13 +33,18 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
   await e.pool.query(await readFile(new URL('./schema.sql',import.meta.url),'utf8'));
   const projectId = randomUUID(), shotId = randomUUID(), accountId = randomUUID();
   const credentials = {human:randomBytes(32).toString('hex'), agent:randomBytes(32).toString('hex')};
+  // Process-local handle for this fixture reviewer only; never a wire credential.
+  // Its lifetime is the owned demo, not the one-hour protected bearer session.
+  const localFixtureReviewer=Symbol('trusted-local-fixture-review');
   await e.pool.query('INSERT INTO spike.drafts VALUES ($1,$2,1,$3)',[shotId,projectId,'Continue from the cyan last frame; end reference is red.']);
   await e.pool.query('INSERT INTO parity.plans (shot_id,continuity) VALUES ($1,$2)',[shotId,catalog.continuity]);
   for (const [role,token] of Object.entries(credentials)) await e.pool.query(
     `INSERT INTO parity.sessions VALUES ($1,$2,$3,$4,clock_timestamp()+interval '1 hour')`,
     [digest(token),randomUUID(),projectId,role==='human']);
-  async function identity(token:string, client: Pick<PoolClient,'query'> = e.pool) {
-    const {rows:[actor]} = await client.query('SELECT * FROM parity.sessions WHERE token_hash=$1 AND project_id=$2 AND expires_at>clock_timestamp()',[digest(token),projectId]);
+  async function identity(token:string|symbol, client: Pick<PoolClient,'query'> = e.pool) {
+    const local=token===localFixtureReviewer;
+    if(typeof token!=='string'&&!local)throw new Error('AUTHORIZATION');
+    const {rows:[actor]} = await client.query('SELECT * FROM parity.sessions WHERE token_hash=$1 AND project_id=$2 AND (expires_at>clock_timestamp() OR $3)',[digest(local?credentials.human:token as string),projectId,local]);
     if (!actor) throw new Error('AUTHORIZATION'); return actor;
   }
   async function state(client:Pick<PoolClient,'query'> = e.pool) {
@@ -54,7 +59,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
     return {path:path.join(storage,`${take.sha256}.simulation`),sha256:take.sha256};
   }
   const planHash=(draft:any)=>hash({revision:draft.revision,prompt:draft.prompt,continuity:draft.continuity});
-  async function read(token:string) {
+  async function read(token:string|symbol) {
     const actor=await identity(token);
     const client=await e.pool.connect();
     try {return await transaction(client,async()=>{
@@ -68,7 +73,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
       return {...draft,takes,attempts,exports,canReview:actor.can_review};
     });} finally {client.release();}
   }
-  async function media(token:string,id:string) {
+  async function media(token:string|symbol,id:string) {
     await identity(token);
     if(/^image-[a-f0-9]{64}$/.test(id)&&catalog.files[id]) {
       const bytes=await readFile(catalog.files[id]);if(digest(bytes)!==id.slice(6)) throw new Error('MEDIA_HASH');
@@ -84,7 +89,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
     const file=await artifact(id);await inspectVideo(file.path,file.sha256);
     return {bytes:await readFile(file.path),type:'video/mp4'};
   }
-  async function command(token:string, raw:unknown,
+  async function command(token:string|symbol, raw:unknown,
     recover?:(id:string,reactivate:()=>Promise<void>)=>Promise<void>):Promise<any> {
     await identity(token);
     if (raw && typeof raw==='object' && 'type' in raw && ['transfer','spend','authorize'].includes(String(raw.type))) throw new Error('CAPABILITY');
@@ -200,7 +205,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
       finally {client.release();}
     }
   }
-  return {credentials,projectId,shotId,accountId,read,command,media,catalog,storage,
+  return {credentials,localFixtureReviewer,projectId,shotId,accountId,read,command,media,catalog,storage,
     async isQueued(attemptId:string){return (await e.pool.query(`SELECT 1 FROM pgboss.job j JOIN spike.attempts a ON a.job_id=j.id
       WHERE a.id=$1 AND a.project_id=$2 AND j.name=$3 AND j.state IN ('created','retry')`,[attemptId,projectId,queue])).rowCount===1;},
     renderExport:(id:string,onProgress?:(child:ChildProcess)=>Promise<void>)=>render(e,storage,id,onProgress)};

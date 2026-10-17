@@ -31,17 +31,15 @@ try {
   const catalog=JSON.parse(await readFile('output/catalog.json','utf8'));
   const service=await createService(e,catalog,cluster.root);
   const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
-  const api=await startHttp(service,{origin:provider.origin,storage:cluster.root,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'});
+  const api=await startHttp(service,{origin:provider.origin,storage:cluster.root,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'},'trusted-local-fixture-review');
   cleanup.push(()=>api.close());
-  for(const [role,token] of Object.entries(service.credentials)) {
-    await writeOwnedFile(`output/${role}-session.txt`,token);
-  }
+  await writeOwnedFile('output/agent-session.txt',service.credentials.agent);
   if(interrupted) throw new Error('INTERRUPTED');
   assert.equal((await fetch(api.origin+'/health')).status,200);
   const pgPid=Number((await readFile(path.join(cluster.dataDirectory,'postmaster.pid'),'utf8')).split('\n')[0]);
   const ready={origin:api.origin,pid:process.pid,pgPid,root:cluster.root};
   await writeOwnedFile('output/demo.json',JSON.stringify(ready,null,2));
-  console.log(`READY ${api.origin} — local fixture only. Review key: output/human-session.txt. Stop with Ctrl-C.`);
+  console.log(`READY ${api.origin} — trusted local fixture review; no sign-in or human identity proof. Stop with Ctrl-C.`);
   process.send?.(ready);
   await stopped;
 } catch(error) {

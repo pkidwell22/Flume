@@ -5,7 +5,7 @@ import { cpSync,mkdirSync,readdirSync,readFileSync,writeFileSync,symlinkSync,rmS
 import path from 'node:path';
 const root=path.resolve('.');
 const mutations=[
-  ['identity','service.ts','token_hash=$1 AND project_id=$2 AND expires_at','token_hash=$1 AND $2::uuid IS NOT NULL AND expires_at','service.test.ts','cross-project','Missing expected rejection'],
+  ['identity','service.ts','token_hash=$1 AND project_id=$2 AND (expires_at','token_hash=$1 AND $2::uuid IS NOT NULL AND (expires_at','service.test.ts','cross-project','Missing expected rejection'],
   ['revision','service.ts','if (cmd.revision!==draft.revision)','if (false)','service.test.ts','both callers','The input did not match the regular expression /REVISION_CONFLICT/'],
   ['approval','service.ts','if(!actor.can_review)','if(false)','service.test.ts','first-look','Missing expected rejection'],
   ['inspection-owner','service.ts','WHERE id=$1 AND actor_id=$2 AND shot_id=$3 AND artifact=$4','WHERE id=$1 AND $2::uuid IS NOT NULL AND shot_id=$3 AND artifact=$4','recovery.test.ts','SIGKILL at bytes','Missing expected rejection'],
@@ -34,6 +34,22 @@ const mutations=[
   ['save-base','ui/ui.js','await refresh(false);message($(\'prompt\').value===saved.prompt','await refresh(false);editorRevision=state.revision;message($(\'prompt\').value===saved.prompt','ui.test.ts','base revision: newer-server-revision','editor base is the saved response, not a later GET revision'],
   ['unknown-write','ui/ui.js','The result may be unknown.','Saved state was not overwritten.','ui.test.ts','base revision: lost-response','a lost response cannot imply the write did not commit'],
   ['acquisition-cleanup','demo.ts',"  const handle=await open(file,'wx',0o600);\n  // Only a successfully acquired file belongs to this process's cleanup.\n  cleanup.push(()=>rm(file,{force:true}));", "  cleanup.push(()=>rm(file,{force:true}));\n  const handle=await open(file,'wx',0o600);",'demo.test.ts','startup collision at demo.json','pre-existing sentinel must survive exclusive-create failure'],
+  ['demo-opt-in','demo.ts',",'trusted-local-fixture-review');",');','demo.test.ts','owned demo publishes','default demo must not deliver a key-entry form'],
+  ['demo-auto-entry','ui/ui.js',"refresh().catch(()=>message(","Promise.resolve().catch(()=>message(",'demo.test.ts','owned demo publishes','opening the default demo must automatically reach review'],
+  ['local-session-expiry','http.ts','localReview?service.localFixtureReviewer','localReview?service.credentials.human','demo.test.ts','owned demo publishes','expired fixture session must not require manual reentry'],
+  ['protected-default','http.ts',"mode==='trusted-local-fixture-review'",'true','local-review.test.ts','protected default','default API must reject unauthenticated reads'],
+  ['local-bearer-upgrade','http.ts','const token=bearer??(','const token=(localReview?service.localFixtureReviewer:bearer)??(','local-review.test.ts','never upgrades bearer','explicit agent must stay agent'],
+  ['local-agent-approval','service.ts','if(!actor.can_review)','if(false)','local-review.test.ts','never upgrades bearer','explicit agent must not approve'],
+  ['local-malformed-auth','http.ts',"if(req.headers.authorization!==undefined&&(!bearer||req.headersDistinct.authorization?.length!==1)) throw new Error('AUTHORIZATION');",'/* mutation: malformed credentials fall through */','local-review.test.ts','rejects malformed or invalid credentials','malformed authorization must not become reviewer'],
+  ['local-duplicate-auth','http.ts','||req.headersDistinct.authorization?.length!==1','','local-review.test.ts','rejects malformed or invalid credentials','duplicate authorization headers must not resolve a principal'],
+  ['local-cookie-upgrade','http.ts','req.headers.cookie!==undefined?cookie:','cookie?cookie:','local-review.test.ts','rejects malformed or invalid credentials','supplied invalid cookie must not become reviewer'],
+  ['protected-session-expiry','service.ts','(expires_at>clock_timestamp() OR $3)','($3::boolean OR true)','local-review.test.ts','local expiry continuity','supplied expired bearer must stay expired'],
+  ['legacy-file-cleanup','demo.ts',"await writeOwnedFile('output/agent-session.txt',service.credentials.agent);","await writeOwnedFile('output/agent-session.txt',service.credentials.agent);cleanup.push(()=>rm('output/human-session.txt',{force:true}));",'demo.test.ts','startup collision at human-session.txt','pre-existing sentinel must survive exclusive-create failure'],
+  ['local-host','http.ts','if(req.headers.host!==new URL(origin).host)','if(false)','local-review.test.ts','retains Host Origin','foreign Host must fail'],
+  ['local-origin','http.ts','if(req.headers.origin&&req.headers.origin!==origin)','if(false)','local-review.test.ts','retains Host Origin','cross-origin reads must fail'],
+  ['local-post-origin','http.ts',"if(req.method==='POST'&&!bearer&&req.headers.origin!==origin)",'if(false)','local-review.test.ts','retains Host Origin','credential-free POST requires same origin'],
+  ['local-spend','service.ts',"['transfer','spend','authorize'].includes(String(raw.type))",'false','local-review.test.ts','retains Host Origin','local review must not confer transfer or spend'],
+  ['local-provider-route','provider.ts',"z.literal('fixture/video-v1')",'z.string()','local-review.test.ts','retains Host Origin','provider must reject non-fixture routes'],
 ];
 const results=[];
 for(const [name,file,from,to,test,pattern,expected] of mutations) {

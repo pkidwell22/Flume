@@ -8,14 +8,15 @@ import { setup } from './support.ts';
 import { startProvider } from '../provider.ts';
 import { startHttp } from '../http.ts';
 
-test('human editor preserves its own revision and blocks review of unsaved text',async t=>{
+test('trusted local editor preserves its own revision and blocks review of unsaved text',async t=>{
   const {service:s,catalog,cleanup,fresh}=await setup(t);
   const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
-  const api=await startHttp(s,{origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'});cleanup.push(()=>api.close());
-  const {document}=parseHTML(await readFile('ui/index.html','utf8'));
+  const api=await startHttp(s,{origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'},'trusted-local-fixture-review');cleanup.push(()=>api.close());
+  const {document}=parseHTML(await (await fetch(api.origin+'/')).text());
+  assert.equal(document.getElementById('login'),null);
   const context=vm.createContext({document,crypto,fetch:(url:string,options:any={})=>fetch(api.origin+url,{
-    ...options,headers:{...options.headers,authorization:`Bearer ${s.credentials.human}`}})});
-  vm.runInContext(await readFile('ui/ui.js','utf8'),context);
+    ...options,headers:{...options.headers,origin:api.origin}})});
+  vm.runInContext(await (await fetch(api.origin+'/ui.js')).text(),context);
   await vm.runInContext('refresh()',context);
   const get=(id:string)=>document.getElementById(id)! as any;
   await get('inspect-look').onclick();assert.equal(get('approve').disabled,false);

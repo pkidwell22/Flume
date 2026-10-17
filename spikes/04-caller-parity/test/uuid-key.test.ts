@@ -34,7 +34,7 @@ for(const spelling of ['uppercase','mixed-case'] as const) test(`validated ${spe
   });
   syncBuiltinESMExports();t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});
   let received:string|undefined;
-  const wrapped={...s,async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+  const wrapped={...s,async command(token:Parameters<typeof s.command>[0],body:any,recover?:Parameters<typeof s.command>[2]){
     if(body.type==='recover')received=body.attemptId;
     return s.command(token,body,recover);
   }};
@@ -87,7 +87,7 @@ for(const window of ['queue-read','command-response'] as const) test(`mixed-case
   const literalIds:string[]=[];
   const wrapped={...s,
     async isQueued(id:string){const queued=await s.isQueued(id);if(++reads===1){assert.equal(queued,true);captured.resolve();await release.promise;}return queued;},
-    async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+    async command(token:Parameters<typeof s.command>[0],body:any,recover?:Parameters<typeof s.command>[2]){
       literalIds.push(body.attemptId);const number=++commands;if(number===2)arrived.resolve();
       const result=await s.command(token,body,recover);
       if(window==='command-response'&&number===1){held.resolve();await releaseResponse.promise;}
@@ -135,7 +135,7 @@ test('malformed recovery UUIDs remain literal STRUCTURE failures without worker 
   let reactivations=0,callbacks=0,received:unknown;
   const fail=e.boss.fail.bind(e.boss);
   t.mock.method(e.boss,'fail',async(...args:any[])=>{reactivations++;return (fail as any)(...args);});
-  const wrapped={...s,async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+  const wrapped={...s,async command(token:Parameters<typeof s.command>[0],body:any,recover?:Parameters<typeof s.command>[2]){
     received=structuredClone(body);
     return s.command(token,body,async(id,reactivate)=>{callbacks++;await recover!(id,reactivate);});
   }};
