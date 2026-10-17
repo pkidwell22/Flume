@@ -1,5 +1,22 @@
 # Execution evidence and constrained verdict
 
+## Received-take hash wrapping correction
+
+Based on `ed00a702619be5bf6af7490a563989ace333fc2f`, this presentation-only correction assigns the existing `.hash` class to each received-take artifact paragraph. The full `Artifact ${take.sha256}` text is retained verbatim. The existing 13px / `overflow-wrap:anywhere` / `white-space:pre-wrap` styling is reused without CSS changes, overflow hiding, new features or command changes.
+
+**Finding:** the parent's real-browser readback measured a 1100px viewport and 1241px document width; the second take's right edge was 1241.015625px. Its screenshot shows the second player's right controls clipped, and the artifact paragraph lacked the wrapping class. The original `output/parent-review/browser-readback-geometry/readback.json` and `05-received-takes-selected.png` remain in the live review worktree and were hash-verified unchanged. Only those two evidence files were read there; no live-demo command, edit, test or restart was performed.
+
+| Gate | Observed correction result |
+|---|---|
+| Regression RED → GREEN | The existing real-HTTP UI test first failed `received-take hashes must use the existing wrapping style` with `false !== true`; after the class assignment, both received cards retain exact artifact text and use `.hash` |
+| Focused UI suite / typecheck | **4 UI tests pass**; `npm run typecheck` passes |
+| Full `npm run verify` | Core build, fixture preparation, typecheck and **43 tests pass**, zero skipped/cancelled |
+| Preservation / cleanup | All **152 other tracked files** byte-identical to the correction base, including service/HTTP/demo, CSS, schemas, dependencies and locks; **38 tracked 01/02 files** and MIT license also match main `55d2d64d56869d1490b459352a4db21a17c88e72`. **47 observed owned-cluster roots** absent afterward, no matching live processes and no retained demo files |
+
+Execution used the inactive fix worktree with `LC_ALL=C`, owned scratch `TMPDIR` and `PG_BIN=/opt/homebrew/bin`. Logs and the before/after audit are ignored under `output/hash-wrapping/`. All **3893 pre-existing 02/04 output files** were archived and hash-verified before preparation; only the regenerated catalog differs in place, and its original bytes remain archived. Prior mutation/core/media evidence is retained, not claimed as rerun; the 45-mutation suite was not rerun for this presentation-only change. No installs, global configuration changes or live-provider calls were made.
+
+**Parent visual gate pending:** these DOM/HTTP assertions prove class wiring and text identity, not browser geometry or native playback. The corrected head still requires the parent's independent native-browser readback and code review. No author approval, merge or issue closure is claimed.
+
 ## Trusted-local fixture review follow-up
 
 Based on `2466b57396d5d078835dd9cae08d45ee039f48cf`, this removes the manual review-key handoff without changing the protected default API. `demo.ts` alone selects the closed `trusted-local-fixture-review` HTTP mode. Its HTML contains the workflow and an explicit trust notice, not the login/key section; the actual UI JavaScript opens it with a credential-free state read. No key is placed in HTML, JavaScript, URLs or logs, no browser cookie is issued by automatic entry, and the launcher creates only the private agent credential file.

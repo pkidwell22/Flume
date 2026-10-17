@@ -37,7 +37,16 @@ test('trusted local editor preserves its own revision and blocks review of unsav
   await get('refresh').onclick();
   await get('inspect-look').onclick();await get('approve').onclick();await get('submit').onclick();
   await api.idle();await get('refresh').onclick();
-  const take=(await s.read(s.credentials.human)).takes[0];
+  const takes=(await s.read(s.credentials.human)).takes;
+  assert.equal(takes.length,2);
+  const cards=[...document.querySelectorAll('#takes .take')];
+  assert.equal(cards.length,takes.length);
+  for(const [i,take] of takes.entries()) {
+    const hash=cards[i].querySelector('p');
+    assert.equal(hash?.textContent,`Artifact ${take.sha256}`,'the full artifact identity must remain verbatim');
+    assert.equal(hash?.classList.contains('hash'),true,'received-take hashes must use the existing wrapping style');
+  }
+  const take=takes[0];
   get('prompt').value='Review the imported take for the next plan';
   await get('edit').onsubmit({preventDefault(){}});
   const inspect=[...document.querySelectorAll('button')].find(b=>b.textContent==='Inspect this take')! as any;

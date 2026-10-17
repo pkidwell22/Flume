@@ -39,7 +39,8 @@ PNG ${binding.image.sha256}`));$('references').append(f);
   $('takes').replaceChildren();
   for(const [i,take] of state.takes.entries()){
     const card=node('article');card.className=`take${state.selected_take===take.id?' selected':''}`;
-    card.append(node('h3',`Take ${i+1}${state.selected_take===take.id?' — selected':''}`),video(take.id),node('p',`Artifact ${take.sha256}`));
+    const hash=node('p',`Artifact ${take.sha256}`);hash.className='hash';
+    card.append(node('h3',`Take ${i+1}${state.selected_take===take.id?' — selected':''}`),video(take.id),hash);
     const inspect=button('Inspect this take',async()=>{const r=await command({type:'inspect',artifact:take.id});inspections.set(take.id,r.id);firstLook=r;$('inspection').textContent=JSON.stringify(r,null,2);message(`Inspected take ${i+1}. No selection changed.`);await refresh(false);});
     const select=button('Select this take',async()=>{await command({type:'select',selectionRevision:state.selection_revision,takeId:take.id,inspectionId:inspections.get(take.id)});await refresh(false);message(`Take ${i+1} explicitly selected.`);});select.disabled=!inspections.has(take.id);
     const actions=node('div');actions.className='actions';actions.append(inspect,select);card.append(actions);$('takes').append(card);
