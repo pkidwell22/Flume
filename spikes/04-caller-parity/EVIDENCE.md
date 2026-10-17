@@ -1,6 +1,33 @@
 # Execution evidence and constrained verdict
 
-## Observed gates
+## Review correction evidence
+
+Corrections were authored and exercised in a separate worktree based on `bcb357a77245960b4c52cc5023e8341945cc4d24`. The retained user demo, its local branch and its session files were not changed. All source changes remain under this experiment; all **38** tracked 01/02 files and the root MIT license match both that head and `55d2d64d56869d1490b459352a4db21a17c88e72` byte-for-byte.
+
+| Gate | Observed correction result |
+|---|---|
+| `npm run verify` | Typecheck and **28 tests pass**, zero skipped/cancelled; 17 added regression cases |
+| `node scripts/check-mutations.mjs` | **21 mutations rejected** at specific expected failures: the original six plus 15 correction controls |
+| Unchanged 01 verify / mutation commands | **71 tests pass** (11 runner, 22 acceptance, 38 recovery); **3 + 6 mutants rejected** |
+| Unchanged 02 typecheck / tests | **43 tests pass**, after owned fixture generation |
+| Original parent probes, copied without edits | **Both pass**: original receipt after an edit; overlapping HTTP receipts with one queue read, no interruption, one available attempt and two takes |
+| Project-local dependency audits | **Zero vulnerabilities** for 01, 02 and 04; no lockfile changes |
+
+| Defect | Observed RED → correction / GREEN evidence |
+|---|---|
+| Premature advisory unlock / client release | Real PG terminal-statement barriers found the shot lock absent before COMMIT/ROLLBACK. All mutation/accept promises are now awaited. Independent sessions prove an overlapping human/agent edit or selection waits, exactly one wins, and the loser conflicts; pg protocol status proves released clients are transaction-idle. SQL revision compare-and-set also rejects an independent write between validation and mutation. |
+| Receipt replay after edits | The same accepted command returned `REVISION_CONFLICT`. Principal-scoped immutable receipt lookup now reconstructs the original core command before mutable draft/grant validation; the unchanged core returns its receipt. Wrong revision/intent, foreign or changed principal, malformed payload and genuinely new stale submissions still reject. Readbacks show no added receipt, job, grant or reservation. |
+| Concurrent HTTP replay | Actual queue-read barriers reproduced a second worker and false interruption. Pending starts are now reserved before the asynchronous decision and shared by concurrent receipts. Real fork counts show one worker; failed reads release pending state, and shutdown drains pending starts without late launches. A completed replay after editing starts no new worker. |
+| Save replaces newer text | Deferred real POST/GET responses replaced text typed during the save with the submitted text. Save completion now keeps the live buffer and uses the successful POST's base revision, not a later GET's revision. Newer text stays dirty with approval/submission disabled; a subsequent save succeeds or conflicts appropriately. A deliberately lost response after a real commit is described as an unknown result, not a failed write. |
+| Cleanup deletes unacquired files | Real demo startup with each pre-existing session/readiness sentinel deleted that sentinel on EEXIST. Exclusive open now succeeds before removal is registered. All three sentinels survive; the actual failure path stops both new listeners, demo/postmaster processes and removes the new cluster and only the newly acquired process files. |
+
+Per-defect RED/GREEN logs and final runs are retained privately in ignored `output/review-fixes/`; parent probe copies/results are in this worktree's ignored `output/parent-review/`. The parent's original four evidence files were hash-compared before/after and remain unchanged. Tests observe real PG queries, worker processes and HTTP responses; they do not fabricate database results. UI proof is DOM/HTTP logic, not browser rendering or playback.
+
+The pending-start failure test initially passed after coalescing and is **coverage with a negative control**, not a claimed historical RED: retaining a rejected pending start makes its retry assertion fail. The first revised mutation run found that the old revision mutant now fails at the new stale-submission error assertion rather than the edit assertion (the new CAS still rejects the edit); its expected failure was updated, not the behavioral test. The initial rollback probe's observation was corrected to use PostgreSQL's `idle in transaction (aborted)` state rather than a non-null transaction timestamp. Both initial logs remain separate from successful runs.
+
+Every printed owned-cluster root collected from the correction logs was independently checked absent, with no matching live postmaster command. Demo/worker tests additionally assert recorded PID death and listener refusal. No shared database, live provider, secret read, global install, browser installation, approval, merge or issue closure was performed. Corrected code still requires the parent's independent retest/re-review and visual review.
+
+## Original submission gates (before these corrections)
 
 Executed against Node **26.8.1**, npm **11.19.0**, existing FFmpeg **9.0.1**, and fresh owned socket-only PostgreSQL clusters.
 

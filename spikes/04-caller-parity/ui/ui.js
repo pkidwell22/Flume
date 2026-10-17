@@ -15,7 +15,7 @@ async function api(url,body,headers={}){
   const response=await fetch(url,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const result=await response.json();if(!response.ok)throw new Error(result.error);return result;
 }
-async function act(action){if(busy)return;busy=true;try{await action();}catch(error){message(`${error.message}. Saved state was not overwritten. Refresh before trying again.`,true);}finally{busy=false;}}
+async function act(action){if(busy)return;busy=true;try{await action();}catch(error){message(`${error.message}. The result may be unknown. Editor text is retained; check saved state before retrying.`,true);}finally{busy=false;}}
 async function command(body){return api('/commands',{revision:state.revision,...body});}
 function video(id){const v=node('video');v.controls=true;v.loop=true;v.playsInline=true;v.preload='metadata';v.src=`/media/${id}`;return v;}
 function button(text,fn){const b=node('button',text);b.onclick=()=>act(fn);return b;}
@@ -55,7 +55,7 @@ PNG ${binding.image.sha256}`));$('references').append(f);
     if(exp.status==='complete'){const a=node('a','View frozen export');a.href=`/media/export-${exp.id}`;a.target='_blank';a.rel='noopener';row.append(a);} $('exports').append(row);}
 }
 $('login').onsubmit=event=>{event.preventDefault();act(async()=>{await api('/session',{}, {authorization:`Bearer ${$('key').value.trim()}`});$('key').value='';await refresh();message('Local review opened.');});};
-$('edit').onsubmit=event=>{event.preventDefault();return act(async()=>{await command({type:'edit',revision:editorRevision,prompt:$('prompt').value});firstLook=null;inspections.clear();await refresh();message('Draft saved. Previous approval is no longer valid.');});};
+$('edit').onsubmit=event=>{event.preventDefault();return act(async()=>{const saved=await command({type:'edit',revision:editorRevision,prompt:$('prompt').value});editorRevision=saved.revision;firstLook=null;inspections.clear();await refresh(false);message($('prompt').value===saved.prompt?'Draft saved. Previous approval is no longer valid.':'Submitted draft saved; newer editor text is still unsaved.');});};
 $('refresh').onclick=()=>act(async()=>{await refresh();message('Loaded the current saved draft.');});
 $('inspect-look').onclick=()=>act(async()=>{firstLook=await command({type:'inspect',artifact:'first-look'});$('inspection').textContent=JSON.stringify(firstLook,null,2);await refresh(false);message('Exact fixture bytes inspected for this draft. Approval is still separate.');});
 $('approve').onclick=()=>act(async()=>{await command({type:'approve',inspectionId:firstLook.id});message('Plan approved for one local fixture attempt; no money or upload authority exists.');});

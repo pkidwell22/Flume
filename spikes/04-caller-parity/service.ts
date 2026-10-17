@@ -95,10 +95,23 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
       // core accept() transaction on its own checked-out connection.
       await client.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[shotId]);
       const actor=await identity(token,client);
+      if(cmd.type==='submit') {
+        // Resolve the original immutable core command, not today's approval.
+        // Principal and strict command validation still precede this receipt read.
+        const {rows:[accepted]}=await client.query(`SELECT a.* FROM spike.receipts r
+          JOIN spike.attempts a ON a.id=r.attempt_id
+          WHERE r.project_id=$1 AND r.actor_id=$2 AND r.command_id=$3`,[projectId,actor.actor_id,cmd.commandId]);
+        if(accepted) {
+          if(cmd.revision!==accepted.request.draftRevision || accepted.request.shotId!==shotId) throw new Error('COMMAND_CONFLICT');
+          return await accept(e,{projectId,actorId:actor.actor_id},{commandId:cmd.commandId,
+            reviewId:accepted.review_id,grantId:accepted.grant_id,requestFingerprint:accepted.request_fingerprint});
+        }
+      }
       const draft=await state(client);
       if (cmd.revision!==draft.revision) throw new Error('REVISION_CONFLICT');
-      if (cmd.type==='edit') return transaction(client,async()=>{
-        await client.query('UPDATE spike.drafts SET prompt=$2,revision=revision+1 WHERE id=$1',[shotId,cmd.prompt]);
+      if (cmd.type==='edit') return await transaction(client,async()=>{
+        const changed=await client.query('UPDATE spike.drafts SET prompt=$2,revision=revision+1 WHERE id=$1 AND revision=$3',[shotId,cmd.prompt,cmd.revision]);
+        if(changed.rowCount!==1) throw new Error('REVISION_CONFLICT');
         await client.query('UPDATE spike.grants SET revoked=true WHERE project_id=$1',[projectId]);
         await client.query('UPDATE parity.exports SET stale=true WHERE shot_id=$1',[shotId]);
         return state(client);
@@ -128,7 +141,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
           envelope:{version:1,adapterVersion:'fixture-1',body:JSON.stringify({profile:'owned-pattern-mp4-v1',
             prompt:draft.prompt,continuity:draft.continuity,firstLook:{inspectionId:inspection.id,artifact:inspection.artifact,sha256:inspection.sha256,planHash:inspection.plan_hash}})}});
         const reviewId=randomUUID(),fingerprint=hash(frozen);
-        return transaction(client,async()=>{
+        return await transaction(client,async()=>{
           await client.query('UPDATE spike.grants SET revoked=true WHERE project_id=$1',[projectId]);
           await client.query('INSERT INTO spike.reviews (id,project_id,shot_id,draft_revision,request,request_fingerprint) VALUES ($1,$2,$3,$4,$5,$6)',
             [reviewId,projectId,shotId,draft.revision,frozen,fingerprint]);
@@ -154,8 +167,9 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
           [cmd.inspectionId,actor.actor_id,shotId,cmd.takeId,planHash(draft)]);
         if(!inspection) throw new Error('INSPECTION_REQUIRED');
         const media=await artifact(cmd.takeId,client); await inspectVideo(media.path,inspection.sha256);
-        return transaction(client,async()=>{
-          await client.query('UPDATE parity.plans SET selected_take=$2,selection_revision=selection_revision+1 WHERE shot_id=$1',[shotId,cmd.takeId]);
+        return await transaction(client,async()=>{
+          const changed=await client.query('UPDATE parity.plans SET selected_take=$2,selection_revision=selection_revision+1 WHERE shot_id=$1 AND selection_revision=$3',[shotId,cmd.takeId,cmd.selectionRevision]);
+          if(changed.rowCount!==1) throw new Error('SELECTION_CONFLICT');
           await client.query('UPDATE parity.exports SET stale=true WHERE shot_id=$1',[shotId]);
           return state(client);
         });
@@ -176,7 +190,7 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
         JOIN spike.grants g ON g.allowed_fingerprints @> jsonb_build_array(r.request_fingerprint)
         WHERE r.project_id=$1 AND r.draft_revision=$2 AND g.actor_id=$3 AND NOT g.revoked`,[projectId,draft.revision,actor.actor_id]);
       if(!approval) throw new Error('REVIEW_REQUIRED');
-      return accept(e,{projectId,actorId:actor.actor_id},{commandId:cmd.commandId,reviewId:approval.id,grantId:approval.grant_id,requestFingerprint:approval.request_fingerprint});
+      return await accept(e,{projectId,actorId:actor.actor_id},{commandId:cmd.commandId,reviewId:approval.id,grantId:approval.grant_id,requestFingerprint:approval.request_fingerprint});
     } finally {
       try {await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[shotId]);}
       finally {client.release();}

@@ -14,12 +14,12 @@ Refs #6. A disposable vertical workflow, not product scaffolding or a new agent 
 
 1. Inspect the prebuilt owned first-look clip, then explicitly approve its exact artifact + current plan. Approval is separate from inspection. An imported take can become the review candidate after editing to a new plan revision.
 2. Approval issues server-scoped, expiring grants for the two registered fixture actors. One shared review can be consumed only once; only the unchanged acceptance transaction reserves its allowance. Repeating approval for the same draft is rejected. There is no upload, live route, transfer or monetary-spending capability.
-3. Submit with a command UUID and expected draft revision. Human edits revoke dependent grants and make stale writes/submissions conflict. The editor retains its own base revision and unsaved text; a result refresh cannot silently advance its write fence. An accepted receipt replay does not launch another worker.
+3. Submit with a command UUID and expected draft revision. Human edits revoke dependent grants and make new stale writes/submissions conflict. An exact accepted replay by the original principal returns its immutable receipt even after an edit; reusing that ID with a different revision/intent conflicts. Overlapping identical HTTP submissions share one pending worker-start decision; completed receipt replays launch no new worker. Saving preserves text typed while the POST or subsequent GET is in flight, and advances the editor base only to the successful save's revision. Newer text remains unsaved and cannot be approved; a lost response does not establish whether the write committed.
 4. Inspect received bytes, then explicitly select a take with an actor-bound inspection and expected selection revision. Arrival and inspection do not select anything. The UI deliberately uses an explicit refresh rather than background polling.
 5. `recover` reactivates the original pg-boss job. SIGKILL after the provider reply or after durable bytes resumes the same attempt/key/remote identity. Recovery never creates a new attempt, grant, allowance or implicit reroll. The local fixture provider stays alive during these worker interruption tests; provider-process/database disaster recovery is not claimed.
 6. Export freezes draft revision, selection revision, take identity/hash, original request and continuity in a PostgreSQL snapshot protected by a trigger. Actual FFmpeg stream copy reads frozen bytes. Later edits/selections mark the export stale without rewriting its inputs. This experiment does not implement interrupted-export restart.
 
-The service holds a per-shot advisory lock across its command boundary, while each state write uses a database transaction where needed. It does **not** rewrite the underlying queue/lifecycle lock protocol or hold those row locks across provider I/O. All data belongs to a new, socket-only owned PostgreSQL cluster; no connection URL or shared service is used.
+The service awaits each complete operation, holding its per-shot advisory lock and checked-out client through COMMIT or ROLLBACK. Edit/selection updates also use SQL revision compare-and-set. It does **not** rewrite the underlying queue/lifecycle lock protocol or hold those row locks across provider I/O. All data belongs to a new, socket-only owned PostgreSQL cluster; no connection URL or shared service is used.
 
 ## Prerequisites and verification
 
@@ -32,6 +32,7 @@ From this directory:
 ```sh
 export TMPDIR="$FLUME_SCRATCH" PG_BIN=/opt/homebrew/bin
 npm --prefix ../01-approved-attempt ci --ignore-scripts
+npm --prefix ../02-frame-provenance ci --ignore-scripts
 npm ci --ignore-scripts
 npm run verify
 node scripts/check-mutations.mjs
@@ -45,7 +46,6 @@ Underlying regression commands, run serially with the same explicit scratch envi
 npm --prefix ../01-approved-attempt run verify
 npm --prefix ../01-approved-attempt run test:mutations
 npm --prefix ../01-approved-attempt run test:recovery:mutations
-npm --prefix ../02-frame-provenance ci --ignore-scripts
 npm --prefix ../02-frame-provenance run typecheck
 npm --prefix ../02-frame-provenance test
 ```
@@ -64,6 +64,8 @@ Open the origin in the existing preview/browser. Enter the **fixture-only** key 
 Use the normal controls: save direction, inspect first look, approve, run fixture, refresh, inspect a received take, select it, freeze/export, refresh. To review an imported take for a changed plan, save the new direction and inspect that take; the first-look panel then shows that exact review candidate. JSON inspection and PNG/MP4 previews show real artifact references. No PID controls appear in the interface.
 
 Stop the foreground demo with **Ctrl-C** (or send SIGTERM to that verified demo process). Its handler stops owned workers/HTTP services, closes the pool, verifies the owned PostgreSQL postmaster has stopped, removes its cluster and removes the session/readiness files. The demo test exercises this exact SIGTERM path and independently checks process death, directory absence and a closed HTTP listener. A tracked background tool process should be stopped through that tool's process handle, not a guessed PID. Do not remove `demo.lock` while a demo is alive.
+
+Startup refuses existing session/readiness files rather than overwriting them. Cleanup registers file removal only after exclusive acquisition succeeds: an EEXIST failure preserves pre-existing files while stopping this startup's new cluster/listeners and removing only its acquired process files. Never delete another running demo's lock or keys to make startup succeed.
 
 Prepared fixture examples remain in ignored `output/take-0.mp4`, `output/take-1.mp4`, `output/catalog.json`; imported and exported media in the ephemeral cluster root are intentionally removed on cleanup. Never commit those files or session keys.
 

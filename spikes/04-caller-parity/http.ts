@@ -7,7 +7,21 @@ import type { Policy } from '../01-approved-attempt/dist/recovery/engine.js';
 type Service=Awaited<ReturnType<typeof createService>>;
 export async function startHttp(service:Service,policy:Policy) {
   const tasks=new Set<Promise<unknown>>(), workers=new Map<string,ReturnType<typeof launchWorker>>();
-  const failures=new Map<string,string>();let origin='';
+  const failures=new Map<string,string>(), starts=new Map<string,Promise<void>>();let origin='',closing=false;
+  function ensureWorker(id:string,recover:boolean) {
+    const pending=starts.get(id);if(pending)return pending;
+    // Publish ownership before the first async queue read (or stop). Replays
+    // await the same decision, not independent stale observations of the queue.
+    const start=Promise.resolve().then(async()=>{
+      if(closing)return;
+      if(recover&&workers.has(id))await workers.get(id)!.stop();
+      if(!workers.has(id)&&await service.isQueued(id)&&!closing) {
+        failures.delete(id);const worker=launchWorker(policy);workers.set(id,worker);
+        track(worker.done.finally(()=>{if(workers.get(id)===worker)workers.delete(id);}),id);
+      }
+    }).finally(()=>{starts.delete(id);tasks.delete(start);});
+    starts.set(id,start);tasks.add(start);return start;
+  }
   function track(task:Promise<unknown>,id:string) {
     tasks.add(task);void task.catch(()=>failures.set(id,'Interrupted; resume this attempt, not a new submission.')).finally(()=>tasks.delete(task));
   }
@@ -49,12 +63,7 @@ export async function startHttp(service:Service,policy:Policy) {
         let command:any;try{command=JSON.parse(body);}catch{throw new Error('STRUCTURE');}
         const result=await service.command(token,command);
         if(command.type==='submit'||command.type==='recover') {
-          const id=result.attemptId;
-          if(command.type==='recover'&&workers.has(id)) await workers.get(id)!.stop();
-          if((!workers.has(id)||command.type==='recover')&&await service.isQueued(id)) {
-            failures.delete(id);const worker=launchWorker(policy);workers.set(id,worker);
-            track(worker.done.finally(()=>{if(workers.get(id)===worker) workers.delete(id);}),id);
-          }
+          await ensureWorker(result.attemptId,command.type==='recover');
         }
         if(command.type==='export') track(service.renderExport(result.id),result.id);
         send(result);return;
@@ -71,7 +80,8 @@ export async function startHttp(service:Service,policy:Policy) {
   await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   const address=server.address();assert(address&&typeof address==='object');origin=`http://127.0.0.1:${address.port}`;
   return {origin,async idle(){while(tasks.size) await Promise.allSettled([...tasks]);},async close(){
-    server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
+    closing=true;server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
+    await Promise.allSettled([...starts.values()]);
     await Promise.all([...workers.values()].map(w=>w.stop()));await Promise.allSettled([...tasks]);assert.equal(server.listening,false);
   }};
 }

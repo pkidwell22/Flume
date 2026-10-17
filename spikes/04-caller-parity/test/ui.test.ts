@@ -50,3 +50,52 @@ test('human editor preserves its own revision and blocks review of unsaved text'
   await get('inspect-look').onclick();
   assert.equal(get('look').src,'/media/first-look');
 });
+
+function deferred(){let resolve!:()=>void;const promise=new Promise<void>(r=>{resolve=r;});return {promise,resolve};}
+for(const mode of ['typing','newer-server-revision','lost-response'] as const) test(`save response preserves editor buffer and base revision: ${mode}`,async t=>{
+  const {service:s,catalog,cleanup}=await setup(t);
+  const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
+  const api=await startHttp(s,{origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'});cleanup.push(()=>api.close());
+  const {document}=parseHTML(await readFile('ui/index.html','utf8'));
+  const posted=deferred(),releasePost=deferred(),loaded=deferred(),releaseGet=deferred();
+  let defer=false;
+  const context=vm.createContext({document,crypto,fetch:async(url:string,options:any={})=>{
+    const response=await fetch(api.origin+url,{...options,headers:{...options.headers,authorization:`Bearer ${s.credentials.human}`}});
+    if(defer&&url==='/commands'){
+      posted.resolve();await releasePost.promise;
+      if(mode==='lost-response')throw new Error('NETWORK_LOST_AFTER_COMMIT');
+    }
+    if(defer&&url==='/state'){loaded.resolve();await releaseGet.promise;}
+    return response;
+  }});
+  vm.runInContext(await readFile('ui/ui.js','utf8'),context);await vm.runInContext('refresh()',context);
+  const get=(id:string)=>document.getElementById(id)! as any;
+  const type=(value:string)=>{get('prompt').value=value;get('prompt').dispatchEvent(new document.defaultView!.Event('input'));};
+  type('A submitted');defer=true;
+  const saving=get('edit').onsubmit({preventDefault(){}});await posted.promise;
+  assert.equal((await s.read(s.credentials.human)).prompt,'A submitted','the POST really committed');
+  type('B typed during POST');
+  if(mode==='newer-server-revision')await s.command(s.credentials.agent,{type:'edit',revision:2,prompt:'Agent revision 3'});
+  releasePost.resolve();
+  if(mode!=='lost-response') {
+    await loaded.promise;type('C typed during GET');releaseGet.resolve();
+  }
+  await saving;defer=false;
+  assert.equal(get('prompt').value,mode==='lost-response'?'B typed during POST':'C typed during GET','newer editor input must survive save completion');
+  assert.equal(get('approve').disabled,true);assert.equal(get('submit').disabled,true);
+  assert.equal(get('inspect-look').disabled,true);
+  if(mode==='lost-response') {
+    assert.match(get('message').textContent,/may be unknown/,'a lost response cannot imply the write did not commit');
+    assert.equal(vm.runInContext('editorRevision',context),1);
+  } else {
+    assert.equal(vm.runInContext('editorRevision',context),2,'editor base is the saved response, not a later GET revision');
+    if(mode==='newer-server-revision')await vm.runInContext('refresh(false)',context);
+    await get('edit').onsubmit({preventDefault(){}});
+    if(mode==='newer-server-revision') {
+      assert.match(get('message').textContent,/REVISION_CONFLICT/);assert.equal((await s.read(s.credentials.human)).prompt,'Agent revision 3');
+    } else {
+      assert.equal((await s.read(s.credentials.human)).prompt,'C typed during GET');
+      assert.equal((await s.read(s.credentials.human)).revision,3);assert.equal(get('submit').disabled,false);
+    }
+  }
+});

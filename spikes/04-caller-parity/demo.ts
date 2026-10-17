@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir,open,readFile,rm,writeFile } from 'node:fs/promises';
+import { mkdir,open,readFile,rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createOwnedCluster } from '../01-approved-attempt/scripts/disposable-postgres.mjs';
 import { openExperiment } from '../01-approved-attempt/dist/src/database.js';
@@ -8,6 +8,12 @@ import { startProvider } from './provider.ts';
 import { startHttp } from './http.ts';
 
 const cleanup:(()=>Promise<unknown>)[]=[];
+async function writeOwnedFile(file:string,contents:string) {
+  const handle=await open(file,'wx',0o600);
+  // Only a successfully acquired file belongs to this process's cleanup.
+  cleanup.push(()=>rm(file,{force:true}));
+  try {await handle.writeFile(contents);} finally {await handle.close();}
+}
 let stop!:()=>void, interrupted=false;
 const stopped=new Promise<void>(resolve=>{stop=resolve;});
 const onSignal=()=>{interrupted=true;stop();};
@@ -28,15 +34,13 @@ try {
   const api=await startHttp(service,{origin:provider.origin,storage:cluster.root,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'});
   cleanup.push(()=>api.close());
   for(const [role,token] of Object.entries(service.credentials)) {
-    const file=`output/${role}-session.txt`;cleanup.push(()=>rm(file,{force:true}));
-    await writeFile(file,token,{mode:0o600,flag:'wx'});
+    await writeOwnedFile(`output/${role}-session.txt`,token);
   }
   if(interrupted) throw new Error('INTERRUPTED');
   assert.equal((await fetch(api.origin+'/health')).status,200);
   const pgPid=Number((await readFile(path.join(cluster.dataDirectory,'postmaster.pid'),'utf8')).split('\n')[0]);
   const ready={origin:api.origin,pid:process.pid,pgPid,root:cluster.root};
-  cleanup.push(()=>rm('output/demo.json',{force:true}));
-  await writeFile('output/demo.json',JSON.stringify(ready,null,2),{mode:0o600,flag:'wx'});
+  await writeOwnedFile('output/demo.json',JSON.stringify(ready,null,2));
   console.log(`READY ${api.origin} — local fixture only. Review key: output/human-session.txt. Stop with Ctrl-C.`);
   process.send?.(ready);
   await stopped;

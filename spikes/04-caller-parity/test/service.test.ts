@@ -35,6 +35,40 @@ test('first-look artifact review binds exact plan; only server mints and reserve
   assert((await fresh('SELECT revoked FROM spike.grants')).every(g=>g.revoked));
   await assert.rejects(s.command(s.credentials.agent,{...submit,commandId:crypto.randomUUID()}),/REVISION_CONFLICT/);
 });
+test('accepted submit replay precedes mutable revision and grant checks without changing intent',async t=>{
+  const {service:s,e,fresh}=await setup(t);
+  const look=await s.command(s.credentials.human,{type:'inspect',revision:1,artifact:'first-look'});
+  await s.command(s.credentials.human,{type:'approve',revision:1,inspectionId:look.id});
+  const command={type:'submit',revision:1,commandId:crypto.randomUUID()};
+  const original=await s.command(s.credentials.agent,command);
+  const snapshot=async()=>({
+    attempts:await fresh('SELECT * FROM spike.attempts'),receipts:await fresh('SELECT * FROM spike.receipts'),
+    reservations:await fresh('SELECT * FROM spike.reservations'),grants:await fresh('SELECT * FROM spike.grants ORDER BY id'),
+    jobs:await fresh('SELECT id,state FROM pgboss.job ORDER BY id'),
+  });
+  await s.command(s.credentials.human,{type:'edit',revision:1,prompt:'Human edit after acceptance'});
+  const before=await snapshot();
+  assert.deepEqual(await s.command(s.credentials.agent,command),original,'accepted replay must return the original receipt after an edit');
+  assert.deepEqual(await snapshot(),before,'replay must not create or reserve anything');
+  assert.equal((await s.read(s.credentials.human)).prompt,'Human edit after acceptance');
+  await assert.rejects(s.command(s.credentials.agent,{...command,revision:2}),/COMMAND_CONFLICT/);
+  await assert.rejects(s.command(s.credentials.human,command),/REVISION_CONFLICT/);
+  await assert.rejects(s.command(s.credentials.agent,{...command,commandId:crypto.randomUUID()}),/REVISION_CONFLICT/);
+  await assert.rejects(s.command(s.credentials.agent,{...command,prompt:'changed intent'}),/STRUCTURE/);
+  await assert.rejects(s.command(s.credentials.agent,{...command,type:'edit',prompt:'changed type'}),/STRUCTURE/);
+  await assert.rejects(s.command('forged',command),/AUTHORIZATION/);
+  const {digest}=await import('../service.ts');
+  const foreign='e'.repeat(64);
+  await e.pool.query("INSERT INTO parity.sessions VALUES ($1,$2,$3,true,clock_timestamp()+interval '1 hour')",[digest(foreign),crypto.randomUUID(),crypto.randomUUID()]);
+  await assert.rejects(s.command(foreign,command),/AUTHORIZATION/);
+  const newLook=await s.command(s.credentials.human,{type:'inspect',revision:2,artifact:'first-look'});
+  await s.command(s.credentials.human,{type:'approve',revision:2,inspectionId:newLook.id});
+  const newApproval=await snapshot();
+  assert.deepEqual(await s.command(s.credentials.agent,command),original);
+  await assert.rejects(s.command(s.credentials.agent,{...command,revision:2}),/COMMAND_CONFLICT/);
+  assert.deepEqual(await snapshot(),newApproval,'old command ID cannot consume a newer review');
+});
+
 test('cross-project fixture sessions cannot read or mutate this workspace',async t=>{
   const {service:s,e}=await setup(t);
   const token='f'.repeat(64);
