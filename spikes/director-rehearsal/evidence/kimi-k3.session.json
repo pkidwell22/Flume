@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-10-17T02:50:52.976066+00:00",
+  "session": {
+    "id": "20261016_224847_79afbc",
+    "source": "tool",
+    "model": "kimi-k3",
+    "system_prompt_hash": "55c33038d268d3fc29ea4f80737a694b490d2e48d101855f3f28e0525a32c1c1",
+    "started_at": 1792205328.368625,
+    "ended_at": 1792205349.061528,
+    "end_reason": "cli_close",
+    "tool_call_count": 0,
+    "api_call_count": 1,
+    "input_tokens": 8299,
+    "output_tokens": 2189,
+    "reasoning_tokens": 0,
+    "billing_provider": "ollama-cloud",
+    "billing_base_url": "https://ollama.com/v1"
+  },
+  "safeRunConfiguration": {
+    "max_iterations": 3,
+    "max_tokens": null,
+    "reasoning_config": {
+      "enabled": true,
+      "effort": "high"
+    }
+  },
+  "observedToolMessages": 0,
+  "observedToolCalls": 0,
+  "actualUserPromptSha256": "4465514e933d1972e73a704af080762dbe8e6c05bd76d0f6fdec07bb0d576146",
+  "responseSha256": "2bf04530057b3035521853816b6b611de5c68d702d7ae734ce7a9d92bf898a8f",
+  "finishReason": "stop",
+  "stdoutMatchesFinalIgnoringSurroundingWhitespace": true,
+  "targetAttribution": "session_verified",
+  "noToolsObserved": true,
+  "captureIssue": "Inference succeeded. Frozen runner expected Session: on stdout; this Hermes --quiet emitted session_id: on stderr. Original .run.json and raw streams are retained unchanged. This was offline capture recovery, not a model rerun or a transport failure.",
+  "limitations": "Session metadata verifies configured route/model, not independent upstream model attestation. System prompt hashes differ; exact user fixture/prompt bytes are equal. No token cap, seed or temperature was set. Runtime/profile defaults were not modified."
+}

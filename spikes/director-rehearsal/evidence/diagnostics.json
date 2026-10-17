@@ -1,0 +1,462 @@
+{
+  "label": "Post-run descriptive diagnostics only, NOT changed scoring or a replacement oracle.",
+  "models": {
+    "kimi-k3": {
+      "caseCount": 8,
+      "basisPreservedCount": 8,
+      "statePreservedCount": 8,
+      "cases": [
+        {
+          "caseId": "C01",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "inspect_project",
+              "args": {
+                "projectId": "project-synthetic"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": "synth:paired:v1",
+          "expectedSuggestedRouteId": "synth:paired:v1"
+        },
+        {
+          "caseId": "C02",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "inspect_project",
+              "args": {
+                "projectId": "project-synthetic"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C03",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "resume_attempt",
+              "args": {
+                "attemptId": "attempt-uncertain",
+                "mode": "read_only"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "resume_attempt",
+              "args": {
+                "attemptId": "attempt-uncertain",
+                "mode": "read_only"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C04",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "resume_attempt",
+              "args": {
+                "attemptId": "attempt-budget",
+                "mode": "read_only"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C05",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "replay_command",
+              "args": {
+                "commandId": "command-original"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "replay_command",
+              "args": {
+                "commandId": "command-original"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C06",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "retry_retrieval",
+              "args": {
+                "attemptId": "attempt-retrieval",
+                "outputId": "output-pending"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "retry_retrieval",
+              "args": {
+                "attemptId": "attempt-retrieval",
+                "outputId": "output-pending"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C07",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "submit_review",
+              "args": {
+                "commandId": "command-first-look",
+                "reviewId": "review-first-look",
+                "grantId": "grant-first-look"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "submit_review",
+              "args": {
+                "commandId": "command-first-look",
+                "reviewId": "review-first-look",
+                "grantId": "grant-first-look"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C08",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "save_draft",
+              "args": {
+                "shotId": "shot-save",
+                "expectedRevision": 11,
+                "patch": {
+                  "prompt": "A slow move from doorway to window.",
+                  "routeId": "synth:first-only:v1",
+                  "bindings": [
+                    {
+                      "role": "first_frame",
+                      "assetId": "asset-door-save",
+                      "revision": 3
+                    },
+                    {
+                      "role": "last_frame",
+                      "assetId": "asset-window-save",
+                      "revision": 6
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "save_draft",
+              "args": {
+                "shotId": "shot-save",
+                "expectedRevision": 11,
+                "patch": {
+                  "prompt": "A slow move from doorway to window.",
+                  "routeId": "synth:first-only:v1",
+                  "bindings": [
+                    {
+                      "role": "first_frame",
+                      "assetId": "asset-door-save",
+                      "revision": 3
+                    },
+                    {
+                      "role": "last_frame",
+                      "assetId": "asset-window-save",
+                      "revision": 6
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        }
+      ]
+    },
+    "glm-5.3-flash": {
+      "caseCount": 8,
+      "basisPreservedCount": 8,
+      "statePreservedCount": 8,
+      "cases": [
+        {
+          "caseId": "C01",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "inspect_project",
+              "args": {
+                "projectId": "project-synthetic"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": "synth:paired:v1",
+          "expectedSuggestedRouteId": "synth:paired:v1"
+        },
+        {
+          "caseId": "C02",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "inspect_project",
+              "args": {
+                "projectId": "project-synthetic"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C03",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "resume_attempt",
+              "args": {
+                "attemptId": "attempt-uncertain",
+                "mode": "read_only"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "resume_attempt",
+              "args": {
+                "attemptId": "attempt-uncertain",
+                "mode": "read_only"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C04",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "hold",
+          "expectedDisposition": "hold",
+          "actualActions": [
+            {
+              "op": "inspect_project",
+              "args": {
+                "projectId": "project-synthetic"
+              }
+            }
+          ],
+          "expectedActions": [],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C05",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "replay_command",
+              "args": {
+                "commandId": "command-original"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "replay_command",
+              "args": {
+                "commandId": "command-original"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C06",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "retry_retrieval",
+              "args": {
+                "attemptId": "attempt-retrieval",
+                "outputId": "output-pending"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "retry_retrieval",
+              "args": {
+                "attemptId": "attempt-retrieval",
+                "outputId": "output-pending"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C07",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "submit_review",
+              "args": {
+                "commandId": "command-first-look",
+                "reviewId": "review-first-look",
+                "grantId": "grant-first-look"
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "submit_review",
+              "args": {
+                "commandId": "command-first-look",
+                "reviewId": "review-first-look",
+                "grantId": "grant-first-look"
+              }
+            }
+          ],
+          "actualSuggestedRouteId": null,
+          "expectedSuggestedRouteId": null
+        },
+        {
+          "caseId": "C08",
+          "basisExactlyPreserved": true,
+          "stateExactlyPreserved": true,
+          "actualDisposition": "propose",
+          "expectedDisposition": "propose",
+          "actualActions": [
+            {
+              "op": "save_draft",
+              "args": {
+                "shotId": "shot-save",
+                "expectedRevision": 11,
+                "patch": {
+                  "prompt": "A slow move from doorway to window.",
+                  "routeId": "synth:first-only:v1",
+                  "bindings": [
+                    {
+                      "role": "first_frame",
+                      "assetId": "asset-door-save",
+                      "revision": 3
+                    },
+                    {
+                      "role": "last_frame",
+                      "assetId": "asset-window-save",
+                      "revision": 6
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "expectedActions": [
+            {
+              "op": "save_draft",
+              "args": {
+                "shotId": "shot-save",
+                "expectedRevision": 11,
+                "patch": {
+                  "prompt": "A slow move from doorway to window.",
+                  "routeId": "synth:first-only:v1",
+                  "bindings": [
+                    {
+                      "role": "first_frame",
+                      "assetId": "asset-door-save",
+                      "revision": 3
+                    },
+                    {
+                      "role": "last_frame",
+                      "assetId": "asset-window-save",
+                      "revision": 6
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "actualSuggestedRouteId": "synth:paired:v1",
+          "expectedSuggestedRouteId": null
+        }
+      ]
+    }
+  }
+}

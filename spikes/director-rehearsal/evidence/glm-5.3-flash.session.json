@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-10-17T02:50:52.977648+00:00",
+  "session": {
+    "id": "20261016_224911_2e5586",
+    "source": "tool",
+    "model": "glm-5.3-flash",
+    "system_prompt_hash": "ad12b59cca8e9306bf3cea2ea07be2409282b6cbbe24990504bc27b3b6816b3f",
+    "started_at": 1792205352.435157,
+    "ended_at": 1792205364.894381,
+    "end_reason": "cli_close",
+    "tool_call_count": 0,
+    "api_call_count": 1,
+    "input_tokens": 8435,
+    "output_tokens": 4242,
+    "reasoning_tokens": 0,
+    "billing_provider": "ollama-cloud",
+    "billing_base_url": "https://ollama.com/v1"
+  },
+  "safeRunConfiguration": {
+    "max_iterations": 3,
+    "max_tokens": null,
+    "reasoning_config": {
+      "enabled": true,
+      "effort": "high"
+    }
+  },
+  "observedToolMessages": 0,
+  "observedToolCalls": 0,
+  "actualUserPromptSha256": "4465514e933d1972e73a704af080762dbe8e6c05bd76d0f6fdec07bb0d576146",
+  "responseSha256": "60f55be008b08861f30bafe39ca4636c899231a2e139ceded85bad0924d0f206",
+  "finishReason": "stop",
+  "stdoutMatchesFinalIgnoringSurroundingWhitespace": true,
+  "targetAttribution": "session_verified",
+  "noToolsObserved": true,
+  "captureIssue": "Inference succeeded. Frozen runner expected Session: on stdout; this Hermes --quiet emitted session_id: on stderr. Original .run.json and raw streams are retained unchanged. This was offline capture recovery, not a model rerun or a transport failure.",
+  "limitations": "Session metadata verifies configured route/model, not independent upstream model attestation. System prompt hashes differ; exact user fixture/prompt bytes are equal. No token cap, seed or temperature was set. Runtime/profile defaults were not modified."
+}
