@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Preparation for #7; does not close #7",
+  "fixtureId": "owned-red-mug-v1",
+  "provenance": {
+    "kind": "owned-synthetic-illustration",
+    "statement": "Original mathematical geometry authored for this fixture. No imported assets, logos, fonts, photographs or generation services.",
+    "photorealismClaim": false,
+    "importedMedia": false,
+    "providerCall": false,
+    "upload": false
+  },
+  "recipe": {
+    "id": "owned-red-mug-v1",
+    "width": 960,
+    "height": 540,
+    "supersampling": 2,
+    "priorFrames": 24,
+    "fps": 12,
+    "endCameraStep": 47,
+    "camera": "target [0.25,0.88,0]; offset [2.7,2.02,7.2] * (1 - step*0.003); vertical FOV 35deg",
+    "scene": "fixed hollow tapered cylinder; right-side toroidal handle; matte diffuse red; neutral tabletop/back wall",
+    "light": "fixed normalized [-3,5,4]; ambient 0.38 + Lambert 0.62; analytic soft contact shadow",
+    "provenance": "Original mathematical geometry authored for this fixture. No imported assets, logos, fonts, photographs or generation services."
+  },
+  "revisions": {
+    "sceneSha256": "55d974241eb21f3428fe894badc99fac819822969b1c87f9b97eae18ab9dc095",
+    "kitSha256": "69321e3f9a5ae127016c815c9853364a39f56ccc6828cb9988b6744354e87e44"
+  },
+  "tools": {
+    "node": "v26.8.1",
+    "ffmpeg": "ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "ffprobe": "ffprobe version 9.0.1 Copyright (c) 2007-2026 the FFmpeg developers"
+  },
+  "gallery": {
+    "path": "gallery.png",
+    "width": 2880,
+    "height": 540,
+    "bytes": 60117,
+    "sha256": "6690fb3dbb3720e6af2e40d7ced8bb2df3e31e31a7a643b24ab02b107c3fd7b1",
+    "panels": [
+      {
+        "path": "prior-opening.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 20040,
+        "sha256": "cd890df37f8cbecb2fcbb6e044890313f3b8e825998d46b3fd3911e2e6e8d119",
+        "rgbSha256": "31a1b103da1b25152b913215d80ab09a1b199bdd3359785c2b540933a39d3d83"
+      },
+      {
+        "path": "first-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 21299,
+        "sha256": "2cf677ab0abe6b62696128fdf3721d6c3ae264fd8b4dfaedf953ee309bc29bd5",
+        "rgbSha256": "e5bedc71cd16b5bdf101f175db8f693944a3e5572ecbf0d88073f2e9aaab3678"
+      },
+      {
+        "path": "end-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 23066,
+        "sha256": "5c82cf02c4f49b337746ae8816dcc2f399e3a58b6973f5553e0692f7e1ffd165",
+        "rgbSha256": "c43d3818e62edba65ec3c607d3965bbde2817f665701d31a66985ccab7c004c8"
+      }
+    ]
+  },
+  "source": {
+    "path": "prior.mkv",
+    "takeId": "owned-red-mug-prior-v1",
+    "sha256": "509da0c5e5ee37ea4fc100732c631fcb7dd2111f8d22c73e57e9bd35c5fe3b95",
+    "bytes": 446969,
+    "streamIndex": 0,
+    "codec": "ffv1",
+    "pixelFormat": "bgr0",
+    "width": 960,
+    "height": 540,
+    "timeBase": "1/1000",
+    "range": {
+      "startPts": "0",
+      "endPtsExclusive": "2000"
+    },
+    "eof": "observed-clean-decode",
+    "frames": [
+      {
+        "index": 0,
+        "pts": "0",
+        "duration": "83",
+        "rgbSha256": "31a1b103da1b25152b913215d80ab09a1b199bdd3359785c2b540933a39d3d83"
+      },
+      {
+        "index": 1,
+        "pts": "83",
+        "duration": "83",
+        "rgbSha256": "d341aba95d2898fa5736b55250cd23739488da86874a93b717b651008d6f89fd"
+      },
+      {
+        "index": 2,
+        "pts": "167",
+        "duration": "83",
+        "rgbSha256": "cbf7eecedb7f216e872df71b9c3a188f7a525d33925ef23df07a3a892e82489e"
+      },
+      {
+        "index": 3,
+        "pts": "250",
+        "duration": "83",
+        "rgbSha256": "6b40b4d52f1bcb75e1cf0a199e38d68ec5916af2c157c450874702b6e9a1797e"
+      },
+      {
+        "index": 4,
+        "pts": "333",
+        "duration": "83",
+        "rgbSha256": "61eb499fa868ee5ecafe11166f02a0d3c0952bc793720693e4519518fa0d12aa"
+      },
+      {
+        "index": 5,
+        "pts": "417",
+        "duration": "83",
+        "rgbSha256": "8a851c345774ab74c5b0793583b010344b31b896254170a4d27c54c27ea22b93"
+      },
+      {
+        "index": 6,
+        "pts": "500",
+        "duration": "83",
+        "rgbSha256": "33f9f7f6c492c276df212876c98a94b46afa517115e450a3b50f03f845a02699"
+      },
+      {
+        "index": 7,
+        "pts": "583",
+        "duration": "83",
+        "rgbSha256": "2c6bba69157635fe34a77735115af65413f3906820cbc0ea0521846996f43544"
+      },
+      {
+        "index": 8,
+        "pts": "667",
+        "duration": "83",
+        "rgbSha256": "fdeb216eee918bd3d6a0e0c984c0b1d725a730446386237f9f04a825ab1bf63f"
+      },
+      {
+        "index": 9,
+        "pts": "750",
+        "duration": "83",
+        "rgbSha256": "3384d4028681b29934b5d567d9f9f9a2b1262c9ee5b64fa83d0d01720624b817"
+      },
+      {
+        "index": 10,
+        "pts": "833",
+        "duration": "83",
+        "rgbSha256": "2c80ddc15c9d762c834a8c279c28b9f14cdcdcd38ec5ce78343e717576d1ea9f"
+      },
+      {
+        "index": 11,
+        "pts": "917",
+        "duration": "83",
+        "rgbSha256": "4cd55d10bb73f7903e3de669d128ede89bf72ad3873ffdbe5b468b9d29f6cb58"
+      },
+      {
+        "index": 12,
+        "pts": "1000",
+        "duration": "83",
+        "rgbSha256": "eb5ab976afb4efef87f3d9ddb252559a57e7aaec1b9674579fa7606f5ca3cb4d"
+      },
+      {
+        "index": 13,
+        "pts": "1083",
+        "duration": "83",
+        "rgbSha256": "8effb418b264c88156fe97d8d02281ddc0c93f585b6414fb9e6dddf27e395f7c"
+      },
+      {
+        "index": 14,
+        "pts": "1167",
+        "duration": "83",
+        "rgbSha256": "b00acb830b26ac137b09bb997a25b4c5ba8d15666bdcd95c027ebf5535845388"
+      },
+      {
+        "index": 15,
+        "pts": "1250",
+        "duration": "83",
+        "rgbSha256": "3653816eb67b8c417262916185201d20503c3f3c4045897c3b9eead9a08d5e46"
+      },
+      {
+        "index": 16,
+        "pts": "1333",
+        "duration": "83",
+        "rgbSha256": "67fa875ff0a38bcf8794de04365f7f9fd7da4f8223c3fd72c4182f71ecc1f2e7"
+      },
+      {
+        "index": 17,
+        "pts": "1417",
+        "duration": "83",
+        "rgbSha256": "fc7caf6eccabc6a0ee18b2445440e5e40d6549ec31c81790a6ad85ba4351ec78"
+      },
+      {
+        "index": 18,
+        "pts": "1500",
+        "duration": "83",
+        "rgbSha256": "bf5cc27fdaa25f9914d3f3b2b018674c19e80546a7a2862fe263b32de48b6430"
+      },
+      {
+        "index": 19,
+        "pts": "1583",
+        "duration": "83",
+        "rgbSha256": "d10d16660aa15407eec6e53d03de1cf3cebeb37b8a848137a5447b749aa56519"
+      },
+      {
+        "index": 20,
+        "pts": "1667",
+        "duration": "83",
+        "rgbSha256": "9a6eb4f9a5d30a0ca82c3104fc84e4eb22c4389182d73ecb45fc211124b0cc1f"
+      },
+      {
+        "index": 21,
+        "pts": "1750",
+        "duration": "83",
+        "rgbSha256": "fcf9d549132169ddf7db1db7c62be7f02bc6fa62a7e8745c524348aba83109fc"
+      },
+      {
+        "index": 22,
+        "pts": "1833",
+        "duration": "83",
+        "rgbSha256": "fa8d0b99e6df08d3ab9b9e7595688e871df9f1b682147b8f946596e92cc79fd4"
+      },
+      {
+        "index": 23,
+        "pts": "1917",
+        "duration": "83",
+        "rgbSha256": "e5bedc71cd16b5bdf101f175db8f693944a3e5572ecbf0d88073f2e9aaab3678"
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "role": "first_frame",
+      "original": {
+        "path": "first-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 21299,
+        "sha256": "2cf677ab0abe6b62696128fdf3721d6c3ae264fd8b4dfaedf953ee309bc29bd5",
+        "rgbSha256": "e5bedc71cd16b5bdf101f175db8f693944a3e5572ecbf0d88073f2e9aaab3678"
+      },
+      "prepared": {
+        "path": "first-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 21299,
+        "sha256": "2cf677ab0abe6b62696128fdf3721d6c3ae264fd8b4dfaedf953ee309bc29bd5",
+        "rgbSha256": "e5bedc71cd16b5bdf101f175db8f693944a3e5572ecbf0d88073f2e9aaab3678"
+      },
+      "preparation": {
+        "operation": "identity-no-transform",
+        "routeAcceptance": "unverified"
+      },
+      "provenance": {
+        "kind": "actual-decoded-source-frame",
+        "sourceSha256": "509da0c5e5ee37ea4fc100732c631fcb7dd2111f8d22c73e57e9bd35c5fe3b95",
+        "sourceTakeId": "owned-red-mug-prior-v1",
+        "sceneRevision": "55d974241eb21f3428fe894badc99fac819822969b1c87f9b97eae18ab9dc095",
+        "streamIndex": 0,
+        "timeBase": "1/1000",
+        "frameIndex": 23,
+        "pts": "1917",
+        "sourceSeconds": "1917/1000",
+        "selection": "max decoded PTS in [0,2000)",
+        "rgbSha256": "e5bedc71cd16b5bdf101f175db8f693944a3e5572ecbf0d88073f2e9aaab3678"
+      }
+    },
+    {
+      "role": "last_frame",
+      "original": {
+        "path": "end-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 23066,
+        "sha256": "5c82cf02c4f49b337746ae8816dcc2f399e3a58b6973f5553e0692f7e1ffd165",
+        "rgbSha256": "c43d3818e62edba65ec3c607d3965bbde2817f665701d31a66985ccab7c004c8"
+      },
+      "prepared": {
+        "path": "end-reference.png",
+        "mime": "image/png",
+        "width": 960,
+        "height": 540,
+        "bytes": 23066,
+        "sha256": "5c82cf02c4f49b337746ae8816dcc2f399e3a58b6973f5553e0692f7e1ffd165",
+        "rgbSha256": "c43d3818e62edba65ec3c607d3965bbde2817f665701d31a66985ccab7c004c8"
+      },
+      "preparation": {
+        "operation": "identity-no-transform",
+        "routeAcceptance": "unverified"
+      },
+      "provenance": {
+        "kind": "same-scene-render",
+        "sceneRevision": "55d974241eb21f3428fe894badc99fac819822969b1c87f9b97eae18ab9dc095",
+        "cameraStep": 47,
+        "rgbSha256": "c43d3818e62edba65ec3c607d3965bbde2817f665701d31a66985ccab7c004c8"
+      }
+    }
+  ]
+}
