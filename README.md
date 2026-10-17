@@ -10,6 +10,12 @@ A new browser-based creative-production application informed by Studio's stronge
 
 - [Product and architecture spec](docs/SPEC.md) — canonical implementation direction, stack, boundaries, and acceptance requirements.
 - [Architecture-transfer checklist](docs/ARCHITECTURE-TRANSFER.md) — source-grounded creative-control contracts.
+- [Agent-first direction](docs/AGENT-FIRST-DIRECTION.md) — director workflow and authority boundaries.
+- [Foundation blueprint](docs/FOUNDATION-BLUEPRINT.md) — proposed module ownership, commands, recovery, media and release contracts.
+- [Competitive lessons](docs/COMPETITIVE-LESSONS.md) — evidence-backed adopt/adapt/avoid decisions.
+- [Verification plan](docs/VERIFICATION-PLAN.md) — proof obligations, not test-pass claims.
+- [Contract experiment brief](docs/CONTRACT-EXPERIMENT-BRIEF.md) — Patrick's preserved direction for the deeper validation task; archived, not started.
+- [Shared language](GLOSSARY.md) — distinct meanings for plans, shots, specs, attempts and takes.
 - [Research provenance](docs/PROVENANCE.md) — source identities, external evidence, and publication boundaries.
 
 ## Selected stack
@@ -26,7 +32,7 @@ The future layout is `apps/web`, `apps/server`, `apps/worker`, and shared domain
 
 ## Next implementation boundary
 
-Define and implement Slice A from the spec: the modular TypeScript foundation, durable project/domain records, shared validation, and first/last-frame draft controls. First-frame continuity and source-video editing remain distinct workflows. Timeline/editor depth remains undecided, not excluded.
+Before product scaffolding, the proposed next step is the bounded [contract experiment](docs/CONTRACT-EXPERIMENT-BRIEF.md): prove the critical agent-directed workflow and recovery boundaries, then revise the architecture from those results. The brief is archived and the experiment has not started. Slice A remains the later implementation boundary. First-frame continuity and source-video editing remain distinct; timeline/editor depth is undecided, not excluded.
 
 ## Publication and licensing
 
