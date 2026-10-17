@@ -5,6 +5,145 @@ import { syncBuiltinESMExports } from 'node:module';
 import { setup } from './support.ts';
 import { startProvider } from '../provider.ts';
 import { startHttp } from '../http.ts';
+import { launchWorker } from '../worker.ts';
+
+function deferred(){let resolve!:()=>void;const promise=new Promise<void>(r=>{resolve=r;});return {promise,resolve};}
+
+test('mixed recovery cannot lose intent behind a false replay observation',async t=>{
+  const {service:s,catalog,cleanup,fresh}=await setup(t);await approve(s);
+  const command={type:'submit',revision:1,commandId:crypto.randomUUID()};
+  const receipt=await s.command(s.credentials.agent,command);
+  const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
+  const policy={origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'};
+  const interrupted=launchWorker(policy,'intent');cleanup.push(()=>interrupted.stop());
+  await interrupted.point('intent');await interrupted.stop();
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'active');
+  const pids=watchWorkers(t),captured=deferred(),release=deferred(),recovered=deferred();
+  let reads=0;
+  const wrapped={...s,
+    async isQueued(id:string){
+      const queued=await s.isQueued(id);
+      if(++reads===1){assert.equal(queued,false);captured.resolve();await release.promise;}
+      return queued;
+    },
+    async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+      return s.command(token,body,async(id,reactivate)=>{
+        const result=recover!(id,reactivate);recovered.resolve();return result;
+      });
+    },
+  };
+  const api=await startHttp(wrapped,policy);cleanup.push(()=>api.close());cleanup.push(async()=>release.resolve());
+  const deadline=setTimeout(()=>release.resolve(),8000);t.after(()=>clearTimeout(deadline));
+  const post=(body:any)=>fetch(api.origin+'/commands',{method:'POST',headers:{authorization:`Bearer ${s.credentials.agent}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const replay=post(command);await captured.promise;
+  const recovery=post({type:'recover',revision:1,attemptId:receipt.attemptId});await recovered.promise;
+  // The recovery callback has reserved the dispatch boundary, but must not
+  // mutate the job until the older observation is consumed. No timed sleep.
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'active',
+    'reactivation must wait for the older queue decision');
+  release.resolve();
+  const responses=await Promise.all([replay,recovery]);assert(responses.every(r=>r.status===200));
+  await api.idle();
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'completed',
+    'explicit recovery must complete the same job without another command');
+  const state=await s.read(s.credentials.agent);
+  assert.equal(state.attempts[0].available,true);assert.equal(state.takes.length,2);
+  assert.equal(reads,2,'recovery needs a fresh observation after the held false read');
+  assert.equal(pids.length,1,'only one replacement worker starts');
+  for(const table of ['spike.attempts','spike.reservations','spike.receipts','pgboss.job','recovery.dispatch'])
+    assert.equal((await fresh(`SELECT count(*)::int n FROM ${table}`))[0].n,1);
+  assert.equal((await fresh('SELECT key FROM recovery.dispatch'))[0].key,receipt.attemptId);
+  assert.equal(provider.submits(),1);assert.equal(provider.jobs.size,1);
+  for(const pid of pids)assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});
+});
+
+for(const first of ['replay','recover','recover-response'] as const) test(`overlapping recovery joins a newly valid worker: ${first}`,async t=>{
+  const {service:s,e,catalog,cleanup,fresh}=await setup(t);await approve(s);
+  const command={type:'submit',revision:1,commandId:crypto.randomUUID()};
+  const receipt=await s.command(s.credentials.agent,command);
+  const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
+  const policy={origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'};
+  if(first!=='replay') {
+    const interrupted=launchWorker(policy,'intent');cleanup.push(()=>interrupted.stop());
+    await interrupted.point('intent');await interrupted.stop();
+  }
+  const captured=deferred(),release=deferred(),secondArrived=deferred(),activated=deferred(),responseHeld=deferred(),releaseResponse=deferred();
+  const children:childProcess.ChildProcess[]=[],fork=childProcess.fork;
+  t.mock.method(childProcess,'fork',(...args:any[])=>{
+    if(!children.length)args[1]=[args[1][0],'after-fetch'];
+    const child=(fork as any)(...args);children.push(child);
+    child.on('message',(m:any)=>{if(m.point==='after-fetch')activated.resolve();});return child;
+  });
+  syncBuiltinESMExports();t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});
+  let reads=0,commands=0,reactivations=0;
+  const fail=e.boss.fail.bind(e.boss);
+  t.mock.method(e.boss,'fail',async(...args:any[])=>{reactivations++;return (fail as any)(...args);});
+  const wrapped={...s,
+    async isQueued(id:string){const queued=await s.isQueued(id);if(++reads===1){assert.equal(queued,true);captured.resolve();await release.promise;}return queued;},
+    async command(token:string,body:any,recover?:Parameters<typeof s.command>[2]){
+      const number=++commands;if(number===2)secondArrived.resolve();
+      const result=await s.command(token,body,recover);
+      if(first==='recover-response'&&number===1){responseHeld.resolve();await releaseResponse.promise;}
+      return result;
+    },
+  };
+  const api=await startHttp(wrapped,policy);cleanup.push(()=>api.close());cleanup.push(async()=>{release.resolve();releaseResponse.resolve();});
+  const deadline=setTimeout(()=>release.resolve(),8000);t.after(()=>clearTimeout(deadline));
+  const post=(body:any)=>fetch(api.origin+'/commands',{method:'POST',headers:{authorization:`Bearer ${s.credentials.agent}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const recovery={type:'recover',revision:1,attemptId:receipt.attemptId};
+  const initial=post(first==='replay'?command:recovery);await captured.promise;
+  if(first==='recover-response'){release.resolve();await responseHeld.promise;await activated.promise;}
+  const joined=post(recovery);await secondArrived.promise;release.resolve();
+  if(first==='recover-response'){await joined;releaseResponse.resolve();}
+  const responses=await Promise.all([initial,joined]);assert(responses.every(r=>r.status===200));
+  assert.equal(children.length,1,'overlapping recovery must not replace a newly valid worker');
+  await activated.promise;
+  assert.equal(children[0].signalCode,null,'the new activation must not be killed');
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'active');
+  assert.equal(reactivations,first!=='replay'?1:0,'joining recovery must not invalidate the new activation');
+  children[0].send({resume:true});await api.idle();
+  const state=await (await fetch(api.origin+'/state',{headers:{authorization:`Bearer ${s.credentials.agent}`}})).json();
+  assert.deepEqual(state.interruptions,{});assert.equal(state.attempts[0].available,true);assert.equal(state.takes.length,2);
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'completed');
+  assert.equal((await fresh('SELECT sum(reserved_count)::int n FROM spike.grants'))[0].n,1);
+  assert.equal(reads,1);assert.equal(provider.submits(),1);assert.equal(provider.jobs.size,1);
+  for(const child of children)assert.throws(()=>process.kill(child.pid!,0),{code:'ESRCH'});
+});
+
+test('recovery stops the previously owned worker before reactivating its job',async t=>{
+  const {service:s,e,catalog,cleanup,fresh}=await setup(t);await approve(s);
+  const provider=await startProvider(catalog);cleanup.push(()=>provider.close());
+  const children:childProcess.ChildProcess[]=[],intent=deferred(),fork=childProcess.fork;
+  t.mock.method(childProcess,'fork',(...args:any[])=>{
+    if(!children.length)args[1]=[args[1][0],'intent'];
+    const child=(fork as any)(...args);children.push(child);
+    child.on('message',(m:any)=>{if(m.point==='intent')intent.resolve();});return child;
+  });
+  syncBuiltinESMExports();t.after(()=>{t.mock.restoreAll();syncBuiltinESMExports();});
+  let reactivations=0,aliveAtReactivation=false;
+  const fail=e.boss.fail.bind(e.boss);
+  t.mock.method(e.boss,'fail',async(...args:any[])=>{
+    try{process.kill(children[0].pid!,0);aliveAtReactivation=true;}catch(error){assert.equal((error as NodeJS.ErrnoException).code,'ESRCH');}
+    reactivations++;return (fail as any)(...args);
+  });
+  const api=await startHttp(s,{origin:provider.origin,storage:s.storage,lookup:true,replaySafe:true,replaySeconds:60,adapter:'fixture-1'});cleanup.push(()=>api.close());
+  const post=(body:any)=>fetch(api.origin+'/commands',{method:'POST',headers:{authorization:`Bearer ${s.credentials.agent}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const receipt=await (await post({type:'submit',revision:1,commandId:crypto.randomUUID()})).json();await intent.promise;
+  // An unvalidated recovery must not be able to reach the worker owner callback.
+  assert.equal((await post({type:'recover',revision:2,attemptId:receipt.attemptId})).status,409);
+  assert.equal((await post({type:'recover',revision:1,attemptId:crypto.randomUUID()})).status,401);
+  assert.equal((await post({type:'recover',revision:1,attemptId:receipt.attemptId,role:'human'})).status,400);
+  assert.equal(reactivations,0);assert.equal(children[0].signalCode,null);process.kill(children[0].pid!,0);
+  assert.equal((await post({type:'recover',revision:1,attemptId:receipt.attemptId})).status,200);
+  assert.equal(aliveAtReactivation,false,'old worker must exit before queue reactivation');
+  await api.idle();
+  assert.equal(reactivations,1);assert.equal(children.length,2);
+  const state=await s.read(s.credentials.agent);assert.equal(state.attempts[0].available,true);assert.equal(state.takes.length,2);
+  assert.equal((await fresh('SELECT state FROM pgboss.job WHERE id=$1',[receipt.jobId]))[0].state,'completed');
+  assert.equal((await fresh('SELECT key FROM recovery.dispatch'))[0].key,receipt.attemptId);
+  assert.equal(provider.submits(),1);assert.equal(provider.jobs.size,1);
+  for(const child of children)assert.throws(()=>process.kill(child.pid!,0),{code:'ESRCH'});
+});
 
 function watchWorkers(t:any) {
   const pids:number[]=[], fork=childProcess.fork;

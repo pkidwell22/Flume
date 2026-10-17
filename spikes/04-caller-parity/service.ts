@@ -84,7 +84,8 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
     const file=await artifact(id);await inspectVideo(file.path,file.sha256);
     return {bytes:await readFile(file.path),type:'video/mp4'};
   }
-  async function command(token:string, raw:unknown):Promise<any> {
+  async function command(token:string, raw:unknown,
+    recover?:(id:string,reactivate:()=>Promise<void>)=>Promise<void>):Promise<any> {
     await identity(token);
     if (raw && typeof raw==='object' && 'type' in raw && ['transfer','spend','authorize'].includes(String(raw.type))) throw new Error('CAPABILITY');
     const parsed=commands.safeParse(raw); if (!parsed.success) throw new Error('STRUCTURE');
@@ -157,7 +158,10 @@ export async function createService(e:Experiment, catalog:Catalog, storage:strin
       if(cmd.type==='recover') {
         const {rows:[attempt]}=await client.query('SELECT * FROM spike.attempts WHERE id=$1 AND project_id=$2',[cmd.attemptId,projectId]);
         if(!attempt) throw new Error('AUTHORIZATION');
-        await e.boss.fail(queue,attempt.job_id); await e.boss.retry(queue,attempt.job_id);
+        const reactivate=async()=>{await e.boss.fail(queue,attempt.job_id);await e.boss.retry(queue,attempt.job_id);};
+        // HTTP owns the local worker. Keep its stop/reactivate/start decision
+        // together, but only after the common authorization/revision checks.
+        if(recover)await recover(attempt.id,reactivate);else await reactivate();
         return {attemptId:attempt.id,jobId:attempt.job_id};
       }
       if(cmd.type==='select') {

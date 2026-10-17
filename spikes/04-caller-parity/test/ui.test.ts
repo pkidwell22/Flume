@@ -78,7 +78,9 @@ for(const mode of ['typing','newer-server-revision','lost-response'] as const) t
   if(mode==='newer-server-revision')await s.command(s.credentials.agent,{type:'edit',revision:2,prompt:'Agent revision 3'});
   releasePost.resolve();
   if(mode!=='lost-response') {
-    await loaded.promise;type('C typed during GET');releaseGet.resolve();
+    await loaded.promise;
+    assert.equal(get('prompt').value,'B typed during POST','POST success must preserve text typed before its response');
+    type('C typed during GET');releaseGet.resolve();
   }
   await saving;defer=false;
   assert.equal(get('prompt').value,mode==='lost-response'?'B typed during POST':'C typed during GET','newer editor input must survive save completion');

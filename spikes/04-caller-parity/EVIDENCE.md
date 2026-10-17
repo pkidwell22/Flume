@@ -1,6 +1,28 @@
 # Execution evidence and constrained verdict
 
-## Review correction evidence
+## Second correction: mixed recovery and POST-phase oracle
+
+This focused correction is based on `526d3e9354435e107f13b4d472652c9a1c0be375`. Both retained demo worktrees/processes remain untouched. The original five fixes are retained; only HTTP recovery coordination, its internal validated service callback, tests, mutation controls and this documentation change. UI implementation, schemas, dependencies, lockfiles, license and all **38** frozen 01/02 files are unchanged.
+
+| Gate | Observed second-correction result |
+|---|---|
+| Full `npm run verify`, then mutations, then normal `npm run verify` | Typecheck and **33 tests pass twice**, zero skipped/cancelled; five added dispatch cases |
+| `node scripts/check-mutations.mjs` | **26 mutations rejected** at expected assertions: 21 prior controls plus five new controls |
+| Parent probes | Original two probe tests run byte-for-byte; mixed-recovery probe run with only boundary instrumentation adapted for serialization; **all three pass** |
+| Frozen baseline reuse | Byte-checked unchanged 01/02 against the correction base and main; retained **71 core tests + 3 acceptance / 6 recovery mutations**, and **43 media tests** as prior execution evidence, not newly rerun suites |
+| Fresh project-local audits | **Zero vulnerabilities** for 01, 02 and 04; no installs or dependency changes |
+
+**Actual implementation RED:** a real worker was SIGKILLed at `intent`, leaving its job active and remote state unknown. An exact HTTP replay held an actual `isQueued=false` read while recovery reactivated the job. Both requests returned 200, but the completion assertion found `retry`, not `completed`. The failing test snapshot and log are retained privately, alongside the unchanged parent failure probe/logs.
+
+**Ordering fix and GREEN:** the service invokes HTTP's recovery callback only after common structural, principal, revision and attempt-scope validation, while retaining the existing advisory lock. HTTP reserves recovery behind the old start promise, then stops the previous owned worker, performs fail/retry, and takes a fresh queue observation before dispatch. The adapted barrier explicitly proves the job stays **active** while the old false read is held; fail/retry cannot overtake it anymore. Releasing that read yields **two real queue reads**, one replacement worker, a **completed** original job, `available=true` and **two takes**, without another command. Independent SQL checks retain one attempt, receipt, reservation, job and dispatch key; the fixture provider has one submission/job.
+
+The stronger overlap checks also exposed why simply chaining a forced restart is insufficient: it killed a worker just started by the preceding replay/recovery. Arrival generations now make such requests join the new activation instead. A real `after-fetch` worker barrier proves no replacement fork or fail/retry occurs, the new worker stays alive/active, and it completes after release. A separate response-window RED caught arrival after worker launch but before the first recovery command returned; overlapping requests retain their shared generation through command completion. These are bounded in-memory HTTP ownership records, not a scheduler or a change to the frozen queue/activation protocol. Stopping an older worker before reactivation and rejecting malformed/stale/foreign-attempt recoveries are covered too.
+
+**UI coverage only:** immediately after the held successful POST reaches the follow-up GET, the test now asserts text B still exists **before** typing text C. The correct UI implementation passes unchanged. A new isolated mutation assigns `prompt.value=saved.prompt` immediately after POST success and fails that exact B assertion; the separate GET-overwrite mutation still fails the C assertion. This closes an oracle gap, not a newly discovered UI implementation defect or fabricated historical RED. The stop-before-reactivation case likewise passed initially and is supported by a distinct ordering negative control.
+
+The first rerun of the old coalescing mutant survived because removing only its early return now leaves the new pending-promise serialization intact. The control now removes the pending lookup itself, restoring independent queue decisions; the original outcome assertion is unchanged and rejects it. That initial mutation result remains separate from the final passing run. Earlier failure evidence was preserved rather than overwritten; new logs are ignored under `output/review-fixes-2/`. Parent probe outputs run in a separate ignored working directory so old reports remain intact. Owned cluster directories/processes are checked after execution; worker and demo tests additionally verify PID/listener cleanup. Independent parent re-review/retesting and browser interaction remain required.
+
+## First review correction evidence (historical)
 
 Corrections were authored and exercised in a separate worktree based on `bcb357a77245960b4c52cc5023e8341945cc4d24`. The retained user demo, its local branch and its session files were not changed. All source changes remain under this experiment; all **38** tracked 01/02 files and the root MIT license match both that head and `55d2d64d56869d1490b459352a4db21a17c88e72` byte-for-byte.
 

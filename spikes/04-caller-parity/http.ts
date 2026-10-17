@@ -7,19 +7,26 @@ import type { Policy } from '../01-approved-attempt/dist/recovery/engine.js';
 type Service=Awaited<ReturnType<typeof createService>>;
 export async function startHttp(service:Service,policy:Policy) {
   const tasks=new Set<Promise<unknown>>(), workers=new Map<string,ReturnType<typeof launchWorker>>();
-  const failures=new Map<string,string>(), starts=new Map<string,Promise<void>>();let origin='',closing=false;
-  function ensureWorker(id:string,recover:boolean) {
-    const pending=starts.get(id);if(pending)return pending;
-    // Publish ownership before the first async queue read (or stop). Replays
-    // await the same decision, not independent stale observations of the queue.
-    const start=Promise.resolve().then(async()=>{
+  const failures=new Map<string,string>(), starts=new Map<string,Promise<void>>(), generations=new Map<string,number>();let origin='',closing=false;
+  const recoveries=new Map<string,{generation:number;callers:number}>();
+  function ensureWorker(id:string,recovery?:{generation:number;reactivate:()=>Promise<void>}) {
+    const pending=starts.get(id);if(pending&&!recovery)return pending;
+    // A replay joins the decision; recovery queues a new decision after it.
+    // Reserve the whole stop/reactivate/read/start operation before any await.
+    const start=(pending?.catch(()=>{})??Promise.resolve()).then(async()=>{
       if(closing)return;
-      if(recover&&workers.has(id))await workers.get(id)!.stop();
+      if(recovery){
+        // A worker started since this request arrived already satisfies its
+        // recovery intent. Do not fail/retry or kill that newer activation.
+        if((generations.get(id)??0)!==recovery.generation)return;
+        await workers.get(id)?.stop();await recovery.reactivate();
+      }
       if(!workers.has(id)&&await service.isQueued(id)&&!closing) {
         failures.delete(id);const worker=launchWorker(policy);workers.set(id,worker);
+        generations.set(id,(generations.get(id)??0)+1);
         track(worker.done.finally(()=>{if(workers.get(id)===worker)workers.delete(id);}),id);
       }
-    }).finally(()=>{starts.delete(id);tasks.delete(start);});
+    }).finally(()=>{if(starts.get(id)===start)starts.delete(id);tasks.delete(start);});
     starts.set(id,start);tasks.add(start);return start;
   }
   function track(task:Promise<unknown>,id:string) {
@@ -61,10 +68,17 @@ export async function startHttp(service:Service,policy:Policy) {
         if(req.headers['content-type']!=='application/json') throw new Error('STRUCTURE');
         let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>8192) throw new Error('STRUCTURE');}
         let command:any;try{command=JSON.parse(body);}catch{throw new Error('STRUCTURE');}
-        const result=await service.command(token,command);
-        if(command.type==='submit'||command.type==='recover') {
-          await ensureWorker(result.attemptId,command.type==='recover');
-        }
+        let result;
+        if(command?.type==='recover') {
+          const id=command.attemptId;
+          // Retain the arrival generation through command completion, not just
+          // worker launch: another request may arrive during advisory unlock.
+          const group=recoveries.get(id)??{generation:generations.get(id)??0,callers:0};
+          group.callers++;recoveries.set(id,group);
+          try {result=await service.command(token,command,(id,reactivate)=>ensureWorker(id,{generation:group.generation,reactivate}));}
+          finally {if(--group.callers===0)recoveries.delete(id);}
+        } else result=await service.command(token,command);
+        if(command.type==='submit')await ensureWorker(result.attemptId);
         if(command.type==='export') track(service.renderExport(result.id),result.id);
         send(result);return;
       }
