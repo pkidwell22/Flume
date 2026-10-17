@@ -1,0 +1,12 @@
+{
+  "semanticsVersion": "h3-semantics/v1",
+  "fixtureVersion": "h3-fixtures/v1",
+  "label": "Authored local checks and synthetic request-only fixtures; not live media identities",
+  "files": {
+    "src/contract.ts": "d9523b3bd32a15dab1314fe5227c7c059258ee3eb9617235d562430ea36d28ec",
+    "src/frozen.ts": "f56a8a3d7f2342fe4360d8bebd7aecc0bf2993e0797cc704e25d9db84e29cef9",
+    "sources/semantic-rules.json": "5987936a14561763a8204cca402ed63c71aa7fa71bd8284ea1fc2c28bdd00048",
+    "fixtures/requests.ts": "5843ffe3baf73c5d5291a19987cd62a00291b1be3bf0294188c722aedd57e576",
+    "fixtures/frozen-shot.json": "a935866b878db14c0bec5f11002bbb7efc712d3102ee3ce391eb88297d3b9ed4"
+  }
+}
