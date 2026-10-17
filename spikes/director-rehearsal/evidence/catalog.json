@@ -1,0 +1,49 @@
+{
+  "retrievedAt": "2026-10-17T02:41:40.113741+00:00",
+  "source": "https://ollama.com/api/tags",
+  "matches": [
+    {
+      "name": "glm-5.3-flash",
+      "model": "glm-5.3-flash",
+      "modified_at": "2026-08-26T07:00:00-07:00",
+      "size": 328250014584,
+      "digest": "0c238824336d",
+      "details": {
+        "parent_model": "",
+        "format": "",
+        "family": "",
+        "families": null,
+        "parameter_size": "",
+        "quantization_level": ""
+      },
+      "capabilities": [
+        "completion",
+        "thinking",
+        "tools",
+        "vision"
+      ]
+    },
+    {
+      "name": "kimi-k3",
+      "model": "kimi-k3",
+      "modified_at": "2026-07-27T08:00:00-07:00",
+      "size": 1560860324864,
+      "digest": "d189309738f0",
+      "details": {
+        "parent_model": "",
+        "format": "",
+        "family": "",
+        "families": null,
+        "parameter_size": "",
+        "quantization_level": ""
+      },
+      "capabilities": [
+        "vision",
+        "thinking",
+        "completion",
+        "tools"
+      ]
+    }
+  ],
+  "note": "Public catalogue availability only; does not establish successful inference."
+}

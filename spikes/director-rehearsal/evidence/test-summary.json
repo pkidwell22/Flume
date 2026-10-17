@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-10-17T02:48:31.693789+00:00",
+  "node": "v26.8.1",
+  "npm": "11.19.0",
+  "stages": [
+    {
+      "path": "local-evidence/01-syntax-red.tap",
+      "sha256": "64cd3e070e9b6ddef399aaffc5cb5aa048cdf1f6fed61768a70953368fef8b86",
+      "tests": 2,
+      "pass": 1,
+      "fail": 1
+    },
+    {
+      "path": "local-evidence/02-syntax-green.tap",
+      "sha256": "884db66ad371667391f13d098157c16e9e45ab121ccb4ca4e668f204689d0d7a",
+      "tests": 2,
+      "pass": 2,
+      "fail": 0
+    },
+    {
+      "path": "local-evidence/03-scoring-red.tap",
+      "sha256": "d2ba85d14e1b6010906f87a0f27fcd0d45028ea69aedc2ccc5ebbf75e1afdc5b",
+      "tests": 16,
+      "pass": 0,
+      "fail": 16
+    },
+    {
+      "path": "local-evidence/04-scoring-green.tap",
+      "sha256": "80bcf3b9ad22c4fa86bca8276671327de41f1515db471188cedac2833cd889b4",
+      "tests": 18,
+      "pass": 18,
+      "fail": 0
+    },
+    {
+      "path": "local-evidence/05-authority-red.tap",
+      "sha256": "eeaf47a0c2fe431a237f91fda15dab1766a416c9b347efea401acf6a533752f6",
+      "tests": 27,
+      "pass": 0,
+      "fail": 27
+    },
+    {
+      "path": "local-evidence/06-authority-green.tap",
+      "sha256": "ab6955499b73d4d9ac5a1a800c782af01344838a04505225e1836d88ea2fbdb0",
+      "tests": 45,
+      "pass": 45,
+      "fail": 0
+    },
+    {
+      "path": "local-evidence/07-artifacts-red.tap",
+      "sha256": "a01676c8f8021cf319581b560403774f3eacd67f81c33a06261743b3e21cabf8",
+      "tests": 2,
+      "pass": 0,
+      "fail": 2
+    },
+    {
+      "path": "local-evidence/08-artifacts-green.tap",
+      "sha256": "3443696dd17d2058e66bc7525a66d41a630a06e02389a846c39c10c6f3918479",
+      "tests": 47,
+      "pass": 47,
+      "fail": 0
+    }
+  ]
+}
