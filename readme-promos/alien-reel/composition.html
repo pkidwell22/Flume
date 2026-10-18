@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Flume — Three Studies (Alien)</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* Local-only type. No binaries, no network requests. Avenir Next ships on macOS. */
+      @font-face {
+        font-family: "Flume Display";
+        src: local("Avenir Next");
+        font-weight: 600;
+        font-style: normal;
+        font-display: block;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0b0c0e;
+      }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0c0e;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---------- footage ---------- */
+
+      /* Untimed shells: the timed <video> is never nested in a timed ancestor.
+         The seams are still hard cuts, so every shell is live from the start and
+         the framework owns each video's own visibility window. */
+      .fw {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .fw__move {
+        position: absolute;
+        inset: 0;
+        will-change: transform;
+        transform-origin: 50% 50%;
+      }
+
+      /* Every source is 16:9 (the two bridges match the scene clips' canvas) and
+         the frame is 16:9, so object-fit: cover lands at 1:1 with no crop. */
+      .fw__video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% 50%;
+        display: block;
+      }
+
+      /* ---------- field ---------- */
+
+      /* Edge falloff only: pulls the frame to the black-adjacent field without
+         a panel, a slab, or a visible border. */
+      #grade {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(
+          118% 102% at 50% 48%,
+          rgba(11, 12, 14, 0) 44%,
+          rgba(11, 12, 14, 0.22) 78%,
+          rgba(11, 12, 14, 0.55) 100%
+        );
+      }
+
+      /* Transient dim veil: the 0.5s fade-through-dim at 25.5s. */
+      #veil {
+        position: absolute;
+        inset: 0;
+        background: #0b0c0e;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* ---------- lockup (exists only in the last 4s) ---------- */
+
+      #brand-layer {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+
+      #lockup {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      #lockup-mark {
+        display: block;
+        height: 56px;
+        width: auto;
+        fill: #f4f1ec;
+        fill-opacity: 0.92;
+        opacity: 0;
+      }
+
+      #lockup-word {
+        display: block;
+        font-family: "Flume Display", sans-serif;
+        font-size: 40px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        color: #f4f1ec;
+        white-space: nowrap;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-fps="24"
+      data-duration="29.5"
+    >
+      <!-- 0 – 5s : Irradia, full bleed. Source 1.0 – 6.0, so the cut at 5s lands
+           on morph-a's first frame. -->
+      <div id="fw-irradia" class="fw">
+        <div id="fw-irradia-move" class="fw__move">
+          <video
+            id="v-irradia"
+            class="fw__video"
+            src="assets/irradia.mp4"
+            data-start="0"
+            data-duration="5"
+            data-media-start="1"
+            data-track-index="0"
+            muted
+            playsinline
+          ></video>
+        </div>
+      </div>
+
+      <!-- 5 – 10s : bridge, Irradia → Mercury Flume. Full 5s clip, head to tail. -->
+      <div id="fw-morph-a" class="fw">
+        <div id="fw-morph-a-move" class="fw__move">
+          <video
+            id="v-morph-a"
+            class="fw__video"
+            src="assets/morph-a.mp4"
+            data-start="5"
+            data-duration="5"
+            data-media-start="0"
+            data-track-index="1"
+            muted
+            playsinline
+          ></video>
+        </div>
+      </div>
+
+      <!-- 10 – 15s : Mercury Flume, full bleed. Source 2.0 – 7.0; its first shown
+           frame is morph-a's last frame, so the handoff at 10s is seamless. -->
+      <div id="fw-mercury" class="fw">
+        <div id="fw-mercury-move" class="fw__move">
+          <video
+            id="v-mercury"
+            class="fw__video"
+            src="assets/mercury-flume.mp4"
+            data-start="10"
+            data-duration="5"
+            data-media-start="2"
+            data-track-index="2"
+            muted
+            playsinline
+          ></video>
+        </div>
+      </div>
+
+      <!-- 15 – 20s : bridge, Mercury Flume → Signal Pasture. Full 5s clip. -->
+      <div id="fw-morph-b" class="fw">
+        <div id="fw-morph-b-move" class="fw__move">
+          <video
+            id="v-morph-b"
+            class="fw__video"
+            src="assets/morph-b.mp4"
+            data-start="15"
+            data-duration="5"
+            data-media-start="0"
+            data-track-index="3"
+            muted
+            playsinline
+          ></video>
+        </div>
+      </div>
+
+      <!-- 20 – 29.5s : Signal Pasture, full bleed, then dimmed to 50% under the
+           lockup. Source 0.5 – 10.0; first shown frame is morph-b's last frame. -->
+      <div id="fw-pasture" class="fw">
+        <div id="fw-pasture-move" class="fw__move">
+          <video
+            id="v-pasture"
+            class="fw__video"
+            src="assets/signal-pasture.mp4"
+            data-start="20"
+            data-duration="9.5"
+            data-media-start="0.5"
+            data-track-index="4"
+            muted
+            playsinline
+          ></video>
+        </div>
+      </div>
+
+      <div id="grade"></div>
+      <div id="veil"></div>
+
+      <div id="brand-layer">
+        <div id="lockup">
+          <svg
+            id="lockup-mark"
+            viewBox="0 0 96 80"
+            role="img"
+            aria-label="Flume"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M0 35 60 0 66 4 66 14 6 49 0 45Z" />
+            <path d="M15 50 75 15 81 19 81 29 21 64 15 60Z" />
+            <path d="M30 65 90 30 96 34 96 44 36 79 30 75Z" />
+          </svg>
+          <span id="lockup-word">Flume</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      /* ---- one unbroken push at 0.002 / s (the v3 rate), carried across every
+         seam: each clip starts at exactly the scale the clip before it ended on,
+         so the velocity matches at 5, 10, 15 and 20 and the bridges inherit the
+         move instead of restarting it. ---- */
+
+      /* Irradia : 0 – 5, hard cut out onto its bridge */
+      tl.fromTo("#fw-irradia-move", { scale: 1 }, { scale: 1.01, duration: 5, ease: "none" }, 0);
+
+      /* bridge A : Irradia → Mercury Flume, 5 – 10 */
+      tl.fromTo("#fw-morph-a-move", { scale: 1.01 }, { scale: 1.02, duration: 5, ease: "none" }, 5);
+
+      /* Mercury Flume : 10 – 15, hard cut out onto its bridge */
+      tl.fromTo("#fw-mercury-move", { scale: 1.02 }, { scale: 1.03, duration: 5, ease: "none" }, 10);
+
+      /* bridge B : Mercury Flume → Signal Pasture, 15 – 20 */
+      tl.fromTo("#fw-morph-b-move", { scale: 1.03 }, { scale: 1.04, duration: 5, ease: "none" }, 15);
+
+      /* Signal Pasture : 20 – 29.5, one continuous clip through the end card */
+      tl.fromTo("#fw-pasture-move", { scale: 1.04 }, { scale: 1.059, duration: 9.5, ease: "none" }, 20);
+
+      /* ---- 25.5 : 0.5s fade-through-dim — footage settles to 50%, field goes black-adjacent ---- */
+      tl.fromTo(
+        "#fw-pasture",
+        { opacity: 1 },
+        { opacity: 0.5, duration: 0.5, ease: "sine.inOut" },
+        25.5,
+      );
+      tl.fromTo("#veil", { opacity: 0 }, { opacity: 0.62, duration: 0.25, ease: "sine.in" }, 25.5);
+      tl.fromTo(
+        "#veil",
+        { opacity: 0.62 },
+        { opacity: 0, duration: 0.25, ease: "sine.out", immediateRender: false },
+        25.75,
+      );
+
+      /* ---- lockup: mark 26.3, wordmark 26.9, both hold still to 29.5 ---- */
+      tl.fromTo(
+        "#lockup-mark",
+        { opacity: 0, y: 6 },
+        { opacity: 0.92, y: 0, duration: 0.45, ease: "sine.out" },
+        26.3,
+      );
+      tl.fromTo(
+        "#lockup-word",
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "sine.out" },
+        26.9,
+      );
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
