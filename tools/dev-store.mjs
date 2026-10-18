@@ -6,6 +6,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import { join, resolve, delimiter } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { spawnOwnedProcess } from './dev-workspaces.mjs';
 
 const exec = promisify(execFile);
 const binaries = ['initdb', 'postgres', 'psql'];
@@ -62,8 +63,14 @@ export async function openLocalStore({ root, pgBin: requested, signal } = {}) {
   let lock;
   try { lock = await open(lockPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600); }
   catch (error) { if (error.code === 'EEXIST' || error.code === 'ELOOP') throw new Error('Local store is already locked/in use; never remove its lock while the owner is running'); throw error; }
-  let postgres; let closed; let stopping;
-  const stop = () => stopping ??= (async () => {
+  let postgres; let closed; let stopping; let initializer;
+  const stopInitializer = async () => {
+    if (!initializer) return;
+    await initializer.stop();
+    initializer = undefined;
+  };
+  const stop = ({ retainLock = false } = {}) => stopping ??= (async () => {
+    await stopInitializer();
     if (postgres && postgres.exitCode === null && postgres.signalCode === null && postgres.pid) {
       const pidFile = join(dataDir, 'postmaster.pid');
       if (await exists(pidFile)) {
@@ -74,7 +81,7 @@ export async function openLocalStore({ root, pgBin: requested, signal } = {}) {
       postgres.kill('SIGINT'); // Fast PostgreSQL shutdown checkpoints data; not process.kill(-group).
       await waitExit(closed, 15_000);
     }
-    if (await exists(lockPath)) {
+    if (!retainLock && await exists(lockPath)) {
       await regular(lockPath);
       if (await readFile(lockPath, 'utf8') !== lockText) throw new Error('Store lock ownership changed; refusing to remove it');
       await unlink(lockPath);
@@ -102,7 +109,27 @@ export async function openLocalStore({ root, pgBin: requested, signal } = {}) {
     const password = await readFile(passwordPath, 'utf8');
     if (!/^[A-Za-z0-9_-]{43}$/.test(password)) throw new Error('Local database password is invalid; refusing to reset it');
     if (!(await exists(dataDir))) {
-      await exec(join(pgBin, 'initdb'), ['-D', dataDir, '--username=flume', '--auth-local=reject', '--auth-host=scram-sha-256', '--encoding=UTF8', '--locale=C', `--pwfile=${passwordPath}`], { env: pgEnvironment(), timeout: 60_000, ...(signal ? { signal } : {}), maxBuffer: 1024 * 1024 });
+      signal?.throwIfAborted();
+      let timer; let cancelled;
+      try {
+        await new Promise((resolveInitialized, rejectInitialized) => {
+          initializer = spawnOwnedProcess(join(pgBin, 'initdb'), ['-D', dataDir, '--username=flume', '--auth-local=reject', '--auth-host=scram-sha-256', '--encoding=UTF8', '--locale=C', `--pwfile=${passwordPath}`], { env: pgEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] }, 15_000);
+          let bytes = 0;
+          for (const stream of [initializer.child.stdout, initializer.child.stderr]) stream.on('data', chunk => {
+            bytes += chunk.length;
+            if (bytes > 1024 * 1024) rejectInitialized(new Error('Local database initialization exceeded its output limit; data preserved'));
+          });
+          initializer.exited.then(result => {
+            if (result.error || result.code !== 0) rejectInitialized(new Error('Local database initialization failed; data preserved', { cause: result.error }));
+            else resolveInitialized();
+          });
+          timer = setTimeout(() => rejectInitialized(new Error('Local database initialization timed out; data preserved')), 60_000);
+          cancelled = () => rejectInitialized(signal.reason);
+          signal?.addEventListener('abort', cancelled, { once: true });
+          if (signal?.aborted) cancelled();
+        });
+      } finally { clearTimeout(timer); if (cancelled) signal?.removeEventListener('abort', cancelled); }
+      await stopInitializer();
     }
     await directory(dataDir);
     if (!(await exists(join(dataDir, 'PG_VERSION')))) throw new Error('Local database initialization is incomplete; data was preserved for recovery');
