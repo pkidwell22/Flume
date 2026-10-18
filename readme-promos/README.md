@@ -23,9 +23,11 @@ seconds.
 Files:
 
 - `flume-alien-v002.mp4` — delivery master (H.264, verified 29.5 s / 708 frames / full decode)
-- `flume-alien-v002-preview.gif` — lightweight README preview (mute)
+- `flume-alien-v002-preview.gif` — animated README preview (mute)
 - `flume-alien-v002-poster.png` — poster frame from the end card
 - `composition.html` + `index.motion.json` — the HyperFrames composition that produced the film;
   it expects the five source clips in an `assets/` directory and is provided for provenance
   and rebuild, not as runnable app code
-- `SHA256SUMS.txt` — integrity checksums for every published file
+- `SHA256SUMS.txt` — integrity checksums for the five media/composition files above;
+  the checksum manifest itself is excluded. Verify from this directory with
+  `shasum -a 256 -c SHA256SUMS.txt`.

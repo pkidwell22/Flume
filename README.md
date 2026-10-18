@@ -13,7 +13,7 @@ blocks live generation; no successful live video result is verified at this chec
 
 [![Flume — Alien Reel, preview](readme-promos/alien-reel/flume-alien-v002-preview.gif)](readme-promos/alien-reel/flume-alien-v002.mp4)
 
-A 29-second original film cut from five studies created for Flume: an iridescent crystal
+A 29.5-second original film joining three studies with two generated transitions: an iridescent crystal
 flower assembling in a black void morphs into a river of liquid mirror, which pours through
 volcanic glass and becomes luminous creatures grazing under a violet aurora — each world
 transforming into the next. [Watch the full MP4](readme-promos/alien-reel/flume-alien-v002.mp4)
