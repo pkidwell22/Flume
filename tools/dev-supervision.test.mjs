@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { launchDevelopment } from './dev.mjs';
 import { runWorkspaceTask } from './dev-workspaces.mjs';
+import { missingPostgresReason, resolveTestPgBin } from './dev-test-pg.mjs';
 
 const exists = path => stat(path).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } }
@@ -16,6 +17,11 @@ async function until(check, message, milliseconds = 5000) {
   while (Date.now() < deadline) { if (await check()) return; await delay(10); }
   throw new Error(message);
 }
+
+// Resolved once per module: PG_BIN -> pg_config --bindir -> (darwin) /opt/homebrew/bin -> PATH.
+// Absent PostgreSQL makes the real-store tests below SKIP (never silently pass) on any platform.
+const pgBin = await resolveTestPgBin();
+const withoutPostgres = pgBin ? undefined : missingPostgresReason();
 
 // Newly created real PG; HTTP and npm wrappers are process doubles, never providers.
 async function fixture(t, stdio, injectRefusal = false) {
@@ -74,7 +80,7 @@ async function fixture(t, stdio, injectRefusal = false) {
     });
     syncBuiltinESMExports();
   }
-  app = await launchDevelopment({ root, pgBin: '/opt/homebrew/bin', apiPort: 0, webPort: 0, install: false, build: false });
+  app = await launchDevelopment({ root, pgBin, apiPort: 0, webPort: 0, install: false, build: false });
   const ids = {};
   for (const name of ['server', 'web']) for (const kind of ['wrapper', 'child']) {
     ids[kind + '-' + name] = JSON.parse(await readFile(join(root, `${kind}-${name}.json`), 'utf8')).pid;
@@ -85,7 +91,7 @@ async function fixture(t, stdio, injectRefusal = false) {
   return { root, app, ids };
 }
 
-for (const stdio of ['ignore', 'inherit']) test(`natural wrapper exit is supervised with ${stdio} descendant stdio`, async t => {
+for (const stdio of ['ignore', 'inherit']) test(`natural wrapper exit is supervised with ${stdio} descendant stdio`, { skip: withoutPostgres }, async t => {
   const { root, app, ids } = await fixture(t, stdio);
   const outcome = app.done.then(() => ({ settled: true, error: null }), error => ({ settled: true, error: error.message }));
   await writeFile(join(root, 'wrapper-exit-server'), 'exit naturally without signalling');
@@ -98,7 +104,7 @@ for (const stdio of ['ignore', 'inherit']) test(`natural wrapper exit is supervi
   assert.equal(await readFile(join(app.store.mediaRoot, 'sentinel'), 'utf8'), 'preserve these owned bytes');
 });
 
-test('service termination uncertainty retains store lock rather than merely claiming retention', async t => {
+test('service termination uncertainty retains store lock rather than merely claiming retention', { skip: withoutPostgres }, async t => {
   const { root, app, ids } = await fixture(t, 'ignore', true);
   const lockPath = join(root, '.flume/store.lock'); const lock = await readFile(lockPath, 'utf8');
   const kill = process.kill.bind(process);

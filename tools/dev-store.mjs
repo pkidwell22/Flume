@@ -10,6 +10,18 @@ import { spawnOwnedProcess } from './dev-workspaces.mjs';
 
 const exec = promisify(execFile);
 const binaries = ['initdb', 'postgres', 'psql'];
+/**
+ * Resolve the PostgreSQL bin directory and verify initdb/postgres/psql are executable there.
+ *
+ * Deliberate contract: an explicit `requested` directory (PG_BIN is the default argument) is
+ * EXCLUSIVE. Only that directory is probed; PATH and /opt/homebrew/bin are never consulted, so
+ * an explicit setting can never silently fall back to a different installation than the one the
+ * operator named. Pass nothing/undefined to search /opt/homebrew/bin then PATH.
+ *
+ * Callers that want "PG_BIN, else discover" semantics must compose this with
+ * ./dev-test-pg.mjs, which probes candidates in priority order and yields undefined (skip)
+ * on a platform that has no PostgreSQL instead of throwing.
+ */
 export async function resolvePgBin(requested = process.env.PG_BIN) {
   const candidates = requested ? [resolve(requested)] : ['/opt/homebrew/bin', ...(process.env.PATH ?? '').split(delimiter)];
   for (const directory of candidates) {

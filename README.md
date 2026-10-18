@@ -37,9 +37,12 @@ Install PostgreSQL with `initdb`, `postgres`, `psql`, and `pg_ctl`, plus FFmpeg 
 Set `PG_BIN` to the existing PostgreSQL binary directory if it is not found automatically.
 The launcher does not install native runtimes.
 
-**Platform limitation:** the runtime media bridge and some tests assume Homebrew's Apple Silicon
-binary locations. Other installation layouts need portability work. Although launcher preflight
-accepts macOS and Linux, this is not a verified cross-platform setup. Windows is rejected.
+**Platform limitation:** the runtime media bridge still assumes Homebrew's Apple Silicon binary
+locations. Other installation layouts need portability work. Although launcher preflight accepts
+macOS and Linux, this is not a verified cross-platform setup. Windows is rejected.
+The tooling suite resolves PostgreSQL as `PG_BIN` → `pg_config --bindir` → `/opt/homebrew/bin`
+(macOS only) → `PATH`, and each test that resolves through `dev-test-pg.mjs` **skips** — it never passes — when no installation
+is found; there is no CI workflow, so a Linux run is still only as trustworthy as the host's output.
 FFmpeg and ffprobe are required at startup; the app does not honor `FFMPEG_PATH` or `FFPROBE_PATH`.
 
 From the root of your clone:

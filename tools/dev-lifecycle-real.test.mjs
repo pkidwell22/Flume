@@ -8,13 +8,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { launchDevelopment } from './dev.mjs';
-import { openLocalStore, resolvePgBin } from './dev-store.mjs';
+import { openLocalStore } from './dev-store.mjs';
+import { missingPostgresReason, resolveTestPgBin } from './dev-test-pg.mjs';
 
 const exec = promisify(execFile);
 const exists = path => stat(path).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } }
 async function until(check, message) { for (let i = 0; i < 400; i++) { if (await check()) return; await delay(20); } throw new Error(message); }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+// PG_BIN -> pg_config --bindir -> (darwin) /opt/homebrew/bin -> PATH; skip, never pass, without PostgreSQL.
+const pgBin = await resolveTestPgBin();
+const withoutPostgres = pgBin ? undefined : missingPostgresReason();
 async function sql(store, statement, pgBin) {
   const url = new URL(store.databaseUrl);
   const result = await exec(join(pgBin, 'psql'), ['--no-psqlrc', '--no-align', '--tuples-only', '--set', 'ON_ERROR_STOP=1', '--command', statement], {
@@ -24,9 +28,9 @@ async function sql(store, statement, pgBin) {
 }
 
 // Real newly-owned PostgreSQL; HTTP/migration children are explicitly local fixtures.
-test('real owned PG retains SQL/media through startup cancellation, failure, ready abort and reopen', async t => {
+test('real owned PG retains SQL/media through startup cancellation, failure, ready abort and reopen', { skip: withoutPostgres }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'flume-lifecycle-real-'));
-  const pgBin = await resolvePgBin(); const pids = []; const phases = [];
+  const pids = []; const phases = [];
   const controllers = []; const starts = []; const owners = [];
   t.after(async () => {
     for (const controller of controllers) controller.abort();
