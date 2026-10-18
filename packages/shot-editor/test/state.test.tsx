@@ -7,6 +7,9 @@ import {
   startSave,
   finishSave,
   isDirty,
+  receiveShot,
+  hasConflict,
+  reconcile,
 } from '../src/editor-state.ts';
 import { shot } from './fixtures.ts';
 
@@ -41,6 +44,30 @@ test('DTO key order cannot leave a successfully saved shot dirty', () => {
   state = editDraft(state, { ...state.draft, prompt: 'New literal prompt' });
   state = finishSave(startSave(state, 1), 1, { revision: 4 });
   assert.equal(isDirty(state), false);
+});
+
+test('accepted numeric spellings remain clean through same-revision readback without granting a newer base', () => {
+  let state = createEditorState(shot);
+  state = editDraft(state, { ...state.draft, controls: { ...state.draft.controls, durationSeconds: '05.00', seed: '000' } });
+  state = finishSave(startSave(state, 1), 1, { revision: 4 });
+  assert.equal(state.draft.controls.durationSeconds, '05.00', 'Receipt must not rewrite literal duration');
+  assert.equal(state.draft.controls.seed, '000');
+  assert.equal(isDirty(state), false);
+  state = receiveShot(state, { ...shot, revision: 4 });
+  assert.equal(state.draft.controls.durationSeconds, '05.00', 'GET of accepted revision must not rewrite numeric spelling');
+  assert.equal(state.draft.controls.seed, '000');
+  assert.equal(isDirty(state), false);
+  state = editDraft(state, { ...state.draft, prompt: 'New draft' });
+  state = receiveShot(state, { ...shot, revision: 5, prompt: 'Someone else' });
+  assert.equal(state.base.revision, 4);
+  assert.equal(hasConflict(state), true);
+  state = reconcile(state, true);
+  assert.equal(state.draft.controls.durationSeconds, '05.00');
+  assert.equal(state.base.revision, 5);
+  assert.equal(isDirty(state), true);
+  state = reconcile(state, false);
+  assert.equal(isDirty(state), false);
+  assert.equal(state.draft.prompt, 'Someone else');
 });
 
 test('successful unchanged numeric input becomes clean without losing edits typed during save',()=>{

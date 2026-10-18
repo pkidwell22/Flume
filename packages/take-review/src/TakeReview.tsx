@@ -63,14 +63,22 @@ function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions
   const [message,setMessage] = useState('');
   const [selectRequested,setSelectRequested] = useState(false);
   const selectButton=useRef<HTMLButtonElement>(null);
-  const restoreSelectionFocus=useRef(false);
+  const selectionFocus=useRef<{scope:string;restore:()=>void;cancel:()=>void} | null>(null);
   const mounted = useRef(true);
-  useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
+  useEffect(() => {mounted.current = true; return () => {mounted.current = false;selectionFocus.current?.cancel();};}, []);
   const selected = shot.selectedTakeId === take.id;
   useEffect(()=>{setInspection(null);setSelectRequested(false);setMessage('');playbackEpoch.current++;},[scope]);
   const blocked = busy || actions.active !== null;
-  useEffect(()=>{if(selected&&!blocked&&restoreSelectionFocus.current){selectButton.current?.focus({preventScroll:true});restoreSelectionFocus.current=false;}},[selected,blocked]);
+  useEffect(()=>{
+    const claim=selectionFocus.current;
+    // A superseding unselected readback retires this request, even while busy.
+    if(claim && claim.scope!==scope && !selected) claim.cancel();
+    else if(selected&&!blocked) claim?.restore();
+  },[scope,selected,blocked]);
   const canInspect = media.status === 'ready' && loaded && played && !failed;
+  const invalidatePlayback = () => {
+    playbackEpoch.current++;setLoaded(false);setPlayed(false);setInspection(null);
+  };
   const inspect = () => {
     if (!canInspect || blocked || validInspection) return;
     void actions.run(`inspect:${take.id}`, async () => {
@@ -81,14 +89,37 @@ function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions
         if (!receipt?.inspectionId || !receipt.inspectionId.trim()) throw new Error('No inspection receipt');
         if (mounted.current && observedPlayback === playbackEpoch.current && observedScope === currentScope.current) setInspection({id:receipt.inspectionId,scope:observedScope});
       } catch {
-        if (mounted.current) setMessage('Inspection could not be confirmed. Try inspecting this take again.');
+        if (mounted.current && observedPlayback === playbackEpoch.current && observedScope === currentScope.current) setMessage('Inspection could not be confirmed. Try inspecting this take again.');
       }
     });
   };
   const select = () => {
     if (!canInspect || !validInspection || selected || blocked || selectRequested) return;
     void actions.run(`select:${take.id}`, async () => {
-      const requestedScope=scope;restoreSelectionFocus.current=document.activeElement===selectButton.current;
+      const requestedScope=scope;
+      selectionFocus.current?.cancel();
+      const button=selectButton.current;
+      if(button && button.ownerDocument.activeElement===button) {
+        const document=button.ownerDocument;
+        let lostToDisabled=false;
+        const cancel=()=>{
+          button.removeEventListener('blur',onBlur);
+          document.removeEventListener('focusin',onFocus,true);
+          document.removeEventListener('pointerdown',cancel,true);
+          selectionFocus.current=null;
+        };
+        const onBlur=()=>{if(button.disabled) lostToDisabled=true;else cancel();};
+        const onFocus=(event:FocusEvent)=>{if(event.target!==button) cancel();};
+        // Only recover a disabled-control blur, never a newer user destination.
+        selectionFocus.current={scope:requestedScope,cancel,restore:()=>{
+          const restore=lostToDisabled && document.activeElement===document.body;
+          cancel();
+          if(restore && button.isConnected) button.focus({preventScroll:true});
+        }};
+        button.addEventListener('blur',onBlur);
+        document.addEventListener('focusin',onFocus,true);
+        document.addEventListener('pointerdown',cancel,true);
+      }
       setMessage(''); setSelectRequested(true);
       try {
         await onSelect({projectId:shot.projectId,shotId:shot.id,takeId:take.id,inspectionId:validInspection,expectedRevision:shot.revision,expectedSelectionRevision:shot.selectionRevision});
@@ -101,15 +132,17 @@ function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions
   return <article className="fl-tr-take" data-take-id={take.id} aria-label={`Take ${number}`} data-selected={selected}>
     <header className="fl-tr-card-heading"><h3>Take {number}</h3>{asset && <span className="fl-tr-source">{sourceLabel(asset)}</span>}</header>
     <div className="fl-tr-screen">
-      {media.status === 'ready' ? <video key={reload} controls playsInline preload="metadata" src={media.url} aria-label={`Preview take ${number}`}
-        onLoadedData={()=>setLoaded(true)} onPlaying={()=>setPlayed(true)}
-        onError={()=>{playbackEpoch.current++;setFailed(true);setLoaded(false);setPlayed(false);setInspection(null);}}/>
+      {media.status === 'ready' ? <video key={reload} controls playsInline preload="metadata" src={reload ? `${media.url}?previewReload=${reload}` : media.url} aria-label={`Preview take ${number}`}
+        onLoadedData={()=>{setLoaded(true);setFailed(false);}} onPlaying={()=>setPlayed(true)}
+        onEmptied={invalidatePlayback}
+        onError={()=>{invalidatePlayback();setFailed(true);}}/>
         : <div className="fl-tr-unavailable"><strong>Video unavailable</strong><p>{media.reason}</p></div>}
     </div>
     <div className="fl-tr-card-body">
       {asset && <p className="fl-tr-media-meta">{asset.width} × {asset.height}{asset.durationSeconds !== undefined ? ` / ${asset.durationSeconds} s` : ''}</p>}
       <p className="fl-tr-hint">{failed ? 'Playback unavailable. Reload this preview, then play and inspect it again.' : media.status !== 'ready' ? 'Selection requires an owned video you can play.' : selected ? 'Selected for this shot. Export a frozen copy below.' : validInspection ? 'Inspection recorded. Select this take when you are ready.' : 'Play this take, then inspect it to enable selection.'}</p>
-      {failed && <button type="button" onClick={()=>{playbackEpoch.current++;setFailed(false);setLoaded(false);setPlayed(false);setInspection(null);setReload(n=>n+1);}}>Reload take preview</button>}
+      {/* Retry the owned resource; only decoded data clears failure, never command holds. */}
+      {failed && <button type="button" onClick={()=>{invalidatePlayback();setReload(n=>n+1);}}>Reload take preview</button>}
       <div className="fl-tr-actions">
         <button type="button" onClick={inspect} disabled={blocked || !canInspect || !!validInspection}>{actions.active === `inspect:${take.id}` ? 'Inspecting…' : validInspection ? 'Inspected' : 'Inspect take'}</button>
         <button ref={selectButton} type="button" className="fl-tr-primary" aria-pressed={selected} onClick={select} disabled={!selected && (blocked || !canInspect || !validInspection || selectRequested)} aria-disabled={selected || undefined}>{selected ? 'Selected' : actions.active === `select:${take.id}` ? 'Selecting…' : 'Select take'}</button>

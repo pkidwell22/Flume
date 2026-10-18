@@ -37,11 +37,11 @@ export class WorkspaceController {
     const navigation = this.navigation;
     ++this.readVersion; // A pre-write refresh must never replace a post-write snapshot.
     this.update({ busy: intent.type, error: null, notice: null });
-    let accepted = false;
+    let accepted: Receipt | null = null;
     try {
       const receipt = await this.api.command(command);
       if (receipt.commandId !== command.commandId || 'projectId' in command && receipt.projectId !== command.projectId) throw new TypeError('The returned receipt does not match this request. Check the original request before continuing.');
-      accepted = true;
+      accepted = receipt;
       if (command.type === 'generation.submit') this.submitted.add(command.reviewId);
       this.update({ uncertainCommand: null });
       const readVersion = ++this.readVersion;
@@ -52,6 +52,9 @@ export class WorkspaceController {
       const issue = this.errorOf(error);
       if (accepted) {
         this.update({ error: { code: 'READBACK_FAILED', message: 'The action was accepted, but its saved state could not be loaded. Refresh to check it; do not submit it again.' } });
+        // A failed GET cannot revoke an accepted save's base revision. Return
+        // that receipt to the editor while retaining the readback warning.
+        if (command.type === 'shot.update') return accepted;
       } else {
         const status = (error as { status?: number } | null)?.status;
         const outcomeUnknown = error !== null && typeof error === 'object' && 'outcomeUnknown' in error && error.outcomeUnknown === true;

@@ -1,0 +1,18 @@
+/* Local contextual popups only. Native popover top-layer rendering escapes
+   contain/transform/overflow while retaining the editor's theme inheritance. */
+.fl-anchored-popup[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  width: min(26rem, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  /* Usable before measurement: never depend on an unset positioner variable. */
+  max-height: min(36rem, calc(100dvh - 24px));
+  overflow: auto;
+  scroll-padding-block: 8px;
+  overscroll-behavior: contain;
+  color: inherit;
+  font: inherit;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 30%);
+}

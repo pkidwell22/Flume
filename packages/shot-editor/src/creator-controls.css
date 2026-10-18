@@ -1,0 +1,46 @@
+@import './model-picker.css';
+@import './generation-settings.css';
+@import './prompt-composer.css';
+
+/* Assembly density only: keep theme/color authority in the shared Flume tokens.
+   These selectors are the boundary for the coordinated visual-language pass. */
+/* Contain the replaced element itself, not only its pixels. Intrinsic portrait
+   min-content height must not enlarge the grid track behind a 52px thumbnail. */
+.fl-shot-editor .fl-shot-editor__image { grid-template-rows: minmax(0, 1fr); }
+.fl-shot-editor .fl-shot-editor__image img { min-height: 0; min-width: 0; max-height: 100%; max-width: 100%; }
+.fl-shot-editor__creator-settings {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 3fr);
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+}
+.fl-shot-editor__creator-settings > .fl-model-picker { grid-column: auto; }
+.fl-shot-editor .fl-model-picker__label { font-size: 12px; margin-bottom: 5px; }
+.fl-shot-editor .fl-model-picker__trigger { padding: 8px 10px; gap: 2px 10px; }
+.fl-shot-editor .fl-model-picker__trigger > strong { font-size: 14px; }
+.fl-shot-editor .fl-model-picker__current { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.fl-shot-editor .fl-model-picker__help { font-size: 12px; line-height: 1.4; margin-top: 6px; }
+.fl-shot-editor .fl-generation-settings__field { flex-basis: 6rem; }
+.fl-shot-editor .fl-generation-settings__seed { flex-basis: 9rem; }
+.fl-shot-editor .fl-generation-settings__notes:empty { margin: 0; }
+.fl-shot-editor .fl-prompt-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+.fl-shot-editor .fl-prompt-composer__heading { grid-column: 1 / -1; margin: 0; }
+.fl-shot-editor .fl-prompt-composer__heading label { font-size: 14px; }
+.fl-shot-editor .fl-prompt-composer__heading span { font-size: 12px; }
+.fl-shot-editor .fl-prompt-composer textarea { grid-column: 1; grid-row: 2; height: 96px; min-height: 96px; margin: 0; }
+.fl-shot-editor .fl-prompt-composer__toolbar { grid-column: 2; grid-row: 2; margin: 0; gap: 6px; flex-direction: column; align-items: start; }
+.fl-shot-editor .fl-prompt-composer__toolbar p { font-size: 12px; }
+
+@container shot-editor (max-width: 900px) {
+  .fl-shot-editor__creator-settings { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .fl-shot-editor .fl-prompt-composer { grid-template-columns: minmax(0, 1fr); }
+  .fl-shot-editor .fl-prompt-composer__toolbar { grid-column: 1; grid-row: 3; flex-direction: row; align-items: center; }
+
+}
+

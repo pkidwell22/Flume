@@ -1,0 +1,125 @@
+/* Import after shot-editor styles. Scoped to this controlled settings bar. */
+.fl-generation-settings {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  color: var(--fl-ink, #111111);
+  font: 400 14px/1.45 var(--fl-font, 'Avenir Next', Avenir, 'Helvetica Neue', Arial, sans-serif);
+}
+.fl-generation-settings *,
+.fl-generation-settings *::before,
+.fl-generation-settings *::after {
+  box-sizing: border-box;
+}
+.fl-generation-settings__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px;
+}
+.fl-generation-settings__field {
+  flex: 1 1 7.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.fl-generation-settings .fl-generation-settings__seed {
+  flex: 1.5 1 12rem;
+}
+.fl-generation-settings .fl-generation-settings__field > label:not(.fl-generation-settings__audio) {
+  display: block;
+  margin: 0 0 5px;
+  color: var(--fl-muted, #635f55);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+/* Keep the containing editor's generic input styles from enlarging this row. */
+.fl-generation-settings .fl-generation-settings__field input:not([type='checkbox']),
+.fl-generation-settings .fl-generation-settings__field button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--fl-rule, #363a40);
+  border-radius: var(--fl-radius, 4px);
+  background: var(--fl-control, #2b2e33);
+  color: var(--fl-ink, #111111);
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.4;
+}
+/* Text entry keeps one legible baseline; actions keep a quiet perimeter. */
+.fl-generation-settings .fl-generation-settings__field input:not([type='checkbox']) {
+  border: 0;
+  border-bottom: 1px solid var(--fl-border, #747b85);
+}
+.fl-generation-settings .fl-generation-settings__field input::placeholder {
+  color: var(--fl-muted, #635f55);
+  opacity: 1;
+}
+.fl-generation-settings .fl-generation-settings__field input[aria-invalid='true'] {
+  border-color: var(--fl-danger, #982721);
+}
+.fl-generation-settings .fl-generation-settings__audio {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--fl-rule, #363a40);
+  border-radius: var(--fl-radius, 4px);
+  background: var(--fl-control, #2b2e33);
+  color: var(--fl-ink, #111111);
+  cursor: pointer;
+}
+.fl-generation-settings .fl-generation-settings__audio input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--fl-accent, #a52a27);
+}
+.fl-generation-settings__seed-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fl-generation-settings .fl-generation-settings__seed-entry input {
+  flex: 1 1 auto;
+}
+.fl-generation-settings .fl-generation-settings__seed-entry button {
+  flex: 0 0 auto;
+  width: auto;
+  cursor: pointer;
+}
+.fl-generation-settings .fl-generation-settings__seed-entry button:hover:not(:disabled) {
+  background: var(--fl-surface-pressed, #e5ddca);
+}
+.fl-generation-settings .fl-generation-settings__field :is(input, button):focus-visible {
+  outline: 3px solid var(--fl-focus, #111111);
+  outline-offset: 2px;
+}
+.fl-generation-settings .fl-generation-settings__notes {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--fl-muted, #635f55);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.fl-generation-settings .fl-generation-settings__notes p {
+  margin: 0;
+}
+.fl-generation-settings .fl-generation-settings__error {
+  color: var(--fl-danger, #982721);
+}
+@media (forced-colors: active) {
+  .fl-generation-settings .fl-generation-settings__field :is(input, button):focus-visible {
+    outline-color: Highlight;
+  }
+}

@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import type { WorkspaceController } from './controller.ts';
 import type { WorkspaceComponents } from './ports.ts';
 import type { Asset, Shot, Workspace, WorkspaceState } from './types.ts';
+import { ProjectRail } from './ProjectRail.tsx';
 
 export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; autoStart?: boolean; initialProjectId?: string; previewLabel?: string }
 
@@ -12,9 +13,12 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
   const [creating, setCreating] = useState<'project' | 'shot' | null>(null);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [discardEpoch,setDiscardEpoch] = useState(0);
   const uploadRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
+  const reviewOpener = useRef<HTMLElement | null>(null);
+  const restoreReviewFocus = useRef(false);
   const workspace = state.workspace;
   const project = workspace?.project;
   const shot = workspace?.shots.find(item => item.id === state.activeShotId);
@@ -39,11 +43,13 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
   useEffect(() => {
     const panel = reviewRef.current;
     if (!panel || !review) return;
-    const previous = document.activeElement;
+    const previous = reviewOpener.current;
     panel.focus({ preventScroll: true });
     panel.scrollIntoView({ block: 'nearest' });
     return () => {
-      if (previous instanceof HTMLElement && previous.isConnected && (document.activeElement === document.body || panel.contains(document.activeElement))) previous.focus();
+      if (restoreReviewFocus.current) restoreOpener(previous, panel);
+      reviewOpener.current = null;
+      restoreReviewFocus.current = false;
     };
   }, [review?.id]);
 
@@ -93,26 +99,21 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
       {state.uncertainCommand && <button className="fl-workspace__button" disabled={busy} onClick={() => run(() => controller.retryUncertain())}>Retry original request</button>}
     </div>}
 
-    <div className="fl-workspace__body">
-      <aside className="fl-workspace__sidebar" aria-label="Project shots">
-        <div className="fl-workspace__sidebar-heading"><h2>Shots</h2><button aria-label="Add shot" className="fl-workspace__add" disabled={!project || held} onClick={() => navigate(() => setCreating('shot'))}>+</button></div>
-        {project && <p className="fl-workspace__project-name">{project.name}</p>}
-        <nav aria-label="Shots">
-          <ol className="fl-workspace__shots">{workspace?.shots.map((item, index) => {
-            const frame = workspace.assets.find(asset => asset.id === item.bindings.firstFrameAssetId);
-            return <li key={item.id}><button className="fl-workspace__shot" aria-current={item.id === shot?.id ? 'page' : undefined} disabled={held} onClick={() => navigate(() => { setLibraryOpen(false); controller.selectShot(item.id); })}>
-              <div className="fl-workspace__shot-image">{frame ? <img src={ownedMediaUrl(frame)} alt="" loading="lazy" /> : <span aria-hidden="true" className="fl-workspace__frame-outline" />}</div>
-              <div className="fl-workspace__shot-name"><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.title}</strong></div>
-              <small>{item.selectedTakeId ? 'Take selected' : workspace.takes.some(take => take.shotId === item.id) ? 'Takes to review' : 'No take selected'}</small>
-            </button></li>;
-          })}</ol>
-        </nav>
-        {!workspace?.shots.length && <p className="fl-workspace__sidebar-empty">{project ? 'Build your sequence one shot at a time.' : 'Your shots will live here.'}</p>}
+    <div className="fl-workspace__body" data-rail-collapsed={railCollapsed}>
+      <div className="fl-workspace__rail">
+        <ProjectRail projects={project && !state.projects.some(item => item.id === project.id) ? [...state.projects, project] : state.projects}
+          shots={workspace?.shots ?? []} takes={workspace?.takes ?? []} activeProjectId={project?.id ?? null} activeShotId={state.activeShotId}
+          dataState={state.phase === 'idle' ? 'loading' : state.phase}
+          collapsed={railCollapsed} disabled={held || state.phase === 'loading'} onCollapsedChange={setRailCollapsed}
+          onProjectActivate={id => navigate(() => { setLibraryOpen(false); run(() => controller.openProject(id)); })}
+          onShotActivate={id => navigate(() => { setLibraryOpen(false); controller.selectShot(id); })}
+          onCreateProject={() => navigate(() => setCreating('project'))}
+          onCreateShot={() => navigate(() => setCreating('shot'))} />
         <div className="fl-workspace__sidebar-bottom">
-          <button className="fl-workspace__library-button" aria-pressed={libraryOpen} disabled={!project || held} onClick={() => navigate(() => setLibraryOpen(!libraryOpen))}><span>Project media</span><span>{workspace?.assets.length ?? 0}</span></button>
+          <button className="fl-workspace__library-button" aria-pressed={libraryOpen} disabled={!project || held} onClick={() => navigate(() => setLibraryOpen(!libraryOpen))}><span>Project media</span><span aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
           <p>Imports stay in this project.<br />A take is selected only by you.</p>
         </div>
-      </aside>
+      </div>
 
       <main id="fl-canvas" className="fl-workspace__main" tabIndex={-1}>
         {(state.phase === 'loading' || state.phase === 'idle') ? <div className="fl-workspace__loading" role="status"><div className="fl-workspace__loading-frame" /><h1>Opening your workspace…</h1><p>Loading saved projects, shots and media.</p></div>
@@ -125,13 +126,12 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
             </section> : shot ? <>
               {blocker && <div className="fl-workspace__provider-blocker"><span className="fl-workspace__status-dot" aria-hidden="true" /><p><strong>Generation unavailable.</strong> {blocker} <span>Editing is still available.</span></p></div>}
               <div className="fl-workspace__editing-layout">
-                <div className="fl-workspace__visual-column"><MediaStage key={shot.id} shot={shot} workspace={workspace} />
-                  <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={workspace.takes.filter(take => take.shotId === shot.id)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} /></section>
-                </div>
-                <aside className="fl-workspace__inspector" aria-label="Shot editor"><EditorBoundary key={`${shot.id}:${discardEpoch}`} shot={shot} workspace={workspace} state={state} controller={controller} components={components} /></aside>
+                <MediaStage key={shot.id} shot={shot} workspace={workspace} />
+                <section className="fl-workspace__composer" aria-label="Shot composer"><EditorBoundary key={`${shot.id}:${discardEpoch}`} shot={shot} workspace={workspace} state={state} controller={controller} components={components} onPrepare={(revision, opener) => { reviewOpener.current = opener; return controller.prepare(shot.id, revision); }} /></section>
               </div>
+              {review && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
+              <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={workspace.takes.filter(take => take.shotId === shot.id)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} /></section>
               <section className="fl-workspace__activity" aria-label="Generation activity"><ActivityPanel attempts={workspace.attempts.filter(item => item.shotId === shot.id)} busy={held} onResume={id => notify(() => controller.resume(id))} /></section>
-              {review && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => controller.dismissReview()} /></div>}
             </> : <div className="fl-workspace__first-shot"><div className="fl-workspace__empty-aperture" aria-hidden="true" /><p>A shot holds your direction, frame references and every take.</p><button className="fl-workspace__button fl-workspace__button--primary" disabled={held} onClick={() => setCreating('shot')}>Create a shot</button></div>}
           </>}
       </main>
@@ -142,14 +142,21 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
   </div>;
 }
 
-function EditorBoundary({ shot, workspace, state, controller, components }: { shot: Shot; workspace: Workspace; state: WorkspaceState; controller: WorkspaceController; components: WorkspaceComponents }) {
+function EditorBoundary({ shot, workspace, state, controller, components, onPrepare }: { shot: Shot; workspace: Workspace; state: WorkspaceState; controller: WorkspaceController; components: WorkspaceComponents; onPrepare(revision: number, opener: HTMLElement | null): Promise<void> }) {
   const { ShotEditor } = components;
+  const ref = useRef<HTMLDivElement>(null);
   const baseRevision = useRef(shot.revision);
   const onDirtyChange = useCallback((value:boolean) => value ? controller.markDirty(shot.id) : controller.clearDirty(shot.id), [controller,shot.id]);
   const dirty = state.dirtyShotIds.has(shot.id);
   useEffect(() => { if (!dirty) baseRevision.current = shot.revision; }, [shot.revision, dirty]);
-  return <div onInputCapture={event => { if (!(event.target instanceof HTMLInputElement && event.target.type === 'file')) controller.markDirty(shot.id); }}>
-    <ShotEditor shot={shot} assets={workspace.assets} capabilities={workspace.capabilities} busy={!!state.busy || !!state.uncertainCommand} error={state.error} onDirtyChange={onDirtyChange} onSave={async (patch, revision = baseRevision.current) => { const saved = await controller.saveShot(shot.id, revision, patch); baseRevision.current = saved.revision; return saved; }} onUpload={file => controller.uploadAsset(file)} onPrepare={(revision = baseRevision.current) => controller.prepare(shot.id, revision)} />
+  // Dirty authority comes from the canonical editor update, not DOM input:
+  // capture-time store emissions can restore controlled text before onChange.
+  return <div ref={ref}>
+    <ShotEditor shot={shot} assets={workspace.assets} capabilities={workspace.capabilities} busy={!!state.busy || !!state.uncertainCommand} error={state.error} onDirtyChange={onDirtyChange} onSave={async (patch, revision = baseRevision.current) => { const saved = await controller.saveShot(shot.id, revision, patch); baseRevision.current = saved.revision; return saved; }} onUpload={file => controller.uploadAsset(file)} onPrepare={(revision = baseRevision.current) => {
+      // Capture before the controller's busy update disables and blurs the trigger.
+      const active = document.activeElement;
+      return onPrepare(revision, active instanceof HTMLElement && ref.current?.contains(active) ? active : null);
+    }} />
   </div>;
 }
 
@@ -178,9 +185,19 @@ function MediaStage({ shot, workspace }: { shot: Shot; workspace: Workspace }) {
   </section>;
 }
 
+function restoreOpener(opener: Element | null, surface: HTMLElement) {
+  const active = document.activeElement;
+  if (opener instanceof HTMLElement && opener.isConnected && !opener.matches(':disabled, [aria-disabled="true"]') && !opener.closest('[inert], [hidden]') && opener.getClientRects().length && getComputedStyle(opener).visibility === 'visible' && !document.querySelector('dialog[open]') && (active === document.body || surface.contains(active))) opener.focus();
+}
+
 function Modal({ label, onDismiss, children, busy = false }: { label: string; onDismiss(): void; children: ReactNode; busy?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => { dialog?.close(); }; }, []);
+  useEffect(() => {
+    const dialog = ref.current;
+    const opener = document.activeElement;
+    dialog?.showModal();
+    return () => { dialog?.close(); if (dialog) restoreOpener(opener, dialog); };
+  }, []);
   return <dialog className="fl-workspace__dialog" aria-label={label} ref={ref} onCancel={event => { event.preventDefault(); if (!busy) onDismiss(); }}>{children}</dialog>;
 }
 function CreateDialog({ kind, busy, onCreate, onDismiss }: { kind: 'project' | 'shot'; busy: boolean; onCreate(name: string, detail: string): Promise<void>; onDismiss(): void }) {

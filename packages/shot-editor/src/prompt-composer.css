@@ -1,0 +1,152 @@
+@import './anchored-popup.css';
+/* Import after shot-editor/styles.css, alongside @flume/ui's existing tokens.
+   No external fonts, artwork, global selectors or provider-specific settings. */
+.fl-prompt-composer {
+  min-width: 0;
+  width: 100%;
+  color: var(--fl-ink, #111111);
+  font-family: var(--fl-font, 'Avenir Next', Avenir, 'Helvetica Neue', Arial, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.fl-prompt-composer *,
+.fl-prompt-composer *::before,
+.fl-prompt-composer *::after {
+  box-sizing: border-box;
+}
+.fl-prompt-composer .fl-prompt-composer__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 14px;
+  margin-bottom: 9px;
+}
+.fl-prompt-composer .fl-prompt-composer__heading label {
+  font-size: 17px;
+  font-weight: 600;
+}
+.fl-prompt-composer .fl-prompt-composer__heading span {
+  color: var(--fl-muted, #635f55);
+  font-size: 13px;
+}
+.fl-prompt-composer textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 180px;
+  margin: 0;
+  padding: 14px;
+  /* An inset writing well, not another card on the editor surface. */
+  border: 0;
+  border-bottom: 1px solid var(--fl-border, #747b85);
+  border-radius: var(--fl-radius, 4px);
+  background: var(--fl-well, #191b1e);
+  color: var(--fl-ink, #111111);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+.fl-prompt-composer details > label + textarea[readonly] {
+  /* Reserve the focus outline's 3px width and 3px offset below the label. */
+  margin-top: 6px;
+}
+.fl-prompt-composer button {
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 9px 13px;
+  border: 1px solid var(--fl-rule, #363a40);
+  border-radius: var(--fl-radius, 4px);
+  color: var(--fl-ink, #111111);
+  background: var(--fl-control, #2b2e33);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.fl-prompt-composer button:not(:disabled):hover {
+  border-color: var(--fl-ink, #111111);
+  background: var(--fl-surface-pressed, #e5ddca);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-prompt-composer button { transition: none; }
+}
+.fl-prompt-composer :is(button, textarea):focus-visible {
+  outline: 3px solid var(--fl-focus, #111111);
+  outline-offset: 3px;
+}
+.fl-prompt-composer :is(button, textarea):disabled {
+  opacity: 1;
+  color: var(--fl-muted, #b3b6bd);
+  background: var(--fl-bg, #141517);
+  border-color: var(--fl-rule, #363a40);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.fl-prompt-composer .fl-prompt-composer__toolbar,
+.fl-prompt-composer .fl-prompt-composer__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+.fl-prompt-composer .fl-prompt-composer__toolbar p,
+.fl-prompt-composer .fl-prompt-composer__footer p {
+  margin: 0;
+  max-width: 48ch;
+  color: var(--fl-muted, #635f55);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.fl-prompt-composer .fl-prompt-composer__directions {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--fl-border, #888274);
+  border-radius: var(--fl-radius-surface, 14px);
+  background: var(--fl-surface, #f8f4ea);
+}
+.fl-prompt-composer .fl-prompt-composer__directions h3 {
+  margin: 0 0 5px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.fl-prompt-composer .fl-prompt-composer__directions > p {
+  max-width: 64ch;
+  margin: 0 0 14px;
+  color: var(--fl-muted, #635f55);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.fl-prompt-composer .fl-prompt-composer__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 8px;
+}
+.fl-prompt-composer .fl-prompt-composer__choices button {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 82px;
+  padding: 12px;
+}
+.fl-prompt-composer .fl-prompt-composer__choices strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.fl-prompt-composer .fl-prompt-composer__choices span {
+  color: var(--fl-muted, #635f55);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.fl-prompt-composer .fl-prompt-composer__footer button {
+  margin-left: auto;
+}

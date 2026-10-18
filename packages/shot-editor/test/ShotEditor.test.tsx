@@ -141,7 +141,8 @@ test('model changes explain incompatibilities without erasing settings or demoti
       })}
     />,
   );
-  fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'start-only' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Start-only model' }));
   assert.equal((screen.getByLabelText('Seed (optional)') as HTMLInputElement).value, '0');
   assert.equal((screen.getByLabelText('Duration (seconds)') as HTMLInputElement).value, '5');
   assert.equal((screen.getByLabelText('Resolution') as HTMLInputElement).value, '2K');
@@ -323,7 +324,7 @@ test('blank numeric input stays blank instead of becoming zero; an explicit zero
 test('missing bound media stays visibly bound instead of appearing silently cleared', () => {
   render(<ShotEditor {...props({ assets: [assets[0]!] })} />);
   assert.equal((screen.getByLabelText('End frame image') as HTMLSelectElement).value, 'end');
-  assert.match(screen.getByText('Unavailable image: end').textContent!, /end/);
+  assert.match(screen.getByText('Unavailable image: end', { selector: 'option' }).textContent!, /end/);
   assert.equal(
     (screen.getByRole('button', { name: 'Review generation' }) as HTMLButtonElement).disabled,
     false,
@@ -358,8 +359,10 @@ test('model changes during an import invalidate binding intent even when the mod
   fireEvent.change(screen.getByLabelText('Upload end frame'), {
     target: { files: [new File(['bytes'], 'late.png', { type: 'image/png' })] },
   });
-  fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'start-only' } });
-  fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'paired' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Start-only model' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Paired-frame model' }));
   await act(async () => result.resolve({ ...assets[1]!, id: 'late-model' }));
   assert.equal((screen.getByLabelText('End frame image') as HTMLSelectElement).value, 'end');
 });

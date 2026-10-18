@@ -21,20 +21,24 @@ test('exports the shared product tokens with accessible source-grounded colors',
   for (const name of ['bg', 'surface', 'ink', 'muted', 'border', 'accent', 'danger', 'radius', 'font']) {
     assert.ok(tokens[`--fl-${name}`], `Missing --fl-${name}`);
   }
-  assert.equal(tokens['--fl-bg'], '#efe8d6', 'Bone sampled from supplied PDF pages 2 and 9');
-  assert.equal(tokens['--fl-ink'], '#111111', 'Ink sampled from supplied PDF pages 2 and 3');
+  assert.equal(tokens['--fl-brand-accent'], '#a52a27', 'Preserve Flume oxide identity; interactive derivative must work on dark');
+  assert.match(css, /color-scheme:\s*dark/);
+  assert.ok(luminance(tokens['--fl-bg']) < 0.02, 'Cinema page is a dark work surface');
+  assert.ok(luminance(tokens['--fl-surface']) > luminance(tokens['--fl-bg']), 'Composer separates from page');
+  assert.ok(luminance(tokens['--fl-control']) > luminance(tokens['--fl-surface']), 'Context controls separate from composer');
+  assert.ok(luminance(tokens['--fl-control']) < 0.08, 'Layering remains restrained');
   for (const foreground of ['ink', 'muted', 'accent', 'danger']) {
-    for (const background of ['bg', 'surface']) {
+    for (const background of ['bg', 'surface', 'control', 'surface-pressed']) {
       assert.ok(contrast(tokens[`--fl-${foreground}`], tokens[`--fl-${background}`]) >= 4.5,
         `${foreground}/${background} must meet WCAG AA normal text`);
     }
   }
-  for (const background of ['bg', 'surface']) {
+  for (const background of ['bg', 'surface', 'control']) {
     assert.ok(contrast(tokens['--fl-border'], tokens[`--fl-${background}`]) >= 3, 'Control boundary contrast');
+    assert.ok(contrast(tokens['--fl-focus'], tokens[`--fl-${background}`]) >= 3, 'Visible focus on every work layer');
   }
   assert.ok(contrast(tokens['--fl-on-accent'], tokens['--fl-accent']) >= 4.5, 'Primary button text');
-  assert.ok(contrast(tokens['--fl-focus'], tokens['--fl-bg']) >= 3, 'Focus on bone');
-  assert.ok(contrast(tokens['--fl-focus'], tokens['--fl-surface']) >= 3, 'Focus on surface');
+  assert.ok(contrast(tokens['--fl-on-accent'], tokens['--fl-accent-hover']) >= 4.5, 'Hovered primary text');
 });
 
 test('control primitives are opt-in, keyboard-visible, motion-safe, and have no remote assets', () => {
