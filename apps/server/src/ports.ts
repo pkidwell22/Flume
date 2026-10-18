@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
+import type { CatalogEstimate } from '@flume/domain';
 import type { Asset,Shot,Capability } from './dto.ts';
 export type ProviderEnvelope={provider:string;modelId:string;body:string;bodySha256:string};
-export type PreparedGeneration={envelope:ProviderEnvelope|null;estimatedCostUsd:string|null;blockers:(string|{code:string;message:string})[]};
+export type PreparedGeneration={envelope:ProviderEnvelope|null;estimatedCostUsd:string|null;estimate?:CatalogEstimate;blockers:(string|{code:string;message:string})[]};
 export interface ProviderPort {
  capabilities():Promise<Capability[]>;
  /** Compile only: do not submit or upload in this operation. Called without a DB transaction. */
