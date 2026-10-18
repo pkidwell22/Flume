@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isAbsolute } from 'node:path';
 import { createMediaStore, MediaError, type Asset, type MediaStore, type StoreOptions } from '@flume/media';
 import {Worker} from 'node:worker_threads';
 import {AssetSchema} from '@flume/domain';
@@ -16,8 +17,20 @@ export function toWorkerMedia(a:Asset):OwnedMedia {
  return {assetId:a.id,storageKey:a.id,filename:a.filename,kind:a.kind,origin:a.origin,sha256:a.sha256,mimeType:a.mimeType,
   byteLength:a.size,width:a.width,height:a.height,...(a.durationSeconds===undefined?{}:{durationSeconds:a.durationSeconds}),provenance:a.provenance};
 }
-export async function createMediaBridge(root:string) {
- const options:StoreOptions={root,ffmpegPath:'/opt/homebrew/bin/ffmpeg',ffprobePath:'/opt/homebrew/bin/ffprobe',limits:{maxBytes:256*1024*1024,processTimeoutMs:20000,ingestTimeoutMs:25000}};
+export type MediaToolPaths = Partial<Pick<StoreOptions,'ffmpegPath'|'ffprobePath'>>;
+const executablePath=z.string().refine(path=>isAbsolute(path)&&!/[\x00-\x1f\x7f]/.test(path),'Absolute executable path required');
+const mediaToolPathsSchema=z.object({
+ ffmpegPath:executablePath.default('/opt/homebrew/bin/ffmpeg'),
+ ffprobePath:executablePath.default('/opt/homebrew/bin/ffprobe'),
+}).strict();
+/** Trusted operator configuration only; no env/PATH lookup or shell command parsing. */
+export function resolveMediaToolPaths(paths:MediaToolPaths={}):Pick<StoreOptions,'ffmpegPath'|'ffprobePath'> {
+ return mediaToolPathsSchema.parse(paths);
+}
+export async function createMediaBridge(root:string,toolPaths:MediaToolPaths={}) {
+ // The media package checks existence/executable bits and resolves installation symlinks.
+ // Capture once for both the local store and every worker; callers cannot override bounds.
+ const options:StoreOptions={root,...resolveMediaToolPaths(toolPaths),limits:{maxBytes:256*1024*1024,processTimeoutMs:20000,ingestTimeoutMs:25000}};
  const local=await createMediaStore(options);
  const active=new Set<Promise<Asset>>();
  const resultSchema=z.discriminatedUnion('ok',[

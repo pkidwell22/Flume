@@ -110,7 +110,14 @@ export type VideoContentResult<T> =
   | {status: 'read'; receipt: VideoReceipt; output: RemoteVideoOutput; value: T}
   | {status: 'content_unavailable'; receipt: VideoReceipt | null; output: RemoteVideoOutput | null; error: ProviderProblem};
 
-export type DiscoveryResult = {status: 'ok'; capabilities: VideoCapability[]} | {status: 'unavailable'; error: ProviderProblem};
+/** Unfiltered USD catalog SKU data; the estimator must validate all units and values. */
+export interface VideoCatalogPricing {
+  readonly provider: 'openrouter';
+  readonly modelId: string;
+  readonly currency: 'USD';
+  readonly pricingSkus: unknown;
+}
+export type DiscoveryResult = {status: 'ok'; capabilities: VideoCapability[]; pricing: VideoCatalogPricing[]} | {status: 'unavailable'; error: ProviderProblem};
 export type RemoteVideoOutput = {kind: 'openrouter_content'; jobId: string; index: number};
 export type VideoStatusResult =
   | {status: 'queued' | 'running'; receipt: VideoReceipt; providerStatus: 'pending' | 'in_progress'}

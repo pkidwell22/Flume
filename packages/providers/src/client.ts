@@ -18,7 +18,15 @@ export function createOpenRouterVideoProvider(options: OpenRouterVideoOptions): 
       const response = await transport.request('/videos/models', 'GET', undefined, false, call);
       if (!response.ok) return {status: 'unavailable', error: response.error};
       if (response.status < 200 || response.status >= 300) return {status: 'unavailable', error: normalizeOpenRouterError(response.status, response.data, 'read').error};
-      try {return {status: 'ok', capabilities: readVideoCatalog(response.data, {zdrRequired, privacyBlockedModelIds})};}
+      try {
+        const capabilities = readVideoCatalog(response.data, {zdrRequired, privacyBlockedModelIds});
+        // The reader has validated the entire JSON catalog, including exact, unique IDs.
+        // Preserve every SKU (also malformed/unknown units), never a priced subset.
+        const models = (response.data as {data: Record<string, unknown>[]}).data;
+        const pricing = models.map(model => ({provider: 'openrouter' as const, modelId: model.id as string,
+          currency: 'USD' as const, pricingSkus: model.pricing_skus ?? null}));
+        return {status: 'ok', capabilities, pricing};
+      }
       catch {return {status: 'unavailable', error: problem('provider_invalid_catalog', 'The public video catalog is malformed or incomplete. No model availability was inferred.')};}
     },
     async submit(request: CompiledVideoRequest, call: ProviderCallOptions = {}): Promise<SubmitResult> {
