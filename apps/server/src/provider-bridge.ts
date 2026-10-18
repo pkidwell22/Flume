@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import { z } from 'zod';
-import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, VIDEO_PRIVACY_MESSAGE,
- type VideoCapability, type VideoReceipt, type ProviderProblem } from '@flume/providers';
+import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, estimateH3VideoCost, VIDEO_PRIVACY_MESSAGE,
+ type VideoCapability, type VideoReceipt, type ProviderProblem, type VideoCatalogPricing, type H3VideoPricingMetadata } from '@flume/providers';
 import type { MediaStore } from '@flume/media';
 import { generatedAssetId } from '@flume/media';
 import type { ProviderPort as WorkerProvider, MediaPort as WorkerMedia, ProviderReceipt } from '@flume/worker';
@@ -11,26 +11,34 @@ import { sha256 } from './contracts.ts';
 import { createPhaseStore } from './phase-store.ts';
 
 const H3='minimax/hailuo-3';
-const h3:VideoCapability={modelId:H3,name:'Hailuo 3',durations:[5],resolutions:['2K'],aspectRatios:['16:9'],frameRoles:['first_frame','last_frame'],seedSupported:false,generateAudioSupported:false,availability:'blocked',blocker:VIDEO_PRIVACY_MESSAGE};
+/** Server-injected retention decision for the historical H3 hold only, not entitlement or spending approval. */
+export type ProviderBridgePrivacyPolicy={readonly h3RetentionDecision:'keep-blocked'|'allow-temporary-retention'};
 const bodySchema=z.object({model:z.string(),prompt:z.string(),duration:z.number(),resolution:z.string(),aspect_ratio:z.string(),generate_audio:z.boolean(),seed:z.number().optional(),
  frame_images:z.array(z.object({type:z.literal('image_url'),image_url:z.object({url:z.string()}).strict(),frame_type:z.enum(['first_frame','last_frame'])}).strict()).optional()}).strict();
 const issue=(e:ProviderProblem)=>({code:e.providerCode==='zdr-violation-by-account'?'zdr-violation-by-account':e.code,message:e.message});
-/** No environment or credential discovery. The local product intentionally supplies no key. */
-export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,getApiKey:()=>string|undefined=()=>undefined,transport?:{baseUrl:string;allowLoopbackHttpForTests:true}) {
- const adapter=createOpenRouterVideoProvider({getApiKey,fetch:globalThis.fetch,privacyBlockedModelIds:[H3],timeoutMs:10000,...transport,maxContentBytes:256*1024*1024,contentTimeoutMs:25000});
+/** No environment or credential discovery. The caller must explicitly configure the getter. */
+export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,getApiKey:()=>string|undefined=()=>undefined,transport?:{baseUrl:string;allowLoopbackHttpForTests:true},privacyPolicy?:ProviderBridgePrivacyPolicy) {
+ // Only this explicit decision lifts the local hold. A key or account setting is not consent.
+ // Snapshot the decision so later caller mutation cannot split catalog and submit policy.
+ const h3PrivacyBlocked=privacyPolicy?.h3RetentionDecision!=='allow-temporary-retention';
+ const h3:VideoCapability={modelId:H3,name:'Hailuo 3',durations:[5],resolutions:['2K'],aspectRatios:['16:9'],frameRoles:['first_frame','last_frame'],seedSupported:false,generateAudioSupported:false,availability:h3PrivacyBlocked?'blocked':'unknown',blocker:h3PrivacyBlocked?VIDEO_PRIVACY_MESSAGE:null};
+ const adapter=createOpenRouterVideoProvider({getApiKey,fetch:globalThis.fetch,timeoutMs:10000,...transport,privacyBlockedModelIds:h3PrivacyBlocked?[H3]:[],maxContentBytes:256*1024*1024,contentTimeoutMs:25000});
  const apiBase=transport?.baseUrl??'https://openrouter.ai/api/v1';
  let catalog:VideoCapability[]=[h3];
- const project=(c:VideoCapability)=>({modelId:c.modelId,name:c.name,durations:[...c.durations],resolutions:[...c.resolutions],frameRoles:c.frameRoles.map(r=>r==='first_frame'?'first':'last'),seedSupported:c.seedSupported,
-  availability:c.modelId===H3?'blocked' as const:!getApiKey()?'blocked' as const:c.availability,
-  blocker:c.modelId===H3?VIDEO_PRIVACY_MESSAGE:!getApiKey()?'No generation credentials are configured in this local session.':c.blocker});
+ let pricing:VideoCatalogPricing[]=[];
+ const project=(c:VideoCapability)=>({modelId:c.modelId,name:c.name,durations:[...c.durations],resolutions:[...c.resolutions],aspectRatios:[...c.aspectRatios],frameRoles:c.frameRoles.map(r=>r==='first_frame'?'first':'last'),seedSupported:c.seedSupported,generateAudioSupported:c.generateAudioSupported,
+  availability:c.modelId===H3&&h3PrivacyBlocked?'blocked' as const:!getApiKey()?'blocked' as const:c.availability,
+  blocker:c.modelId===H3&&h3PrivacyBlocked?VIDEO_PRIVACY_MESSAGE:!getApiKey()?'No generation credentials are configured in this local session.':c.blocker});
  const provider:ProviderPort={
   async capabilities(){return catalog.map(project);},
   async prepare({projectId,shot}){
    const capability=catalog.find(c=>c.modelId===shot.controls.modelId);
+   // Capture capability and price from one observation before owned-media awaits.
+   const price=pricing.find(p=>p.modelId===shot.controls.modelId);
    if(!capability)return {envelope:null,estimatedCostUsd:null,blockers:['The requested model is absent from the verified catalog. No fallback was selected.']};
    const blockers:{code:string;message:string}[]=[];
    const availability=project(capability);
-   if(availability.blocker)blockers.push({code:capability.modelId===H3?'provider_privacy_blocked':'PROVIDER_UNAVAILABLE',message:availability.blocker});
+   if(availability.blocker)blockers.push({code:capability.modelId===H3&&h3PrivacyBlocked?'provider_privacy_blocked':'PROVIDER_UNAVAILABLE',message:availability.blocker});
    if(availability.availability==='unknown')blockers.push({code:'ENTITLEMENT_UNKNOWN',message:'Catalog presence does not establish entitlement. This route has not been verified.'});
    try{
     const firstFrame=await resolveFrame(media,projectId,shot.bindings.firstFrameAssetId,'first_frame');
@@ -39,7 +47,10 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
     const errors=validateVideoIntent(shot,capability,frames);
     if(errors.length)return {envelope:null,estimatedCostUsd:null,blockers:[...blockers,...errors.map(e=>e.message)]};
     const compiled=compileVideoRequest(shot,capability,frames);
-    return {envelope:{provider:compiled.provider,modelId:compiled.modelId,body:compiled.bodyJson,bodySha256:compiled.bodySha256},estimatedCostUsd:null,blockers};
+    // The pure estimator revalidates the complete untrusted SKU map; never prefilter it.
+    const estimate=estimateH3VideoCost(compiled,capability,price as H3VideoPricingMetadata);
+    return {envelope:{provider:compiled.provider,modelId:compiled.modelId,body:compiled.bodyJson,bodySha256:compiled.bodySha256},
+     estimatedCostUsd:estimate.estimatedCostUsd,...(estimate.status==='estimated'?{estimate}:{}),blockers};
    }catch{return {envelope:null,estimatedCostUsd:null,blockers:[...blockers,'Owned frame preparation failed. Keep the shot and inspect its imported images.']};}
   },
  };
@@ -89,5 +100,11 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
   if(content.status!=='read')throw new Error(content.error.code==='provider_authentication_required'?'PROVIDER_NOT_CONFIGURED':'CONTENT_UNAVAILABLE');
   return toWorkerMedia(content.value);
  }};
- return {provider,workerProvider,workerMedia,async discover(){const result=await adapter.discoverModels();if(result.status==='ok')catalog=result.capabilities.some(c=>c.modelId===H3)?result.capabilities:[h3,...result.capabilities];}};
+ return {provider,workerProvider,workerMedia,async discover(){
+  const result=await adapter.discoverModels();
+  if(result.status==='ok'){
+   catalog=result.capabilities.some(c=>c.modelId===H3)?result.capabilities:[h3,...result.capabilities];
+   pricing=result.pricing;
+  }else{catalog=[h3];pricing=[];} // A failed refresh cannot keep a previously observed price.
+ }};
 }

@@ -43,8 +43,12 @@ export interface CapabilityView {
   name: string;
   durations: readonly number[];
   resolutions: readonly string[];
+  /** Omitted metadata is unknown; do not substitute universal ratios. */
+  aspectRatios?: readonly string[];
   frameRoles: readonly string[];
   seedSupported: boolean;
+  /** Omitted is unknown, distinct from explicit false; neither grants availability. */
+  generateAudioSupported?: boolean;
   availability: 'available' | 'blocked' | 'unknown';
   blocker: string | null;
 }

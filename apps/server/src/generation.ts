@@ -1,19 +1,30 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
+import { CatalogEstimateSchema } from '@flume/domain';
 import { hash,sha256,money,ServiceError,type Actor,type Command,type Receipt } from './contracts.ts';
 import type { PreparedGeneration,TransactionalQueuePort,QueueJob } from './ports.ts';
 import { lockShot } from './store-helpers.ts';
 export type Prepared={snapshot:any;result:PreparedGeneration};
 export const preparedSchema=z.strictObject({
  envelope:z.strictObject({provider:z.string().min(1),modelId:z.string().min(1),body:z.string().max(8_000_000),bodySha256:z.string().regex(/^[0-9a-f]{64}$/)}).nullable(),
- estimatedCostUsd:money.nullable(),blockers:z.array(z.union([z.string().max(2000),z.object({code:z.string().min(1),message:z.string().min(1).max(2000)}).strict()])).max(100),
+ estimatedCostUsd:money.nullable(),estimate:CatalogEstimateSchema.optional(),blockers:z.array(z.union([z.string().max(2000),z.object({code:z.string().min(1),message:z.string().min(1).max(2000)}).strict()])).max(100),
 });
 export async function enqueue(c:PoolClient,queue:TransactionalQueuePort,job:QueueJob){
  if(await queue.enqueue(c,job)!==job.id)throw new ServiceError('ENQUEUE_FAILED','Work was not queued; nothing was accepted.',503);
 }
+const canonicalUsd=(value:string)=>value.includes('.')?value.replace(/0+$/,'').replace(/\.$/,''):value;
+export function estimateMatchesEnvelope(result:PreparedGeneration):boolean {
+ if(!result.estimate)return true; // Preserve historical/injected providers without catalog metadata.
+ const estimate=CatalogEstimateSchema.safeParse(result.estimate);
+ return estimate.success&&!!result.envelope&&result.estimatedCostUsd!==null&&
+  estimate.data.provider===result.envelope.provider&&estimate.data.modelId===result.envelope.modelId&&
+  estimate.data.bodySha256===result.envelope.bodySha256&&
+  canonicalUsd(estimate.data.estimatedCostUsd)===canonicalUsd(result.estimatedCostUsd);
+}
 export function verifyReview(review:any){
  if(hash({snapshot:review.snapshot,envelope:review.envelope})!==review.request_hash)throw new ServiceError('REVIEW_INTEGRITY','Reviewed request integrity failed.');
+ if(!estimateMatchesEnvelope({envelope:review.envelope,estimatedCostUsd:review.estimated_cost_usd,estimate:review.snapshot.estimate,blockers:[]}))throw new ServiceError('REVIEW_INTEGRITY','The catalog estimate no longer matches the reviewed request.');
  if(review.envelope && sha256(review.envelope.body)!==review.envelope.bodySha256)throw new ServiceError('REVIEW_INTEGRITY','Provider envelope integrity failed.');
 }
 export async function generationCommand(c:PoolClient,actor:Actor,cmd:Command,queue:TransactionalQueuePort,prepared?:Prepared):Promise<Receipt> {

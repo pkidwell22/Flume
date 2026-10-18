@@ -115,10 +115,21 @@ export const AttemptSchema = z.object({
   status: AttemptStatusSchema, providerJobId: z.string().nullable(), errorCode: z.string().nullable(), message: z.string().nullable(),
 }).strict();
 export const BlockerSchema = z.object({ code: z.string().min(1), message: z.string().min(1) }).strict();
+/** Informational USD estimate bound to the exact provider body, never a spend cap. */
+export const CatalogEstimateSchema = z.object({
+  status: z.literal('estimated'), provider: z.literal('openrouter'), modelId: z.literal('minimax/hailuo-3'),
+  currency: z.literal('USD'), bodySha256: Sha256Schema, estimatedCostUsd: MoneyUsdSchema,
+  basis: z.literal('catalog_pricing_skus'),
+  label: z.literal('Catalog-based estimate; not a quote or provider-enforced spend cap.'),
+  providerEnforcedSpendCap: z.literal(false),
+  lineItems: z.array(z.object({sku: z.enum(['duration_seconds', 'reference_images']), quantity: z.number().int().positive(),
+    unitPriceUsd: MoneyUsdSchema, estimatedCostUsd: MoneyUsdSchema}).strict()).min(1).max(2).readonly(),
+}).strict();
+export type CatalogEstimate = z.infer<typeof CatalogEstimateSchema>;
 export const ReviewSchema = z.object({
   id: IdSchema, projectId: IdSchema, shotId: IdSchema, shotRevision: RevisionSchema,
   requestHash: Sha256Schema, prompt: z.string(), controls: ControlsSchema, bindings: BindingsSchema,
-  estimatedCostUsd: MoneyUsdSchema.nullable(), blockers: z.array(BlockerSchema), approved: z.boolean(),
+  estimatedCostUsd: MoneyUsdSchema.nullable(), estimate: CatalogEstimateSchema.optional(), blockers: z.array(BlockerSchema), approved: z.boolean(),
 }).strict();
 export const ExportStatusSchema = z.enum(['queued', 'running', 'ready', 'failed']);
 export const ExportSchema = z.object({
@@ -131,6 +142,8 @@ export const FrameRoleSchema = z.enum(['first', 'last']);
 export const CapabilitySchema = z.object({
   modelId: z.string().min(1), name: z.string().min(1), durations: z.array(z.number().finite().positive()),
   resolutions: z.array(z.string().min(1)), frameRoles: z.array(FrameRoleSchema), seedSupported: z.boolean(),
+  // Optional read metadata: absence is unknown, not unsupported. Never infer entitlement.
+  aspectRatios: z.array(z.string().min(1)).optional(), generateAudioSupported: z.boolean().optional(),
   availability: z.enum(['available', 'blocked', 'unknown']), blocker: z.string().nullable(),
 }).strict();
 export const WorkspaceSchema = z.object({
