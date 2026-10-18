@@ -8,6 +8,7 @@ const project = { id: 'project-a', name: 'Morning study', brief: '', revision: 1
 const shot = { id: 'shot-a', projectId: project.id, title: 'Opening', prompt: 'Still camera.', revision: 3,
   controls: { modelId: 'minimax/hailuo-3', durationSeconds: 5, resolution: '2K', aspectRatio: '16:9', generateAudio: false, seed: 0 },
   bindings: { firstFrameAssetId: null, lastFrameAssetId: null }, selectedTakeId: null, selectionRevision: 0 };
+const take = { id: 'take-a', projectId: project.id, shotId: shot.id, attemptId: 'attempt-a', assetId: 'asset-a', createdAt: '2026-01-01T00:00:00Z' };
 function workspace(p = project) { return { project: p, shots: [{ ...shot, projectId: p.id }], assets: [], takes: [], attempts: [], reviews: [], exports: [], capabilities: [] }; }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function client(overrides = {}) { return { listProjects: async () => [project], getWorkspace: async () => workspace(), command: async () => ({}), uploadAsset: async () => { throw new Error('Unexpected upload'); }, ...overrides }; }
@@ -325,4 +326,98 @@ test('a mismatched command receipt is held as ambiguous, not treated as saved', 
   await store.openProject(project.id);
   await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }), /receipt/);
   assert.ok(store.getSnapshot().uncertainCommand);
+});
+
+test('a saved revision drops the cached inspection receipt instead of sending a stale selection', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      if (command.type === 'shot.update') state.shots[0] = { ...state.shots[0], revision: command.expectedRevision + 1 };
+      return command.type === 'shot.update'
+        ? { commandId: command.commandId, projectId: project.id, revision: state.shots[0].revision }
+        : { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.saveShot(shot.id, 3, { prompt: 'Revised prompt' });
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 4);
+  // The receipt was recorded against revision 3, so the client must refuse locally.
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 4, 0, inspection.inspectionId), /Inspect/);
+  assert.deepEqual(calls.map(command => command.type), ['take.inspect', 'shot.update']);
+});
+
+test('a selection revision change invalidates a receipt bound to the previous selection', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      if (command.type === 'take.select') state.shots[0] = { ...state.shots[0], selectedTakeId: 'take-a', selectionRevision: state.shots[0].selectionRevision + 1 };
+      return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.selectTake(shot.id, 'take-a', 3, 0, inspection.inspectionId);
+  assert.equal(store.getSnapshot().workspace?.shots[0].selectionRevision, 1);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 1, inspection.inspectionId), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 1);
+});
+
+test('a same-revision refresh retains a valid inspection but still requires the exact receipt identity', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => { calls.push(command); return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' }; },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.refresh();
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 0, 'inspection-from-another-scope'), /Inspect/);
+  assert.deepEqual(calls.map(command => command.type), ['take.inspect']);
+  await store.selectTake(shot.id, 'take-a', 3, 0, inspection.inspectionId);
+  assert.equal(calls[1].type, 'take.select');
+  assert.equal(calls[1].inspectionId, 'inspection-a');
+  assert.equal(calls[1].expectedRevision, 3);
+  assert.equal(calls[1].expectedSelectionRevision, 0);
+});
+
+test('an inspection result that arrives after the shot revision changed is rejected, not cached', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      // Another actor saved between the inspect POST and its readback.
+      if (command.type === 'take.inspect') state.shots[0] = { ...state.shots[0], revision: 4 };
+      return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-late' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.inspectTake('take-a'), /Inspect/);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 4, 0, 'inspection-late'), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 0);
+});
+
+test('an inspection result that arrives after navigation cannot authorize a selection', async () => {
+  const other = { ...project, id: 'project-b', name: 'Second project' };
+  const stateA: any = workspace(); stateA.takes = [take];
+  const stateB: any = { ...workspace(other), shots: [], takes: [] };
+  const post = deferred<Receipt>(); const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    listProjects: async () => [project, other],
+    getWorkspace: async (id?: string) => structuredClone(id === other.id ? stateB : stateA),
+    command: async (command: any) => { calls.push(command); return post.promise; },
+  }) as never);
+  await store.openProject(project.id);
+  const inspecting = store.inspectTake('take-a');
+  await store.openProject(other.id);
+  post.resolve({ commandId: calls[0].commandId, projectId: project.id, resourceId: 'inspection-orphan' });
+  await assert.rejects(inspecting, /Inspect/);
+  await store.openProject(project.id);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 0, 'inspection-orphan'), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 0);
 });
