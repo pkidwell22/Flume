@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
+import { readFile,writeFile,mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { migrate } from '@flume/database';
+import * as api from '../src/index.ts';
+import { ownedPostgres } from '../../../packages/database/test/owned-postgres.ts';
+
+test('Fastify command, workspace and owned media routes enforce local boundary and exact byte ranges',async()=>{
+ const db=await ownedPostgres();let app:any;
+ try{
+  await migrate(db.pool);assert.equal(typeof (api as any).buildServer,'function','Fastify server exists');
+  const mediaRoot=path.join(db.root,'media');await mkdir(mediaRoot);
+  const media={async importLocal(i:any){await writeFile(path.join(mediaRoot,i.id),i.bytes,{flag:'wx'});return {id:i.id,projectId:i.projectId,filename:i.filename,kind:'image' as const,origin:'imported' as const,sha256:api.sha256(i.bytes),storageKey:i.id,mimeType:'image/png',byteSize:i.bytes.length,width:1,height:1};},async readOwned(a:any){return readFile(path.join(mediaRoot,a.storageKey));},async verifyOwned(a:any){assert.equal(api.sha256(await this.readOwned(a)),a.sha256);}};
+  const s=api.createCommandService({pool:db.pool,media});
+  const security={mode:'local-operator',allowedHosts:['127.0.0.1:4310'],allowedOrigins:['http://127.0.0.1:4310']};
+  app=await (api as any).buildServer({service:s,security});
+  const address=await app.listen({host:'127.0.0.1',port:0});
+  security.allowedHosts.push(new URL(address).host);security.allowedOrigins.push(address);
+  const live=await fetch(address+'/api/health');assert.equal(live.status,200);assert.equal((await live.json() as any).store,'postgresql');
+  const headers={host:'127.0.0.1:4310',origin:'http://127.0.0.1:4310'};
+  assert.equal((await app.inject({url:'/api/health',headers})).statusCode,200);
+  assert.equal((await app.inject({url:'/api/health',headers:{host:'evil.example'}})).statusCode,403);
+  assert.equal((await app.inject({url:'/api/health',headers:{...headers,origin:'https://evil.example'}})).statusCode,403);
+  const post=async(body:object,h=headers)=>await app.inject({method:'POST',url:'/api/commands',headers:h,payload:body});
+  const created=await post({type:'project.create',commandId:randomUUID(),name:'HTTP project',brief:''});assert.equal(created.statusCode,200,created.body);
+  const projectId=created.json().projectId;
+  const shot=await post({type:'shot.create',commandId:randomUUID(),projectId,title:'Shot',prompt:'Prompt'});assert.equal(shot.statusCode,200);
+  const prepared=await post({type:'generation.prepare',commandId:randomUUID(),projectId,shotId:shot.json().resourceId,expectedRevision:1});assert.equal(prepared.statusCode,200);
+  const agentApproval=await post({type:'generation.approve',commandId:randomUUID(),projectId,reviewId:prepared.json().reviewId,maxAttempts:1,maxCostUsd:null},{...headers,'x-flume-client':'agent'} as any);
+  assert.equal(agentApproval.statusCode,403,agentApproval.body);
+  const forged=await post({type:'project.create',commandId:randomUUID(),name:'forged',brief:'',actor:{kind:'operator'}});assert.equal(forged.statusCode,400);
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2ioAAAAASUVORK5CYII=','base64');
+  const boundary='test-boundary';
+  const payload=Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="pixel.png"\r\nContent-Type: image/png\r\n\r\n`),png,Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="projectId"\r\n\r\n${projectId}\r\n--${boundary}--\r\n`)]);
+  const uploaded=await app.inject({method:'POST',url:'/api/assets',headers:{...headers,'content-type':`multipart/form-data; boundary=${boundary}`},payload});assert.equal(uploaded.statusCode,201,uploaded.body);
+  const asset=uploaded.json();assert.equal(asset.origin,'imported');assert(!('storageKey' in asset));
+  const second=await app.inject({method:'POST',url:'/api/assets',headers:{...headers,'content-type':`multipart/form-data; boundary=${boundary}`},payload});assert.equal(second.statusCode,201);const last=second.json();
+  const bound=await post({type:'shot.update',commandId:randomUUID(),projectId,shotId:shot.json().resourceId,expectedRevision:1,patch:{bindings:{firstFrameAssetId:asset.id.toUpperCase(),lastFrameAssetId:last.id},controls:{seed:0,generateAudio:false}}});assert.equal(bound.statusCode,200);
+  const boundReview=await post({type:'generation.prepare',commandId:randomUUID(),projectId,shotId:shot.json().resourceId,expectedRevision:2});assert.equal(boundReview.statusCode,200);
+  const snapshot=(await db.pool.query('SELECT snapshot FROM flume.reviews WHERE id=$1',[boundReview.json().reviewId])).rows[0].snapshot;
+  assert.equal(snapshot.assets.length,2,'validated UUID aliases still bind both exact owned hashes');
+  assert.equal(snapshot.bindings.firstFrameAssetId,asset.id.toUpperCase());assert.equal(snapshot.bindings.lastFrameAssetId,last.id);
+  const cleared=await post({type:'shot.update',commandId:randomUUID(),projectId,shotId:shot.json().resourceId,expectedRevision:2,patch:{bindings:{lastFrameAssetId:null}}});assert.equal(cleared.statusCode,200);
+  const response=await app.inject({url:asset.mediaUrl,headers:{...headers,range:'bytes=0-7'}});assert.equal(response.statusCode,206);assert.deepEqual(response.rawPayload,png.subarray(0,8));assert.equal(response.headers['content-range'],`bytes 0-7/${png.length}`);
+  const suffix=await app.inject({url:asset.mediaUrl,headers:{...headers,range:'bytes=-5'}});assert.deepEqual(suffix.rawPayload,png.subarray(-5));
+  assert.equal((await app.inject({url:asset.mediaUrl,headers:{...headers,range:'bytes=99999-'}})).statusCode,416);
+  const w=(await app.inject({url:`/api/workspace?projectId=${projectId}`,headers})).json();assert.equal(w.project.name,'HTTP project');assert.equal(w.assets.length,2);assert.equal(w.reviews[0].approved,false);assert.equal(w.shots[0].bindings.firstFrameAssetId,asset.id.toUpperCase());assert.equal(w.shots[0].bindings.lastFrameAssetId,null);
+  await app.close();app=await (api as any).buildServer({service:s,security:{...security,mode:'protected'}});
+  assert.equal((await app.inject({url:'/api/projects',headers})).statusCode,401);
+ }finally{await app?.close();await db.close();}
+});

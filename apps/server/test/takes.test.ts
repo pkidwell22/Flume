@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
+import { writeFile,readFile,mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { migrate } from '@flume/database';
+import * as api from '../src/index.ts';
+import { ownedPostgres } from '../../../packages/database/test/owned-postgres.ts';
+const actor={id:'11111111-1111-4111-8111-111111111111',kind:'operator' as const,projectIds:'*' as const};
+const cmd=(type:string,rest:object={})=>({type,commandId:randomUUID(),...rest});
+const provider={async capabilities(){return []},async prepare(input:any){const body=JSON.stringify(input.shot);return {envelope:{provider:'fixture-not-live',modelId:input.shot.controls.modelId,body,bodySha256:api.sha256(body)},estimatedCostUsd:null,blockers:[]};}};
+
+test('fenced owned completion stays unselected; inspection, selection and frozen export are explicit',async()=>{
+ const db=await ownedPostgres();
+ try{
+  await migrate(db.pool);
+  assert.equal(typeof (api as any).createWorkerStore,'function','worker command store exists');
+  const file=path.join(db.root,'owned.mp4');
+  execFileSync('/opt/homebrew/bin/ffmpeg',['-v','error','-f','lavfi','-i','color=c=blue:size=32x32:rate=5:duration=1','-c:v','libx264','-pix_fmt','yuv420p',file],{stdio:'pipe'});
+  const bytes=await readFile(file);
+  const media={async importLocal(){throw new Error('unused')},async readOwned(){return bytes},async verifyOwned(asset:any){assert.equal(asset.sha256,api.sha256(bytes));assert.equal(asset.byteSize,bytes.length);}};
+  const s=api.createCommandService({pool:db.pool,provider,workerAvailable:true,media});
+  const worker=(api as any).createWorkerStore({pool:db.pool,media});
+  const projectId=(await s.command(actor,cmd('project.create',{name:'Takes',brief:''}))).projectId;
+  const shotId=(await s.command(actor,cmd('shot.create',{projectId,title:'Shot',prompt:'A test fixture'}))).resourceId!;
+  const reviewId=(await s.command(actor,cmd('generation.prepare',{projectId,shotId,expectedRevision:1}))).reviewId!;
+  await s.command(actor,cmd('generation.approve',{projectId,reviewId,maxAttempts:1,maxCostUsd:null}));
+  const attemptId=(await s.command(actor,cmd('generation.submit',{projectId,reviewId}))).attemptId!;
+  const claimed=await worker.claimAttempt(attemptId,randomUUID());assert.ok(claimed);
+  assert.equal((await worker.beginDispatch(claimed.lease)).allowed,true);
+  assert.equal((await db.pool.query('SELECT dispatch_state FROM flume.attempts')).rows[0].dispatch_state,'intent');
+  await worker.recordAccepted(claimed.lease,{providerJobId:'fixture-job-1',receipt:{provider:'fixture',jobId:'fixture-job-1'}});
+  await worker.checkpoint(claimed.lease,{status:'retrieving'});
+  const asset={id:randomUUID(),projectId,filename:'fixture.mp4',kind:'video',origin:'generated',sha256:api.sha256(bytes),storageKey:'owned.mp4',mimeType:'video/mp4',byteSize:bytes.length,width:32,height:32,durationSeconds:1};
+  const take=await worker.publishTake(claimed.lease,{remoteIdentity:'fixture-output-1',asset});
+  assert.deepEqual(await worker.publishTake(claimed.lease,{remoteIdentity:'fixture-output-1',asset}),take);
+  let w=await s.getWorkspace(actor,projectId);assert.equal(w.takes.length,1);assert.equal(w.shots[0].selectedTakeId,null);
+  await assert.rejects(s.command(actor,cmd('export.create',{projectId,shotId,expectedRevision:1,expectedSelectionRevision:0})),{code:'SELECTION_REQUIRED'});
+  await assert.rejects(s.command(actor,cmd('take.select',{projectId,shotId,expectedRevision:1,expectedSelectionRevision:0,takeId:take.id,inspectionId:randomUUID()})),{code:'INSPECTION_REQUIRED'});
+  const inspected=await s.command(actor,cmd('take.inspect',{projectId,takeId:take.id}));
+  const selection=cmd('take.select',{projectId,shotId,expectedRevision:1,expectedSelectionRevision:0,takeId:take.id,inspectionId:inspected.resourceId});
+  await s.command(actor,selection);
+  const exported=await s.command(actor,cmd('export.create',{projectId,shotId,expectedRevision:1,expectedSelectionRevision:1}));
+  assert.equal(typeof (api as any).createExportStore,'function','frozen export store exists');
+  const exportStore=(api as any).createExportStore({pool:db.pool,media});
+  const exportClaim=await exportStore.claim(exported.exportId,randomUUID());assert.ok(exportClaim);
+  const frozen=(await db.pool.query('SELECT snapshot FROM flume.exports WHERE id=$1',[exported.exportId])).rows[0].snapshot;
+  await s.command(actor,cmd('shot.update',{projectId,shotId,expectedRevision:1,patch:{prompt:'Changed later'}}));
+  assert.deepEqual((await db.pool.query('SELECT snapshot FROM flume.exports WHERE id=$1',[exported.exportId])).rows[0].snapshot,frozen);
+  await exportStore.complete(exportClaim.lease,{...asset,id:randomUUID(),filename:'export.mp4'});
+  w=await s.getWorkspace(actor,projectId);assert.equal(w.exports[0].status,'ready');assert.equal(w.exports[0].stale,true);assert.equal(w.exports[0].takeId,take.id);
+  assert.deepEqual(await s.command(actor,selection),{commandId:selection.commandId,projectId,resourceId:shotId,revision:1});
+ }finally{await db.close();}
+});

@@ -1,0 +1,29 @@
+{
+  "name": "@flume/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./theme.css": "./theme.css",
+    "./assets/flume-mark.svg": "./assets/flume-mark.svg"
+  },
+  "sideEffects": ["./theme.css"],
+  "scripts": {
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "typecheck": "tsc --noEmit --strict --jsx react-jsx --module ESNext --moduleResolution Bundler --target ES2022 --lib ES2022,DOM --skipLibCheck Brand.tsx index.ts specimen/main.tsx specimen/styles.d.ts",
+    "build:specimen": "node tools/build-specimen.mjs",
+    "test:render": "node tools/render-specimen.mjs"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3"
+  }
+}

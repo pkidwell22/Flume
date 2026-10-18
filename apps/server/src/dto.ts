@@ -1,0 +1,14 @@
+import type { controlsSchema,bindingsSchema } from './contracts.ts';
+import type { z } from 'zod';
+export type Project={id:string;name:string;brief:string;revision:number};
+export type Shot={id:string;projectId:string;title:string;prompt:string;revision:number;controls:z.infer<typeof controlsSchema>;bindings:z.infer<typeof bindingsSchema>;selectedTakeId:string|null;selectionRevision:number};
+export type Asset={id:string;projectId:string;filename:string;kind:'image'|'video';origin:'imported'|'generated'|'sample';sha256:string;mediaUrl:string;width:number;height:number;durationSeconds?:number;provenance?:unknown};
+export type Capability={modelId:string;name:string;durations:number[];resolutions:string[];frameRoles:string[];seedSupported:boolean;availability:'available'|'blocked'|'unknown';blocker:string|null};
+export type Take={id:string;projectId:string;shotId:string;attemptId:string;assetId:string;createdAt:string};
+export type Attempt={id:string;projectId:string;shotId:string;shotRevision:number;status:'queued'|'running'|'retrieving'|'ready'|'blocked'|'failed'|'acceptance_unknown';providerJobId:string|null;errorCode:string|null;message:string|null};
+export type Review={id:string;projectId:string;shotId:string;shotRevision:number;requestHash:string;prompt:string;controls:Shot['controls'];bindings:Shot['bindings'];estimatedCostUsd:string|null;blockers:{code:string;message:string}[];approved:boolean};
+export type Export={id:string;projectId:string;shotId:string;takeId:string;shotRevision:number;selectionRevision:number;status:'queued'|'running'|'ready'|'failed';assetId:string|null;stale:boolean};
+export type Workspace={project:Project|null;shots:Shot[];assets:Asset[];takes:Take[];attempts:Attempt[];reviews:Review[];exports:Export[];capabilities:Capability[]};
+export const projectDto=(r:any):Project=>({id:r.id,name:r.name,brief:r.brief,revision:r.revision});
+export const shotDto=(r:any):Shot=>({id:r.id,projectId:r.project_id,title:r.title,prompt:r.prompt,revision:r.revision,controls:r.controls,bindings:r.bindings,selectedTakeId:r.selected_take_id,selectionRevision:r.selection_revision});
+export const assetDto=(r:any):Asset=>({id:r.id,projectId:r.project_id,filename:r.filename,kind:r.kind,origin:r.origin,sha256:r.sha256,mediaUrl:`/api/media/${r.id}`,width:r.width,height:r.height,...(r.duration_seconds==null?{}:{durationSeconds:r.duration_seconds}),...(r.provenance==null?{}:{provenance:r.provenance})});

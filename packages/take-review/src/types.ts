@@ -1,0 +1,41 @@
+/** Structural public DTO views; no server, database, or provider dependency. */
+export interface ReviewShot {
+  id: string; projectId: string; title: string; revision: number;
+  selectedTakeId: string | null; selectionRevision: number;
+}
+export interface ReviewTake {
+  id: string; projectId: string; shotId: string; attemptId: string;
+  assetId: string; createdAt: string;
+}
+export interface ReviewAsset {
+  id: string; projectId: string; filename: string;
+  kind: 'image' | 'video'; origin: 'imported' | 'generated' | 'sample';
+  sha256: string; mediaUrl: string; width: number; height: number;
+  durationSeconds?: number; provenance?: unknown;
+}
+export interface ReviewExport {
+  id: string; projectId: string; shotId: string; takeId: string;
+  shotRevision: number; selectionRevision: number;
+  status: 'queued' | 'running' | 'ready' | 'failed';
+  assetId: string | null; stale: boolean;
+}
+export interface InspectTakeRequest { projectId: string; takeId: string }
+export interface TakeInspection { inspectionId: string }
+export interface SelectTakeRequest {
+  projectId: string; shotId: string; takeId: string; inspectionId: string;
+  expectedRevision: number; expectedSelectionRevision: number;
+}
+export interface ExportTakeRequest {
+  projectId: string; shotId: string;
+  expectedRevision: number; expectedSelectionRevision: number;
+}
+export interface TakeReviewProps {
+  shot: ReviewShot | null;
+  takes: readonly ReviewTake[];
+  assets: readonly ReviewAsset[];
+  exports: readonly ReviewExport[];
+  busy?: boolean;
+  onInspect: (request: InspectTakeRequest) => Promise<TakeInspection>;
+  onSelect: (request: SelectTakeRequest) => Promise<void>;
+  onExport: (request: ExportTakeRequest) => Promise<void>;
+}

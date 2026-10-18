@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import * as media from '../src/index.ts';
+import { fixture, projectId, id, ff, sha } from './support.ts';
+
+test('frozen selected-take export preserves every decoded frame despite later selection edits', async t => {
+  const f = await fixture(t); const path = join(f.inputs, 'selected.mp4');
+  ff(['-i', f.video, '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-fps_mode', 'passthrough', '-movflags', '+faststart', path]);
+  const store = await media.createMediaStore(f.options);
+  const source = await store.importLocal({ projectId, assetId: id(), filePath: path, filename: 'selected.mp4', origin: 'sample' });
+  const sourceInspection = await store.inspect({ projectId, assetId: source.id });
+  assert.equal(typeof media.freezeExportSelection, 'function', 'frozen export contract required');
+  const editorial = { exportId: id(), assetId: id(), projectId, shotId: id(), takeId: id(), sourceAssetId: source.id, sourceSha256: source.sha256, shotRevision: 3, selectionRevision: 2, profile: 'mp4-copy-v1' as const };
+  const frozen = media.freezeExportSelection(editorial);
+  const oldTake = editorial.takeId; editorial.takeId = id(); editorial.selectionRevision++;
+  const wireCopy = structuredClone(frozen);
+  const pending = store.exportSelected(wireCopy);
+  wireCopy.selection.takeId = editorial.takeId;
+  const output = await pending;
+  const inspection = await store.inspect({ projectId, assetId: output.id });
+  assert.deepEqual(inspection.frames.map(f => f.rgbSha256), sourceInspection.frames.map(f => f.rgbSha256));
+  assert.equal(output.provenance?.snapshotSha256, frozen.snapshotSha256);
+  assert.equal((output.provenance?.selection as any).takeId, oldTake);
+  assert.equal(media.isExportStale(frozen, { shotRevision: 3, selectionRevision: 3, selectedTakeId: editorial.takeId }), true);
+  assert.equal(media.isExportStale(frozen, { shotRevision: 3, selectionRevision: 2, selectedTakeId: oldTake }), false);
+  assert.equal(sha(await readFile(path)), source.sha256);
+  assert.equal(sha(await readFile(join(f.options.root, 'objects', source.sha256))), source.sha256);
+  assert.equal((await store.exportSelected(frozen)).sha256, output.sha256, 'deterministic retry');
+  await assert.rejects(store.exportSelected(wireCopy), /SNAPSHOT_HASH_MISMATCH/);
+  assert.equal((await readdir(join(f.options.root, 'records'))).length, 2);
+  assert.deepEqual(await readdir(join(f.options.root, 'staging')), []);
+});

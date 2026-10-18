@@ -1,0 +1,32 @@
+import pg from 'pg';
+import { migrate } from '@flume/database';
+import { createCommandService } from './service.ts';
+import { buildServer } from './http.ts';
+import { createRuntime } from './runtime.ts';
+
+// The root launcher is the ONLY PostgreSQL owner. Standalone server requires its explicit contract.
+const databaseUrl=process.env.DATABASE_URL;
+const mediaRoot=process.env.FLUME_STORAGE_ROOT;
+if(!databaseUrl||!mediaRoot||!process.env.FLUME_DATA_DIR)throw new Error('Use npm run dev at the workspace root (DATABASE_URL, FLUME_STORAGE_ROOT and FLUME_DATA_DIR are required).');
+const database=new URL(databaseUrl);
+if(!['postgres:','postgresql:'].includes(database.protocol)||database.hostname!=='127.0.0.1'||database.pathname!=='/flume')throw new Error('The local product requires the launcher-owned loopback flume database.');
+const port=Number(process.env.FLUME_PORT??4311);
+if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('FLUME_PORT must be an unprivileged TCP port');
+const origin=`http://127.0.0.1:${port}`;
+const ui=process.env.FLUME_ALLOWED_ORIGIN??'http://127.0.0.1:4310';
+const allowedOrigins=[origin,ui];
+for(const value of allowedOrigins){const u=new URL(value);if(u.origin!==value||u.protocol!=='http:'||!['127.0.0.1','localhost'].includes(u.hostname))throw new Error('FLUME_ALLOWED_ORIGIN must be an exact loopback HTTP origin');}
+const pool=new pg.Pool({connectionString:databaseUrl,max:12});
+let runtime:Awaited<ReturnType<typeof createRuntime>>|undefined;
+let app:Awaited<ReturnType<typeof buildServer>>|undefined;
+let closing:Promise<void>|undefined;
+const shutdown=()=>closing??=(async()=>{await app?.close();await runtime?.close();await pool.end();})();
+try{
+ await migrate(pool);
+ runtime=await createRuntime({pool,mediaRoot});
+ const service=createCommandService({pool,...runtime.serviceOptions});
+ app=await buildServer({service,security:{mode:process.env.FLUME_LOCAL_OPERATOR==='1'?'local-operator':'protected',allowedHosts:[`127.0.0.1:${port}`,`localhost:${port}`,new URL(ui).host],allowedOrigins}});
+ await app.listen({host:'127.0.0.1',port});
+ console.log(`Flume API ${origin}; owned media and durable worker attached. Hailuo 3 remains blocked by the observed ZDR policy; no generation credentials loaded.`);
+ process.once('SIGINT',()=>void shutdown());process.once('SIGTERM',()=>void shutdown());
+}catch(error){await shutdown();throw error;}
