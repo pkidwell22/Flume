@@ -9,6 +9,18 @@ This is a runnable local-development checkpoint, not a planning-only repository 
 release. The browser app, API, database, and core editing workflow work locally. The app still
 blocks live generation; no successful live video result is verified at this checkpoint.
 
+## Mood film
+
+[![Flume — Alien Reel, preview](readme-promos/alien-reel/flume-alien-v002-preview.gif)](readme-promos/alien-reel/flume-alien-v002.mp4)
+
+A 29.5-second original film joining three studies with two generated transitions: an iridescent crystal
+flower assembling in a black void morphs into a river of liquid mirror, which pours through
+volcanic glass and becomes luminous creatures grazing under a violet aurora — each world
+transforming into the next. [Watch the full MP4](readme-promos/alien-reel/flume-alien-v002.mp4)
+(29.5&nbsp;s, 1080p, silent by design). This is creative material assembled outside the app — not
+a demonstration of in-app generation. Provenance and checksums live in
+[readme-promos](readme-promos/README.md).
+
 ## What works now
 
 In the local browser you can:
