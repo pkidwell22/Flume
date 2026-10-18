@@ -21,6 +21,7 @@ coverage/
 /uploads/
 /outputs/
 /.local/
+/.flume/
 /secrets/
 
 # Research captures are not submission source
@@ -33,6 +34,11 @@ coverage/
 /docs/CINEMA-STATIC-FINDINGS.md
 /docs/COMFY-CAPABILITY-FINDINGS.md
 /docs/STUDIO-INTEGRATION-FINDINGS.md
+
+# Private parallel-build handoffs (not product documentation)
+/apps/*/HANDOFF.md
+/packages/*/HANDOFF.md
+/tools/INTEGRATION-HANDOFF.md
 
 # Test artifacts and logs
 playwright-report/

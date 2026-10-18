@@ -1,0 +1,34 @@
+{
+  "name": "@flume/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "node --import tsx src/main.ts",
+    "start": "node --import tsx src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts"
+  },
+  "dependencies": {
+    "@flume/database": "0.1.0",
+    "fastify": "5.12.7",
+    "zod": "3.25.76",
+    "@flume/domain": "0.1.0",
+    "@flume/worker": "0.0.0",
+    "@flume/media": "0.1.0",
+    "@flume/providers": "0.1.0",
+    "pg-boss": "12.11.1",
+    "@fastify/multipart": "10.1.4",
+    "pg": "8.23.1",
+    "drizzle-orm": "0.45.4"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "@types/node": "26.6.5",
+    "typescript": "5.9.3",
+    "tsx": "4.23.15"
+  }
+}

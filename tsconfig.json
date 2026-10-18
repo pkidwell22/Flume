@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "packages/domain/src/**/*.ts",
+    "packages/domain/test/**/*.ts",
+    "packages/client/src/**/*.ts",
+    "packages/client/test/**/*.ts",
+    "apps/cli/src/**/*.ts",
+    "apps/cli/test/**/*.ts"
+  ]
+}

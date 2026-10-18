@@ -1,0 +1,234 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { WorkspaceController } from '../src/controller.ts';
+
+const project = { id: 'project-a', name: 'Morning study', brief: '', revision: 1 };
+const shot = { id: 'shot-a', projectId: project.id, title: 'Opening', prompt: 'Still camera.', revision: 3,
+  controls: { modelId: 'minimax/hailuo-3', durationSeconds: 5, resolution: '2K', aspectRatio: '16:9', generateAudio: false, seed: 0 },
+  bindings: { firstFrameAssetId: null, lastFrameAssetId: null }, selectedTakeId: null, selectionRevision: 0 };
+function workspace(p = project) { return { project: p, shots: [{ ...shot, projectId: p.id }], assets: [], takes: [], attempts: [], reviews: [], exports: [], capabilities: [] }; }
+function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
+function client(overrides = {}) { return { listProjects: async () => [project], getWorkspace: async () => workspace(), command: async () => ({}), uploadAsset: async () => { throw new Error('Unexpected upload'); }, ...overrides }; }
+
+test('opens a real workspace and ignores an obsolete project response', async () => {
+  const old = deferred<ReturnType<typeof workspace>>();
+  const other = { ...project, id: 'project-b', name: 'Second project' };
+  const api = client({ getWorkspace: (id: string) => id === project.id ? old.promise : Promise.resolve(workspace(other)) });
+  const store = new WorkspaceController(api as never);
+  const first = store.openProject(project.id);
+  await store.openProject(other.id);
+  old.resolve(workspace());
+  await first;
+  assert.equal(store.getSnapshot().workspace?.project?.id, other.id);
+  assert.equal(store.getSnapshot().phase, 'ready');
+});
+
+test('saves with the editor base revision and preserves edits during POST and readback', async () => {
+  const post = deferred<any>(); const read = deferred<any>(); const seen: any[] = [];
+  let reading = false;
+  const store = new WorkspaceController(client({
+    command: async (command: any) => { seen.push(command); return post.promise; },
+    getWorkspace: async () => reading ? read.promise : workspace(),
+  }) as never);
+  await store.openProject(project.id);
+  store.markDirty(shot.id);
+  const saving = store.saveShot(shot.id, 3, { prompt: 'A', controls: { seed: 0, generateAudio: false }, bindings: { lastFrameAssetId: null } });
+  store.markDirty(shot.id); // B while the POST is held.
+  reading = true;
+  post.resolve({ commandId: seen[0].commandId, projectId: project.id, revision: 4 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(store.getSnapshot().dirtyShotIds.has(shot.id), true);
+  store.markDirty(shot.id); // C while the follow-up GET is held.
+  read.resolve({ ...workspace(), shots: [{ ...shot, prompt: 'A', revision: 4 }] });
+  await saving;
+  assert.equal(store.getSnapshot().dirtyShotIds.has(shot.id), true);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].expectedRevision, 3);
+  assert.equal(seen[0].patch.controls.seed, 0);
+  assert.equal(seen[0].patch.controls.generateAudio, false);
+  assert.deepEqual(seen[0].patch.bindings, { lastFrameAssetId: null });
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 4);
+});
+
+test('a revision conflict never rewrites the submitted patch or loses unsaved state', async () => {
+  let captured: any;
+  const conflict = Object.assign(new Error('This shot changed in another window.'), { code: 'REVISION_CONFLICT', currentRevision: 7, status: 409 });
+  const store = new WorkspaceController(client({ command: async (value: any) => { captured = value; throw conflict; } }) as never);
+  await store.openProject(project.id);
+  store.markDirty(shot.id);
+  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'Keep this draft' }), /another window/);
+  assert.equal(captured.expectedRevision, 3);
+  assert.equal(store.getSnapshot().error?.currentRevision, 7);
+  assert.equal(store.getSnapshot().error?.code, 'REVISION_CONFLICT');
+  assert.equal(store.getSnapshot().dirtyShotIds.has(shot.id), true);
+  assert.equal(store.getSnapshot().uncertainCommand, null);
+});
+
+test('network ambiguity holds new writes and explicit retry reuses the literal command ID', async () => {
+  const seen: any[] = [];
+  const store = new WorkspaceController(client({ command: async (value: any) => {
+    seen.push(value);
+    if (seen.length === 1) throw new TypeError('Network connection lost');
+    return { commandId: value.commandId, projectId: project.id, revision: 4 };
+  } }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }));
+  assert.ok(store.getSnapshot().uncertainCommand);
+  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'B' }), /previous request/);
+  await store.retryUncertain();
+  assert.equal(seen.length, 2);
+  assert.deepEqual(seen[1], seen[0]);
+  assert.match(seen[0].commandId, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+  assert.equal(store.getSnapshot().uncertainCommand, null);
+});
+
+test('an accepted write with failed readback is not replayed as a new write', async () => {
+  let posts = 0; let reads = 0;
+  const store = new WorkspaceController(client({
+    command: async (value: any) => { posts++; return { commandId: value.commandId, projectId: project.id, revision: 4 }; },
+    getWorkspace: async () => { reads++; if (reads === 2) throw new TypeError('Readback lost'); return workspace(); },
+  }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }));
+  assert.equal(store.getSnapshot().error?.code, 'READBACK_FAILED');
+  assert.equal(store.getSnapshot().uncertainCommand, null);
+  await store.refresh();
+  assert.equal(posts, 1);
+});
+
+test('upload owns media without assigning either frame role', async () => {
+  const asset = { id: 'asset-a', projectId: project.id, filename: 'start.png', kind: 'image', origin: 'imported', sha256: 'digest', mediaUrl: '/api/media/asset-a', width: 640, height: 480 };
+  const calls: any[] = []; let uploaded = false;
+  const store = new WorkspaceController(client({
+    command: async (command: any) => { calls.push(command); },
+    uploadAsset: async (file: File, id: string) => { assert.equal(id, project.id); assert.equal(file.name, 'start.png'); uploaded = true; return asset; },
+    getWorkspace: async () => ({ ...workspace(), assets: uploaded ? [asset] : [] }),
+  }) as never);
+  await store.openProject(project.id);
+  const owned = await store.uploadAsset(new File(['test bytes'], 'start.png', { type: 'image/png' }));
+  assert.equal(owned.id, asset.id);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(store.getSnapshot().workspace?.shots[0].bindings, { firstFrameAssetId: null, lastFrameAssetId: null });
+  assert.match(store.getSnapshot().notice ?? '', /choose.*frame/i);
+});
+
+test('generation prepare, approval and one submit are distinct server-backed actions', async () => {
+  const state: any = workspace(); const calls: any[] = [];
+  const review = { id: 'review-a', projectId: project.id, shotId: shot.id, shotRevision: shot.revision, requestHash: 'hash', prompt: shot.prompt, controls: shot.controls, bindings: shot.bindings, estimatedCostUsd: null, blockers: [], approved: false };
+  const store = new WorkspaceController(client({ getWorkspace: async () => structuredClone(state), command: async (command: any) => {
+    calls.push(command);
+    if (command.type === 'generation.prepare') state.reviews = [review];
+    if (command.type === 'generation.approve') state.reviews = [{ ...review, approved: true }];
+    if (command.type === 'generation.submit') state.attempts = [{ id: 'attempt-a', projectId: project.id, shotId: shot.id, shotRevision: 3, status: 'blocked', providerJobId: null, errorCode: 'zdr-violation-by-account', message: 'Account privacy policy excludes this route.' }];
+    return { commandId: command.commandId, projectId: project.id, reviewId: review.id, attemptId: command.type === 'generation.submit' ? 'attempt-a' : undefined };
+  } }) as never);
+  await store.openProject(project.id);
+  store.markDirty(shot.id);
+  await assert.rejects(store.prepare(shot.id, 3), /Save/);
+  store.clearDirty(shot.id); // The editor explicitly discarded its buffer.
+  await store.prepare(shot.id, 3);
+  assert.deepEqual(calls.map(x => x.type), ['generation.prepare']);
+  await assert.rejects(store.submit(review.id), /Approve/);
+  await store.approve(review.id, { maxAttempts: 1, maxCostUsd: '5.00' });
+  assert.equal(store.getSnapshot().workspace?.reviews[0].approved, true);
+  assert.equal(calls.length, 2);
+  await store.submit(review.id);
+  await assert.rejects(store.submit(review.id), /already submitted/);
+  assert.deepEqual(calls.map(x => x.type), ['generation.prepare', 'generation.approve', 'generation.submit']);
+  assert.equal(store.getSnapshot().workspace?.attempts[0].status, 'blocked');
+  assert.equal(store.getSnapshot().workspace?.shots[0].selectedTakeId, null);
+  assert.equal(store.getSnapshot().workspace?.takes.length, 0);
+});
+
+test('take selection requires an explicit inspection receipt and uses both revision fences', async () => {
+  const state: any = workspace(); const calls: any[] = [];
+  state.takes = [{ id: 'take-a', projectId: project.id, shotId: shot.id, attemptId: 'attempt-a', assetId: 'asset-a', createdAt: '2026-01-01T00:00:00Z' }];
+  const store = new WorkspaceController(client({ getWorkspace: async () => structuredClone(state), command: async (command: any) => {
+    calls.push(command);
+    if (command.type === 'take.select') state.shots[0] = { ...shot, selectedTakeId: 'take-a', selectionRevision: 1 };
+    if (command.type === 'export.create') state.exports = [{ id: 'export-a', projectId: project.id, shotId: shot.id, takeId: 'take-a', shotRevision: 3, selectionRevision: 1, status: 'queued', stale: false, assetId: null }];
+    return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' };
+  } }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 0), /Inspect/);
+  await assert.rejects(store.exportShot(shot.id, 3, 0), /Select/);
+  const inspection = await store.inspectTake('take-a');
+  assert.equal(inspection.inspectionId, 'inspection-a');
+  assert.equal(store.getSnapshot().workspace?.shots[0].selectedTakeId, null);
+  await store.selectTake(shot.id, 'take-a', 3, 0, inspection.inspectionId);
+  await store.exportShot(shot.id, 3, 1);
+  assert.equal(calls[1].expectedRevision, 3);
+  assert.equal(calls[1].expectedSelectionRevision, 0);
+  assert.equal(calls[1].inspectionId, 'inspection-a');
+  assert.equal(calls[2].expectedSelectionRevision, 1);
+  assert.equal(store.getSnapshot().workspace?.exports[0].status, 'queued');
+});
+
+test('accepted submit stays single-use when readback fails', async () => {
+  const review = { id: 'review-a', projectId: project.id, shotId: shot.id, shotRevision: 3, requestHash: 'h', prompt: shot.prompt, controls: shot.controls, bindings: shot.bindings, estimatedCostUsd: null, blockers: [], approved: true };
+  let reads = 0; let writes = 0;
+  const store = new WorkspaceController(client({ getWorkspace: async () => { if (++reads === 2) throw new TypeError('read failed'); return { ...workspace(), reviews: [review] }; }, command: async (value: any) => { writes++; return { commandId: value.commandId, projectId: project.id, attemptId: 'a' }; } }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.submit(review.id));
+  await assert.rejects(store.submit(review.id), /already submitted/);
+  assert.equal(writes, 1);
+});
+
+test('creates a project and a shot by receipts, then restores them from server state', async () => {
+  let created = false; let shotCreated = false; const commands: any[] = [];
+  const api = client({ listProjects: async () => created ? [project] : [], getWorkspace: async () => ({ ...workspace(), project: created ? project : null, shots: shotCreated ? [shot] : [] }), command: async (command: any) => {
+    commands.push(command);
+    if (command.type === 'project.create') created = true;
+    if (command.type === 'shot.create') shotCreated = true;
+    return { commandId: command.commandId, projectId: project.id, resourceId: command.type === 'project.create' ? project.id : shot.id };
+  } });
+  const store = new WorkspaceController(api as never);
+  await store.start();
+  assert.equal(store.getSnapshot().workspace?.project, null);
+  await store.createProject('Morning study', 'Real brief');
+  await store.createShot('Opening', 'Still camera.');
+  assert.equal(store.getSnapshot().activeShotId, shot.id);
+  assert.equal(store.getSnapshot().projects[0].id, project.id);
+  assert.equal(commands[0].brief, 'Real brief');
+  const reopened = new WorkspaceController(api as never);
+  await reopened.start(project.id);
+  assert.equal(reopened.getSnapshot().workspace?.shots[0].id, shot.id);
+});
+
+test('dirty navigation is blocked until a deliberate discard; resume is explicit', async () => {
+  const state: any = workspace(); state.shots.push({ ...shot, id: 'shot-b' });
+  state.attempts = [{ id: 'attempt-a', projectId: project.id, shotId: shot.id, shotRevision: 3, status: 'acceptance_unknown', providerJobId: null, errorCode: null, message: null }];
+  const commands: any[] = [];
+  const store = new WorkspaceController(client({ getWorkspace: async () => structuredClone(state), command: async (command: any) => { commands.push(command); return { commandId: command.commandId, projectId: project.id }; } }) as never);
+  await store.openProject(project.id);
+  store.markDirty(shot.id);
+  assert.equal(store.selectShot('shot-b'), false);
+  assert.equal(store.getSnapshot().activeShotId, shot.id);
+  store.clearDirty(shot.id);
+  assert.equal(store.selectShot('shot-b'), true);
+  assert.equal(commands.length, 0);
+  await store.resume('attempt-a');
+  assert.equal(commands[0].type, 'attempt.resume');
+});
+
+test('concurrent status refreshes share a read and cannot replace a newer saved snapshot', async () => {
+  let reads = 0; const pending = deferred<any>(); let saved = false;
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => { reads++; if (reads === 2) return pending.promise; return { ...workspace(), shots: [{ ...shot, revision: saved ? 4 : 3 }] }; },
+    command: async (command: any) => { saved = true; return { commandId: command.commandId, projectId: project.id, revision: 4 }; },
+  }) as never);
+  await store.openProject(project.id);
+  const first = store.refresh(); const second = store.refresh();
+  assert.equal(reads, 2);
+  await store.saveShot(shot.id, 3, { prompt: 'New' });
+  pending.resolve(workspace());
+  await Promise.all([first, second]);
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 4);
+});
+
+test('a mismatched command receipt is held as ambiguous, not treated as saved', async () => {
+  const store = new WorkspaceController(client({ command: async () => ({ commandId: 'unrelated', projectId: project.id }) }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }), /receipt/);
+  assert.ok(store.getSnapshot().uncertainCommand);
+});
