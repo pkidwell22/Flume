@@ -1,11 +1,10 @@
 import { constants } from 'node:fs';
 import { access, open } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { availablePort, openLocalStore, resolvePgBin } from './dev-store.mjs';
-import { discoverWorkspaces, orderWorkspaces, runWorkspaceTask } from './dev-workspaces.mjs';
+import { discoverWorkspaces, orderWorkspaces, runWorkspaceTask, spawnOwnedProcess } from './dev-workspaces.mjs';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -26,8 +25,8 @@ export async function developmentPreflight(root, pgBin) {
 async function managedProcess(command, args, { cwd, env, logPath, redactions = [] }) {
   let log;
   if (logPath) { const fd = await open(logPath, constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND | constants.O_NOFOLLOW, 0o600); log = fd.createWriteStream({ autoClose: true }); log.on('error', () => {}); }
-  const child = spawn(command, args, { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  let finished = false;
+  const owner = spawnOwnedProcess(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const { child } = owner;
   for (const stream of [child.stdout, child.stderr]) {
     let pending = '';
     const write = line => {
@@ -43,20 +42,8 @@ async function managedProcess(command, args, { cwd, env, logPath, redactions = [
     });
     stream.on('end', () => { if (pending) write(pending); });
   }
-  const done = new Promise(resolveDone => {
-    child.once('error', () => { finished = true; log?.end(() => log.destroy()); resolveDone({ code: null, signal: 'spawn_error' }); });
-    child.once('close', (code, signal) => { finished = true; log?.end(() => log.destroy()); resolveDone({ code, signal }); });
-  });
-  let stopping;
-  return { child, done, stop: () => stopping ??= (async () => {
-    if (finished || !child.pid) return;
-    try { process.kill(-child.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
-    let timer;
-    try {
-      const ended = await Promise.race([done.then(() => true), new Promise(resolveWait => { timer = setTimeout(() => resolveWait(false), 125000); })]);
-      if (!ended) { try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } await done; }
-    } finally { clearTimeout(timer); }
-  })() };
+  owner.closed.then(() => log?.end(() => log.destroy()));
+  return { child, done: owner.exited, closed: owner.closed, stop: owner.stop };
 }
 async function waitForHttp(url, service, label, signal) {
   const deadline = Date.now() + 30_000;
@@ -90,7 +77,7 @@ export async function launchDevelopment({ root = projectRoot, pgBin, apiPort = 4
   const stop = () => stopping ??= (async () => {
     signal?.removeEventListener('abort', onAbort);
     const failures = (await Promise.allSettled(children.slice().reverse().map(child => child.stop()))).filter(result => result.status === 'rejected').map(result => result.reason);
-    try { await store?.stop(); } catch (error) { failures.push(error); }
+    try { await store?.stop({ retainLock: failures.length > 0 }); } catch (error) { failures.push(error); }
     if (failures.length) {
       const error = new AggregateError(failures, 'Some owned services could not stop; data and ownership records were retained');
       rejectDone(error); throw error;
@@ -103,10 +90,21 @@ export async function launchDevelopment({ root = projectRoot, pgBin, apiPort = 4
     if (install) {
       const installed = await access(join(root, 'node_modules')).then(() => true, () => false);
       if (!installed) {
+        signal?.throwIfAborted();
         const installation = await managedProcess(npm, ['ci', '--ignore-scripts'], { cwd: root, env: minimalEnvironment() }); children.push(installation);
-        const cancelled = () => { void installation.stop(); }; signal?.addEventListener('abort', cancelled, { once: true });
-        try { if ((await installation.done).code !== 0) throw new Error('Project-local npm ci failed; run npm ci to inspect the dependency error'); }
-        finally { signal?.removeEventListener('abort', cancelled); }
+        let cancelled;
+        try {
+          const result = await Promise.race([installation.done, new Promise((_, reject) => {
+            cancelled = () => reject(signal.reason);
+            signal?.addEventListener('abort', cancelled, { once: true });
+            if (signal?.aborted) cancelled();
+          })]);
+          if (result.code !== 0) throw new Error('Project-local npm ci failed; run npm ci to inspect the dependency error');
+        } finally {
+          signal?.removeEventListener('abort', cancelled);
+          await installation.stop();
+          children.splice(children.indexOf(installation), 1);
+        }
       }
     }
     signal?.throwIfAborted();
@@ -132,8 +130,13 @@ export async function launchDevelopment({ root = projectRoot, pgBin, apiPort = 4
     const database = find('@flume/database');
     if (database?.scripts?.migrate) {
       const migration = await launch(database, 'migrate', 'migrate', serverEnv);
-      const result = await migration.done; signal?.throwIfAborted();
-      if (result.code !== 0) throw new Error('Database migration failed; inspect .flume/migrate.log');
+      try {
+        const result = await migration.done; signal?.throwIfAborted();
+        if (result.code !== 0) throw new Error('Database migration failed; inspect .flume/migrate.log');
+      } finally {
+        await migration.stop();
+        children.splice(children.indexOf(migration), 1);
+      }
     }
     const server = await launch(find('@flume/server'), 'dev', 'server', serverEnv);
     await waitForHttp(`${apiUrl}/api/health`, server, 'server', signal);
@@ -164,6 +167,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       console.log(`Flume: ${app.webUrl}\nAgent API: ${app.apiUrl}\nLocal operator mode; not production authentication. Data survives shutdown in .flume/.`);
       await app.done;
     }
-  } catch (error) { if (!controller.signal.aborted) { console.error(error.message); process.exitCode = 1; } }
+  } catch (error) {
+    const cancelled = controller.signal.aborted && (error === controller.signal.reason || error?.name === 'AbortError');
+    if (!cancelled) { console.error(error.message); process.exitCode = 1; }
+  }
   finally { process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
 }
