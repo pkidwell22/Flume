@@ -15,7 +15,7 @@ test('selection readback preserves the player and focused button while invalidat
   assert.equal(ui.button('Select take')?.disabled,true,'old inspection is revision-bound');
  }finally{await ui.close();}
 });
-test('explicit preview reload clears transient failure but requires fresh playback and inspection',async()=>{
+test('explicit preview reload awaits decoded data and requires fresh playback and inspection',async()=>{
  let exports=0;const output={...asset,id:'output-a',mediaUrl:'/api/media/output-a'};
  const props=defaults({shot:{...shot,selectedTakeId:take.id,selectionRevision:3},assets:[asset,output],exports:[frozen],onExport:async()=>{exports++;}});
  const ui=await render(props);
@@ -28,6 +28,6 @@ test('explicit preview reload clears transient failure but requires fresh playba
   const reloaded=ui.all('video')[0];await ui.event(reloaded,'loadeddata');await ui.event(reloaded,'playing');assert.equal(ui.button('Inspect take')?.disabled,false);
   const exported=ui.all('video')[1];await ui.event(exported,'error');
   assert.ok(ui.button('Reload export preview'));await ui.click(ui.button('Reload export preview')!);
-  assert.equal(ui.all('a[download]').length,1);assert.equal(exports,0,'reload is read-only, never a new export command');
+  assert.equal(ui.all('a[download]').length,0,'reload must not restore download before decoded data');assert.equal(exports,0,'reload is read-only, never a new export command');
  }finally{await ui.close();}
 });

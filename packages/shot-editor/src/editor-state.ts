@@ -17,6 +17,8 @@ export interface EditorState {
   base: ShotView;
   latest: ShotView;
   draft: Draft;
+  /** Literal spelling acknowledged by this base, separate from numeric API values. */
+  baseDraft: Draft;
   saving: { token: number; submitted: SaveShotInput; submittedDraft: Draft } | null;
   conflictRevision: number | null;
 }
@@ -43,12 +45,13 @@ export function createEditorState(shot: ShotView): EditorState {
     base: shot,
     latest: shot,
     draft: draftFromShot(shot),
+    baseDraft: draftFromShot(shot),
     saving: null,
     conflictRevision: null,
   };
 }
 export function isDirty(state: EditorState): boolean {
-  return JSON.stringify(state.draft) !== JSON.stringify(draftFromShot(state.base));
+  return JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
 }
 export function hasConflict(state: EditorState): boolean {
   return (
@@ -66,13 +69,15 @@ export function receiveShot(state: EditorState, shot: ShotView): EditorState {
   )
     return state;
   if (state.saving || isDirty(state) || hasConflict(state)) return { ...state, latest: shot };
-  return { ...state, base: shot, latest: shot, draft: draftFromShot(shot) };
+  if (shot.revision === state.base.revision) return { ...state, base: shot, latest: shot };
+  return { ...state, base: shot, latest: shot, draft: draftFromShot(shot), baseDraft: draftFromShot(shot) };
 }
 export function reconcile(state: EditorState, keepDraft: boolean): EditorState {
   if (state.latest.revision < (state.conflictRevision ?? 0) || state.saving) return state;
   return {
     ...state,
     base: state.latest,
+    baseDraft: draftFromShot(state.latest),
     draft: keepDraft ? state.draft : draftFromShot(state.latest),
     conflictRevision: null,
   };
@@ -131,11 +136,10 @@ export function finishSave(state: EditorState, token: number, result: SaveShotRe
       'The save response has no valid accepted revision. Refresh the workspace before retrying.',
     );
   const base={...state.base,...state.saving.submitted.patch,revision:result.revision};
-  const unchanged=JSON.stringify(state.draft)===JSON.stringify(state.saving.submittedDraft);
   return {
     ...state, base,
-    // Normalize accepted numeric formatting only when no newer input exists.
-    draft: unchanged ? draftFromShot(base) : state.draft,
+    // Acknowledge only submitted text; newer edits stay dirty against this snapshot.
+    baseDraft: state.saving.submittedDraft,
     saving: null,
   };
 }

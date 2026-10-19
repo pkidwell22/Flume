@@ -14,6 +14,9 @@ import {
 import type { Draft, EditorState } from './editor-state.ts';
 import type { AssetView, FrameRole, ShotEditorProps, ShotView } from './types.ts';
 import { modelIssues } from './compatibility.ts';
+import { ModelPicker } from './ModelPicker.tsx';
+import { GenerationSettings } from './GenerationSettings.tsx';
+import { PromptComposer } from './PromptComposer.tsx';
 
 const frames = [
   {
@@ -29,6 +32,11 @@ const frames = [
     hint: 'Where the shot arrives',
   },
 ] as const;
+
+function closeReference(reference: HTMLDetailsElement) {
+  reference.open = false;
+  reference.querySelector('summary')?.focus();
+}
 
 export function ShotEditor(props: ShotEditorProps) {
   if (!props.shot)
@@ -78,17 +86,20 @@ function ShotEditorSession({
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState('');
   const update = useCallback((fn: (current: EditorState) => EditorState) => {
-    live.current = fn(live.current);
+    const previous = live.current;
+    live.current = fn(previous);
     setState(live.current);
-  }, []);
+    // Queue the canonical buffer before notifying a synchronous external store.
+    // Report every draft edit (even while dirty), plus save/reconcile transitions.
+    if (live.current.draft !== previous.draft || isDirty(live.current) !== isDirty(previous)) {
+      onDirtyChange?.(isDirty(live.current), shot.id);
+    }
+  }, [onDirtyChange, shot.id]);
   useLayoutEffect(() => {
     update((current) => receiveShot(current, shot));
   }, [shot, update]);
   const dirty = isDirty(state);
   const conflict = hasConflict(state);
-  useEffect(() => {
-    onDirtyChange?.(dirty, shot.id);
-  }, [dirty, state.draft, shot.id, onDirtyChange]);
   const change = (draft: Draft) => update((current) => editDraft(current, draft));
   const { draft } = state;
   const inputErrors = fieldErrors(draft);
@@ -279,7 +290,7 @@ function ShotEditorSession({
               : `Saved revision ${state.base.revision}`}
         </span>
       </header>
-      <div className="fl-shot-editor__frames">
+      <div className="fl-shot-editor__frames" role="group" aria-label="Frame references">
         {frames.map((frame) => {
           const asset = images.find((item) => item.id === draft.bindings[frame.key]);
           return (
@@ -288,197 +299,123 @@ function ShotEditorSession({
               key={frame.role}
               aria-labelledby={`${id}-${frame.role}-heading`}
             >
-              <header className="fl-shot-editor__frame-heading">
-                <h3 id={`${id}-${frame.role}-heading`}>{frame.label}</h3>
-                <span>{frame.hint}</span>
-              </header>
-              <div className="fl-shot-editor__image">
-                {asset ? (
-                  <img src={asset.mediaUrl} alt={`${frame.label}: ${asset.filename}`} />
-                ) : (
-                  <div className="fl-shot-editor__image-empty">
-                    <span aria-hidden="true">＋</span>
-                    <p>Add a {frame.label.toLowerCase()}</p>
-                    <small>Choose an image from this project</small>
+              <details
+                className="fl-shot-editor__reference"
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape' || event.defaultPrevented || !event.currentTarget.open) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeReference(event.currentTarget);
+                }}
+              >
+                <summary className="fl-shot-editor__reference-summary" aria-label={`${frame.label} reference`}>
+                  <div className="fl-shot-editor__image">
+                    {asset ? (
+                      <img src={asset.mediaUrl} alt={`${frame.label}: ${asset.filename}`} />
+                    ) : (
+                      <span className="fl-shot-editor__image-empty" aria-hidden="true">＋</span>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="fl-shot-editor__frame-controls">
-                {asset && (
-                  <p className="fl-shot-editor__file">
-                    <strong>{asset.filename}</strong>
+                  <div className="fl-shot-editor__frame-heading">
+                    <h3 id={`${id}-${frame.role}-heading`}>{frame.label}</h3>
                     <span>
-                      {asset.width} × {asset.height} ·{' '}
-                      {asset.origin === 'sample'
-                        ? 'Sample image'
-                        : asset.origin === 'imported'
-                          ? 'Imported image'
-                          : 'Generated image'}
+                      {asset ? asset.filename : draft.bindings[frame.key]
+                        ? `Unavailable image: ${draft.bindings[frame.key]}` : frame.hint}
                     </span>
-                  </p>
-                )}
-                <label htmlFor={`${id}-${frame.role}-asset`}>{frame.label} image</label>
-                <select
-                  id={`${id}-${frame.role}-asset`}
-                  value={draft.bindings[frame.key] ?? ''}
-                  onChange={(event) => setFrame(frame.role, event.target.value || null)}
-                >
-                  <option value="">No {frame.label.toLowerCase()}</option>
-                  {!asset && draft.bindings[frame.key] !== null && (
-                    <option value={draft.bindings[frame.key]!}>
-                      Unavailable image: {draft.bindings[frame.key]}
-                    </option>
+                    <small>{draft.bindings[frame.key] ? 'Edit reference' : 'Choose or upload an image'}</small>
+                  </div>
+                  <span className="fl-shot-editor__reference-toggle" aria-hidden="true">⌄</span>
+                </summary>
+                <div className="fl-shot-editor__frame-controls">
+                  {asset && (
+                    <p className="fl-shot-editor__file">
+                      <strong>{asset.filename}</strong>
+                      <span>
+                        {asset.width} × {asset.height} ·{' '}
+                        {asset.origin === 'sample'
+                          ? 'Sample image'
+                          : asset.origin === 'imported'
+                            ? 'Imported image'
+                            : 'Generated image'}
+                      </span>
+                    </p>
                   )}
-                  {images.map((image) => (
-                    <option key={image.id} value={image.id}>
-                      {image.filename}
-                    </option>
-                  ))}
-                </select>
-                <div className="fl-shot-editor__frame-actions">
-                  <label className="fl-shot-editor__upload" htmlFor={`${id}-${frame.role}-upload`}>
-                    Upload {frame.label.toLowerCase()}
-                    <input
-                      id={`${id}-${frame.role}-upload`}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/avif"
-                      disabled={working}
-                      onChange={(event) => {
-                        const file = event.currentTarget.files?.[0];
-                        event.currentTarget.value = '';
-                        if (file) void upload(frame.role, file);
-                      }}
-                    />
-                  </label>
-                  <button type="button" onClick={() => setFrame(frame.role, null)}>
-                    Clear {frame.label.toLowerCase()}
-                  </button>
+                  <label htmlFor={`${id}-${frame.role}-asset`}>{frame.label} image</label>
+                  <select
+                    id={`${id}-${frame.role}-asset`}
+                    value={draft.bindings[frame.key] ?? ''}
+                    onChange={(event) => setFrame(frame.role, event.target.value || null)}
+                  >
+                    <option value="">No {frame.label.toLowerCase()}</option>
+                    {!asset && draft.bindings[frame.key] !== null && (
+                      <option value={draft.bindings[frame.key]!}>
+                        Unavailable image: {draft.bindings[frame.key]}
+                      </option>
+                    )}
+                    {images.map((image) => (
+                      <option key={image.id} value={image.id}>
+                        {image.filename}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="fl-shot-editor__frame-actions">
+                    <label className="fl-shot-editor__upload" htmlFor={`${id}-${frame.role}-upload`}>
+                      Upload {frame.label.toLowerCase()}
+                      <input
+                        id={`${id}-${frame.role}-upload`}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/avif"
+                        disabled={working}
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          event.currentTarget.value = '';
+                          if (file) void upload(frame.role, file);
+                        }}
+                      />
+                    </label>
+                    <button type="button" onClick={() => setFrame(frame.role, null)}>
+                      Clear {frame.label.toLowerCase()}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => closeReference(event.currentTarget.closest('details')!)}
+                    >
+                      Close {frame.label.toLowerCase()} picker
+                    </button>
+                  </div>
                 </div>
-                {uploads[frame.role] && (
-                  <p aria-live="polite">Importing {uploads[frame.role]}… You can keep editing.</p>
-                )}
-                {uploadNotes[frame.role] && (
-                  <p className="fl-shot-editor__upload-note" aria-live="polite">
-                    {uploadNotes[frame.role]}
-                  </p>
-                )}
-              </div>
+              </details>
+              {uploads[frame.role] && (
+                <p className="fl-shot-editor__upload-note" aria-live="polite">Importing {uploads[frame.role]}… You can keep editing.</p>
+              )}
+              {uploadNotes[frame.role] && (
+                <p className="fl-shot-editor__upload-note" aria-live="polite">
+                  {uploadNotes[frame.role]}
+                </p>
+              )}
             </section>
           );
         })}
       </div>
       <div className="fl-shot-editor__intent">
-        <div className="fl-shot-editor__prompt">
-          <label htmlFor={`${id}-prompt`}>Prompt</label>
-          <textarea
-            id={`${id}-prompt`}
-            rows={5}
-            value={draft.prompt}
-            onChange={(event) => change({ ...live.current.draft, prompt: event.target.value })}
+        <PromptComposer
+          value={draft.prompt}
+          onChange={(prompt) => change({ ...live.current.draft, prompt })}
+        />
+        <div className="fl-shot-editor__creator-settings">
+          <ModelPicker
+            value={draft.controls.modelId}
+            capabilities={capabilities}
+            onChange={(modelId) => setControl('modelId', modelId)}
           />
-          <p>Describe the motion between your frames. Your words are saved exactly as written.</p>
-        </div>
-        <div className="fl-shot-editor__settings">
-          <label className="fl-shot-editor__wide" htmlFor={`${id}-model`}>
-            Model
-            <select
-              id={`${id}-model`}
-              value={draft.controls.modelId}
-              onChange={(event) => setControl('modelId', event.target.value)}
-            >
-              {!capabilities.some((model) => model.modelId === draft.controls.modelId) && (
-                <option value={draft.controls.modelId}>
-                  {draft.controls.modelId || 'Choose a model'}
-                </option>
-              )}
-              {capabilities.map((model) => (
-                <option key={model.modelId} value={model.modelId}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label htmlFor={`${id}-duration`}>
-            Duration (seconds)
-            <input
-              id={`${id}-duration`}
-              aria-invalid={!!inputErrors.duration}
-              aria-describedby={inputErrors.duration ? `${id}-duration-error` : undefined}
-              inputMode="decimal"
-              value={draft.controls.durationSeconds}
-              onChange={(event) => setControl('durationSeconds', event.target.value)}
-            />
-          </label>
-          <label htmlFor={`${id}-resolution`}>
-            Resolution
-            <input
-              id={`${id}-resolution`}
-              value={draft.controls.resolution}
-              onChange={(event) => setControl('resolution', event.target.value)}
-            />
-          </label>
-          <label htmlFor={`${id}-ratio`}>
-            Aspect ratio
-            <input
-              id={`${id}-ratio`}
-              value={draft.controls.aspectRatio}
-              onChange={(event) => setControl('aspectRatio', event.target.value)}
-            />
-          </label>
-          <label htmlFor={`${id}-seed`}>
-            Seed (optional)
-            <input
-              id={`${id}-seed`}
-              aria-invalid={!!inputErrors.seed}
-              aria-describedby={inputErrors.seed ? `${id}-seed-error` : undefined}
-              inputMode="numeric"
-              placeholder="Random"
-              value={draft.controls.seed}
-              onChange={(event) => setControl('seed', event.target.value)}
-            />
-          </label>
-          {inputErrors.duration && (
-            <p
-              className="fl-shot-editor__field-error fl-shot-editor__wide"
-              id={`${id}-duration-error`}
-            >
-              {inputErrors.duration}
-            </p>
-          )}
-          {inputErrors.seed && (
-            <p className="fl-shot-editor__field-error fl-shot-editor__wide" id={`${id}-seed-error`}>
-              {inputErrors.seed}
-            </p>
-          )}
-          <label className="fl-shot-editor__checkbox fl-shot-editor__wide" htmlFor={`${id}-audio`}>
-            <input
-              id={`${id}-audio`}
-              type="checkbox"
-              checked={draft.controls.generateAudio}
-              onChange={(event) => setControl('generateAudio', event.target.checked)}
-            />
-            Generate audio
-          </label>
+          <GenerationSettings
+            value={draft.controls}
+            capability={capabilities.find((model) => model.modelId === draft.controls.modelId)}
+            errors={inputErrors}
+            onChange={setControl}
+          />
         </div>
       </div>
-      <section className="fl-shot-editor__compatibility" aria-label="Model compatibility">
-        <h3>{issues.length ? 'Before you generate' : 'Frame settings are compatible'}</h3>
-        {issues.length ? (
-          <ul>
-            {issues.map((issue) => (
-              <li key={issue}>{issue}</li>
-            ))}
-          </ul>
-        ) : (
-          <p>
-            The current catalog supports these frames, duration and resolution. The exact request
-            and account access are checked again at review.
-          </p>
-        )}
-        {issues.length > 0 && (
-          <p>You can keep editing and save this draft without changing its intent.</p>
-        )}
-      </section>
       {conflict && (
         <div className="fl-shot-editor__notice" role="alert">
           <p>This shot changed elsewhere. Your edits are still here.</p>
@@ -567,6 +504,24 @@ function ShotEditorSession({
           </button>
         </div>
       </footer>
+      <section className="fl-shot-editor__compatibility" aria-label="Model compatibility">
+        <h3>{issues.length ? 'Before you generate' : 'Frame settings are compatible'}</h3>
+        {issues.length ? (
+          <ul>
+            {issues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>
+            The current catalog supports these frames, duration and resolution. The exact request
+            and account access are checked again at review.
+          </p>
+        )}
+        {issues.length > 0 && (
+          <p>You can keep editing and save this draft without changing its intent.</p>
+        )}
+      </section>
     </section>
   );
 }

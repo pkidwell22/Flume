@@ -58,13 +58,16 @@ function ReviewDrawer({ review, assets, busy = false, onApprove, onSubmit, onDis
     if (dialog && !dialog.open) dialog.showModal();
     dialog?.querySelector<HTMLElement>('h2')?.focus();
     return () => {
+      const active = document.activeElement;
+      const returning = active === document.body || !!dialog?.contains(active);
       if (dialog?.open) dialog.close();
-      if (opener instanceof HTMLElement && opener.isConnected && !document.querySelector('dialog[open]')) opener.focus();
+      // A newer dialog/destination owns focus; stale cleanup must not take it back.
+      if (returning && opener instanceof HTMLElement && opener.isConnected && !opener.matches(':disabled, [aria-disabled="true"]') && !opener.closest('[inert], [hidden]') && opener.checkVisibility?.({ visibilityProperty: true }) !== false && !document.querySelector('dialog[open]')) opener.focus();
     };
   }, []);
   return <dialog ref={dialogRef} aria-labelledby={titleId} className="fl-review" onCancel={event => { event.preventDefault(); onDismiss(); }}>
     <header className="fl-review__header">
-      <div><h2 id={titleId} tabIndex={-1}>Review generation</h2><p>This exact version will be sent. Editing the shot requires a new review.</p></div>
+      <div><h2 id={titleId} tabIndex={-1}>Review generation</h2><p>Check the frames, prompt and settings. Editing the shot requires a new review.</p></div>
       <button type="button" className="fl-review__close" aria-label="Close review" onClick={onDismiss}>Close</button>
     </header>
     <div className="fl-review__content">
@@ -77,21 +80,25 @@ function ReviewDrawer({ review, assets, busy = false, onApprove, onSubmit, onDis
         {asset && <><p className="fl-review__filename">{asset.filename}</p><span className="fl-review__origin">{asset.origin === 'sample' ? 'Sample' : asset.origin === 'imported' ? 'Imported' : 'Generated'}</span><span className="fl-review__dimensions">{asset.width} × {asset.height}</span></>}
       </figure>)}
     </div>
-    <h3>Prompt</h3>
-    <p data-testid="fl-review-prompt" className="fl-review__prompt">{review.prompt}</p>
-    <dl className="fl-review__controls">
-      <dt>Model</dt><dd>{review.controls.modelId}</dd>
-      <dt>Length</dt><dd>{review.controls.durationSeconds} seconds</dd>
-      <dt>Resolution</dt><dd>{review.controls.resolution}</dd>
-      <dt>Frame shape</dt><dd>{review.controls.aspectRatio}</dd>
-      <dt>Audio</dt><dd>{review.controls.generateAudio ? 'On' : 'Off'}</dd>
-      <dt>Seed</dt><dd>{review.controls.seed ?? 'Not specified'}</dd>
-    </dl>
+    <section className="fl-review__intent" aria-label="Exact request">
+      <h3>Exact prompt</h3>
+      <p data-testid="fl-review-prompt" className="fl-review__prompt">{review.prompt}</p>
+      <h3>Generation settings</h3>
+      <dl className="fl-review__controls">
+        <div className="fl-review__model"><dt>Model</dt><dd>{review.controls.modelId}</dd></div>
+        <div><dt>Length</dt><dd>{review.controls.durationSeconds} seconds</dd></div>
+        <div><dt>Resolution</dt><dd>{review.controls.resolution}</dd></div>
+        <div><dt>Frame shape</dt><dd>{review.controls.aspectRatio}</dd></div>
+        <div><dt>Audio</dt><dd>{review.controls.generateAudio ? 'On' : 'Off'}</dd></div>
+        <div><dt>Seed</dt><dd>{review.controls.seed ?? 'Not specified'}</dd></div>
+      </dl>
+    </section>
+    <section className="fl-review__decision" aria-label="Cost and readiness">
     {!framesReady && <p className="fl-review__warning" role="status">Both assigned images must be visible before you can approve or generate. If an image is unavailable, return to the shot and prepare a new review.</p>}
     {review.blockers.length > 0 && <section className="fl-review__blockers" aria-label="Generation blocked">
       <h3>Generation is blocked</h3>
       <ul>{review.blockers.map((blocker, index) => <li key={index}>{blockerText(blocker)}</li>)}</ul>
-      <p>You can keep editing. Choose a compatible available model, then prepare a new review. Repeating this request will not fix a provider block.</p>
+      <p>Close this review to keep editing. Address the listed blockers, then prepare a new review. Repeating this request will not fix a provider block.</p>
     </section>}
     <section className="fl-review__cost">
       <h3>{review.estimatedCostUsd === null ? 'Cost not available' : `Estimated cost: $${review.estimatedCostUsd} USD`}</h3>
@@ -101,6 +108,7 @@ function ReviewDrawer({ review, assets, busy = false, onApprove, onSubmit, onDis
         <input id={limitId} type="text" inputMode="decimal" value={limit} onChange={event => setLimit(event.target.value)} disabled={busy || pending || requestedApproval || submitted} aria-invalid={limit !== '' && !validLimit} aria-describedby={`${limitId}-help`} />
         <p id={`${limitId}-help`}>{limit !== '' && !validLimit ? 'Enter a non-negative USD amount using digits and a decimal point. ' : ''}Approve at most one attempt with an estimated cost within this allowance. This is not a provider-enforced billing cap; the final charge can differ. No automatic paid retries.</p>
       </> : <p>Approved spending limits are enforced by the workspace. This estimate is not your allowance.</p>}
+    </section>
     </section>
     <details className="fl-review__details"><summary>Review details</summary><dl>
       <dt>Review</dt><dd>{review.id}</dd>

@@ -20,6 +20,7 @@ export class WorkspaceController {
     return shot;
   }
   private applyWorkspace(workspace: Workspace) {
+    this.pruneInspections(workspace);
     const activeShotId = workspace.shots.some(shot => shot.id === this.state.activeShotId) ? this.state.activeShotId : workspace.shots[0]?.id ?? null;
     this.update({ workspace, activeShotId, phase: 'ready' });
   }
@@ -37,11 +38,11 @@ export class WorkspaceController {
     const navigation = this.navigation;
     ++this.readVersion; // A pre-write refresh must never replace a post-write snapshot.
     this.update({ busy: intent.type, error: null, notice: null });
-    let accepted = false;
+    let accepted: Receipt | null = null;
     try {
       const receipt = await this.api.command(command);
       if (receipt.commandId !== command.commandId || 'projectId' in command && receipt.projectId !== command.projectId) throw new TypeError('The returned receipt does not match this request. Check the original request before continuing.');
-      accepted = true;
+      accepted = receipt;
       if (command.type === 'generation.submit') this.submitted.add(command.reviewId);
       this.update({ uncertainCommand: null });
       const readVersion = ++this.readVersion;
@@ -52,6 +53,9 @@ export class WorkspaceController {
       const issue = this.errorOf(error);
       if (accepted) {
         this.update({ error: { code: 'READBACK_FAILED', message: 'The action was accepted, but its saved state could not be loaded. Refresh to check it; do not submit it again.' } });
+        // A failed GET cannot revoke an accepted save's base revision. Return
+        // that receipt to the editor while retaining the readback warning.
+        if (command.type === 'shot.update') return accepted;
       } else {
         const status = (error as { status?: number } | null)?.status;
         const outcomeUnknown = error !== null && typeof error === 'object' && 'outcomeUnknown' in error && error.outcomeUnknown === true;
@@ -161,22 +165,52 @@ export class WorkspaceController {
     this.submitted.add(reviewId);
     this.update({ reviewId: null, notice: 'Generation requested. Activity shows the provider’s actual state.' });
   }
-  private inspections = new Map<string, string>();
+  private inspections = new Map<string, { inspectionId: string; projectId: string; shotId: string; shotRevision: number; selectionRevision: number }>();
+  /** A receipt is only usable inside the editorial revision the server recorded it for. */
+  private pruneInspections(workspace: Workspace | null) {
+    for (const [takeId, inspection] of this.inspections) {
+      const shot = workspace?.shots.find(item => item.id === inspection.shotId && item.projectId === inspection.projectId);
+      const take = workspace?.takes.find(item => item.id === takeId && item.shotId === inspection.shotId && item.projectId === inspection.projectId);
+      if (!shot || !take || shot.revision !== inspection.shotRevision || shot.selectionRevision !== inspection.selectionRevision) this.inspections.delete(takeId);
+    }
+  }
+  private scopeOf(inspection: { projectId: string; shotId: string; shotRevision: number; selectionRevision: number } | undefined) {
+    const shot = this.state.workspace?.shots.find(item => item.id === inspection?.shotId && item.projectId === inspection.projectId);
+    return !!inspection && !!shot && shot.revision === inspection.shotRevision && shot.selectionRevision === inspection.selectionRevision;
+  }
   async inspectTake(takeId: string) {
     const take = this.state.workspace?.takes.find(item => item.id === takeId);
     if (!take) throw new Error('This take is not available in the current project.');
+    const shot = this.state.workspace?.shots.find(item => item.id === take.shotId && item.projectId === take.projectId);
+    if (!shot) throw new Error('Open this shot before inspecting its takes.');
+    // Bind the receipt to the scope the caller and the server both observe now.
+    const navigation = this.navigation;
+    const { revision: shotRevision, selectionRevision } = shot;
     const receipt = await this.execute({ type: 'take.inspect', projectId: take.projectId, takeId });
     const inspectionId = receipt.inspectionId ?? receipt.resourceId;
     if (!inspectionId) throw new Error('No inspection receipt was returned. Selection remains unavailable.');
-    this.inspections.set(takeId, inspectionId);
+    // A receipt that lands after navigation or a revision change describes a
+    // scope this client no longer shows, so it must never be cached.
+    if (navigation !== this.navigation) throw new Error('Inspect this take again: the workspace changed while the inspection ran.');
+    if (!this.scopeOf({ projectId: take.projectId, shotId: take.shotId, shotRevision, selectionRevision }))
+      throw new Error('Inspect this take again: the shot changed while the inspection ran.');
+    this.inspections.set(takeId, { inspectionId, projectId: take.projectId, shotId: take.shotId, shotRevision, selectionRevision });
     return { inspectionId };
   }
   async selectTake(shotId: string, takeId: string, expectedRevision: number, expectedSelectionRevision: number, inspectionId?: string) {
     const shot = this.requireSaved(shotId);
+    const take = this.state.workspace?.takes.find(item => item.id === takeId && item.shotId === shotId && item.projectId === shot.projectId);
+    if (!take) throw new Error('Choose a take from this shot.');
     const inspected = this.inspections.get(takeId);
-    if (!inspected || inspectionId && inspected !== inspectionId) throw new Error('Inspect this take before selecting it.');
-    if (!this.state.workspace?.takes.some(take => take.id === takeId && take.shotId === shotId)) throw new Error('Choose a take from this shot.');
-    await this.execute({ type: 'take.select', projectId: shot.projectId, shotId, takeId, expectedRevision, expectedSelectionRevision, inspectionId: inspected });
+    if (!inspected) throw new Error('Inspect this take before selecting it.');
+    // The receipt proves inspection of one take in one revision scope; a stale
+    // one must not reach the server as if it covered this selection attempt.
+    if (inspected.projectId !== shot.projectId || inspected.shotId !== shotId
+      || inspected.shotRevision !== shot.revision || inspected.selectionRevision !== shot.selectionRevision
+      || inspected.shotRevision !== expectedRevision || inspected.selectionRevision !== expectedSelectionRevision)
+      throw new Error('This inspection is out of date. Inspect this take again before selecting it.');
+    if (inspectionId && inspected.inspectionId !== inspectionId) throw new Error('The inspection receipt does not match. Inspect this take again before selecting it.');
+    await this.execute({ type: 'take.select', projectId: shot.projectId, shotId, takeId, expectedRevision, expectedSelectionRevision, inspectionId: inspected.inspectionId });
     this.update({ notice: 'Take selected.' });
   }
   async exportShot(shotId: string, expectedRevision: number, expectedSelectionRevision: number) {
@@ -227,6 +261,7 @@ export class WorkspaceController {
     try {
       const workspace = await this.api.getWorkspace(projectId);
       if (navigation !== this.navigation) return;
+      this.pruneInspections(workspace);
       this.update({ workspace, activeShotId: workspace.shots[0]?.id ?? null, phase: 'ready' });
     } catch (error) {
       if (navigation === this.navigation) this.update({ phase: 'error', error: { code: 'LOAD_FAILED', message: error instanceof Error ? error.message : 'Could not open this project.' } });

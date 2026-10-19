@@ -2,9 +2,12 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserClient } from '@flume/client';
 import '@flume/ui/theme.css';
 import '@flume/shot-editor/styles.css';
+// Creator-control styles are separate from the shared cinema skin.
+import '../../../packages/shot-editor/src/creator-controls.css';
 import '@flume/take-review/styles.css';
 import '@flume/activity-review/styles.css';
 import './workspace.css';
+import './project-rail.css';
 import { FlumeApp } from './App.tsx';
 import { WorkspaceController } from './controller.ts';
 import { workspaceComponents } from './composition.ts';

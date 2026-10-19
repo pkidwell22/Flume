@@ -68,8 +68,8 @@ function ExportItem({item,shot,takes,assets}: {item:ReviewExport;shot:ReviewShot
     {item.status === 'running' && <p className="fl-tr-hint">Creating the frozen file. No download is ready yet.</p>}
     {item.status === 'failed' && <p className="fl-tr-hint">The export did not finish. Your selected take is unchanged. Request a new export when ready.</p>}
     {item.status === 'ready' && (!url || failed) && <p className="fl-tr-hint">The owned export preview is unavailable. Reload the preview without creating a new export.</p>}
-    {url && failed && <button type="button" onClick={()=>{setFailed(false);setReload(n=>n+1);}}>Reload export preview</button>}
-    {url && <details className="fl-tr-export-preview"><summary>Preview frozen export</summary><video key={reload} controls playsInline preload="metadata" src={url} aria-label="Preview frozen export" onError={()=>setFailed(true)}/></details>}
+    {url && failed && <button type="button" onClick={()=>setReload(n=>n+1)}>Reload export preview</button>}
+    {url && <details className="fl-tr-export-preview"><summary>Preview frozen export</summary><video key={reload} controls playsInline preload="metadata" src={reload ? `${url}?previewReload=${reload}` : url} aria-label="Preview frozen export" onLoadedData={()=>setFailed(false)} onError={()=>setFailed(true)}/></details>}
     <details className="fl-tr-details"><summary>Export details</summary><dl>
       <dt>Export</dt><dd>{item.id}</dd><dt>Frozen take</dt><dd>{item.takeId}</dd>
       <dt>Shot revision</dt><dd>{item.shotRevision}</dd><dt>Selection revision</dt><dd>{item.selectionRevision}</dd>

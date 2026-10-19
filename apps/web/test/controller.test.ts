@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WorkspaceController } from '../src/controller.ts';
+import type { Command, Receipt, Workspace } from '../src/types.ts';
+import { createEditorState, editDraft, finishSave, hasConflict, isDirty, receiveShot, saveDraft, startSave } from '../../../packages/shot-editor/src/editor-state.ts';
 
 const project = { id: 'project-a', name: 'Morning study', brief: '', revision: 1 };
 const shot = { id: 'shot-a', projectId: project.id, title: 'Opening', prompt: 'Still camera.', revision: 3,
   controls: { modelId: 'minimax/hailuo-3', durationSeconds: 5, resolution: '2K', aspectRatio: '16:9', generateAudio: false, seed: 0 },
   bindings: { firstFrameAssetId: null, lastFrameAssetId: null }, selectedTakeId: null, selectionRevision: 0 };
+const take = { id: 'take-a', projectId: project.id, shotId: shot.id, attemptId: 'attempt-a', assetId: 'asset-a', createdAt: '2026-01-01T00:00:00Z' };
 function workspace(p = project) { return { project: p, shots: [{ ...shot, projectId: p.id }], assets: [], takes: [], attempts: [], reviews: [], exports: [], capabilities: [] }; }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function client(overrides = {}) { return { listProjects: async () => [project], getWorkspace: async () => workspace(), command: async () => ({}), uploadAsset: async () => { throw new Error('Unexpected upload'); }, ...overrides }; }
@@ -82,18 +85,110 @@ test('network ambiguity holds new writes and explicit retry reuses the literal c
   assert.equal(store.getSnapshot().uncertainCommand, null);
 });
 
-test('an accepted write with failed readback is not replayed as a new write', async () => {
+test('an accepted save returns its revision despite failed readback, without replaying the write', async () => {
   let posts = 0; let reads = 0;
   const store = new WorkspaceController(client({
     command: async (value: any) => { posts++; return { commandId: value.commandId, projectId: project.id, revision: 4 }; },
     getWorkspace: async () => { reads++; if (reads === 2) throw new TypeError('Readback lost'); return workspace(); },
   }) as never);
   await store.openProject(project.id);
-  await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }));
+  const accepted = await store.saveShot(shot.id, 3, { prompt: 'A' });
+  assert.equal(accepted.revision, 4);
+  assert.equal(accepted.prompt, 'A');
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 3); // Do not invent a GET.
   assert.equal(store.getSnapshot().error?.code, 'READBACK_FAILED');
   assert.equal(store.getSnapshot().uncertainCommand, null);
   await store.refresh();
   assert.equal(posts, 1);
+});
+
+test('an accepted save keeps the newer editor draft after failed GET and fences the next save with its revision', async t => {
+  const currentProject = { ...project, id: '11111111-1111-4111-8111-111111111111' };
+  let currentShot = { ...shot, id: '22222222-2222-4222-8222-222222222222', projectId: currentProject.id };
+  const post = deferred<Receipt>(); const read = deferred<Workspace>(); const reading = deferred<void>();
+  const commands: Command[] = []; let reads = 0;
+  const store = new WorkspaceController({
+    listProjects: async () => [currentProject],
+    getWorkspace: async () => {
+      if (++reads === 2) { reading.resolve(); return read.promise; }
+      return { ...workspace(currentProject), shots: [currentShot] };
+    },
+    command: async command => {
+      commands.push(structuredClone(command));
+      assert.equal(command.type, 'shot.update');
+      if (command.type !== 'shot.update') throw new Error('Unexpected command');
+      if (commands.length === 1) return post.promise;
+      assert.equal(command.expectedRevision, 4, 'the next edit must use the accepted revision, not the stale GET snapshot');
+      assert.equal(command.patch.prompt, 'B typed during pending save');
+      currentShot = { ...currentShot, prompt: command.patch.prompt, revision: 5 };
+      return { commandId: command.commandId, projectId: currentProject.id, revision: 5 };
+    },
+    uploadAsset: async () => { throw new Error('Unexpected upload'); },
+  });
+  await store.openProject(currentProject.id);
+  let editor = createEditorState(currentShot);
+  t.after(store.subscribe(() => {
+    const latest = store.getSnapshot().workspace?.shots[0];
+    if (latest) editor = receiveShot(editor, latest);
+  }));
+  const typePrompt = (prompt: string) => {
+    editor = editDraft(editor, { ...editor.draft, prompt });
+    store.markDirty(currentShot.id);
+  };
+  typePrompt('A submitted');
+  const first = saveDraft(editor);
+  editor = startSave(editor, 1);
+  const saving = store.saveShot(first.shotId, first.expectedRevision, first.patch).then(result => {
+    editor = finishSave(editor, 1, result);
+    return result;
+  });
+  typePrompt('B typed during pending save');
+  assert.equal(editor.draft.prompt, 'B typed during pending save');
+  assert.equal(editor.saving?.submitted.patch.prompt, 'A submitted');
+  assert.equal(editor.base.revision, 3);
+  assert.equal(isDirty(editor), true);
+  assert.equal(store.getSnapshot().busy, 'shot.update');
+
+  post.resolve({ commandId: commands[0].commandId, projectId: currentProject.id, revision: 4 });
+  await reading.promise;
+  // Assert POST preservation before GET completion so a later edit cannot mask loss.
+  assert.equal(editor.draft.prompt, 'B typed during pending save');
+  assert.equal(isDirty(editor), true);
+  assert.equal(store.getSnapshot().dirtyShotIds.has(currentShot.id), true);
+  read.reject(new TypeError('Readback lost after accepted save'));
+  const accepted = await saving;
+  assert.equal(accepted.revision, 4);
+  assert.equal(accepted.prompt, 'A submitted');
+  assert.equal(editor.base.revision, 4);
+  assert.equal(editor.base.prompt, 'A submitted');
+  assert.equal(editor.draft.prompt, 'B typed during pending save');
+  assert.equal(editor.saving, null);
+  assert.equal(isDirty(editor), true);
+  assert.equal(hasConflict(editor), false);
+  assert.equal(store.getSnapshot().dirtyShotIds.has(currentShot.id), true);
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 3);
+  assert.equal(store.getSnapshot().workspace?.shots[0].prompt, shot.prompt);
+  assert.equal(store.getSnapshot().error?.code, 'READBACK_FAILED');
+  assert.match(store.getSnapshot().error?.message ?? '', /accepted.*Refresh.*do not submit it again/);
+  assert.equal(store.getSnapshot().uncertainCommand, null);
+  assert.equal(store.getSnapshot().busy, null);
+  await store.retryUncertain(); // A known accepted write is not an unknown command to replay.
+  assert.equal(commands.length, 1);
+  assert.equal(reads, 2);
+
+  // Explicitly save B before any successful recovery GET. Use the real editor's base.
+  const next = saveDraft(editor);
+  assert.equal(next.expectedRevision, 4);
+  editor = startSave(editor, 2);
+  const saved = await store.saveShot(next.shotId, next.expectedRevision, next.patch);
+  editor = finishSave(editor, 2, saved);
+  assert.equal(commands.length, 2);
+  assert.notEqual(commands[1].commandId, commands[0].commandId);
+  assert.equal(reads, 3);
+  assert.equal(editor.base.revision, 5);
+  assert.equal(editor.draft.prompt, 'B typed during pending save');
+  assert.equal(isDirty(editor), false);
+  assert.equal(store.getSnapshot().dirtyShotIds.has(currentShot.id), false);
 });
 
 test('upload owns media without assigning either frame role', async () => {
@@ -231,4 +326,98 @@ test('a mismatched command receipt is held as ambiguous, not treated as saved', 
   await store.openProject(project.id);
   await assert.rejects(store.saveShot(shot.id, 3, { prompt: 'A' }), /receipt/);
   assert.ok(store.getSnapshot().uncertainCommand);
+});
+
+test('a saved revision drops the cached inspection receipt instead of sending a stale selection', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      if (command.type === 'shot.update') state.shots[0] = { ...state.shots[0], revision: command.expectedRevision + 1 };
+      return command.type === 'shot.update'
+        ? { commandId: command.commandId, projectId: project.id, revision: state.shots[0].revision }
+        : { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.saveShot(shot.id, 3, { prompt: 'Revised prompt' });
+  assert.equal(store.getSnapshot().workspace?.shots[0].revision, 4);
+  // The receipt was recorded against revision 3, so the client must refuse locally.
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 4, 0, inspection.inspectionId), /Inspect/);
+  assert.deepEqual(calls.map(command => command.type), ['take.inspect', 'shot.update']);
+});
+
+test('a selection revision change invalidates a receipt bound to the previous selection', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      if (command.type === 'take.select') state.shots[0] = { ...state.shots[0], selectedTakeId: 'take-a', selectionRevision: state.shots[0].selectionRevision + 1 };
+      return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.selectTake(shot.id, 'take-a', 3, 0, inspection.inspectionId);
+  assert.equal(store.getSnapshot().workspace?.shots[0].selectionRevision, 1);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 1, inspection.inspectionId), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 1);
+});
+
+test('a same-revision refresh retains a valid inspection but still requires the exact receipt identity', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => { calls.push(command); return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-a' }; },
+  }) as never);
+  await store.openProject(project.id);
+  const inspection = await store.inspectTake('take-a');
+  await store.refresh();
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 0, 'inspection-from-another-scope'), /Inspect/);
+  assert.deepEqual(calls.map(command => command.type), ['take.inspect']);
+  await store.selectTake(shot.id, 'take-a', 3, 0, inspection.inspectionId);
+  assert.equal(calls[1].type, 'take.select');
+  assert.equal(calls[1].inspectionId, 'inspection-a');
+  assert.equal(calls[1].expectedRevision, 3);
+  assert.equal(calls[1].expectedSelectionRevision, 0);
+});
+
+test('an inspection result that arrives after the shot revision changed is rejected, not cached', async () => {
+  const state: any = workspace(); state.takes = [take]; const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    getWorkspace: async () => structuredClone(state),
+    command: async (command: any) => {
+      calls.push(command);
+      // Another actor saved between the inspect POST and its readback.
+      if (command.type === 'take.inspect') state.shots[0] = { ...state.shots[0], revision: 4 };
+      return { commandId: command.commandId, projectId: project.id, resourceId: 'inspection-late' };
+    },
+  }) as never);
+  await store.openProject(project.id);
+  await assert.rejects(store.inspectTake('take-a'), /Inspect/);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 4, 0, 'inspection-late'), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 0);
+});
+
+test('an inspection result that arrives after navigation cannot authorize a selection', async () => {
+  const other = { ...project, id: 'project-b', name: 'Second project' };
+  const stateA: any = workspace(); stateA.takes = [take];
+  const stateB: any = { ...workspace(other), shots: [], takes: [] };
+  const post = deferred<Receipt>(); const calls: any[] = [];
+  const store = new WorkspaceController(client({
+    listProjects: async () => [project, other],
+    getWorkspace: async (id?: string) => structuredClone(id === other.id ? stateB : stateA),
+    command: async (command: any) => { calls.push(command); return post.promise; },
+  }) as never);
+  await store.openProject(project.id);
+  const inspecting = store.inspectTake('take-a');
+  await store.openProject(other.id);
+  post.resolve({ commandId: calls[0].commandId, projectId: project.id, resourceId: 'inspection-orphan' });
+  await assert.rejects(inspecting, /Inspect/);
+  await store.openProject(project.id);
+  await assert.rejects(store.selectTake(shot.id, 'take-a', 3, 0, 'inspection-orphan'), /Inspect/);
+  assert.equal(calls.filter(command => command.type === 'take.select').length, 0);
 });
