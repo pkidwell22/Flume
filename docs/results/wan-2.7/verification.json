@@ -1,0 +1,130 @@
+{
+  "scope": "One real local application verification; not a universal route or recovery guarantee",
+  "model": "alibaba/wan-2.7",
+  "request": {
+    "duration_seconds": 5,
+    "resolution": "720p",
+    "aspect_ratio": "16:9",
+    "generate_audio": false,
+    "seed": null,
+    "uploaded_images": 0
+  },
+  "provider_reported_cost_usd": "0.50",
+  "application": {
+    "attempts": 1,
+    "owned_takes": 1,
+    "exports": 1,
+    "explicitly_selected": true,
+    "stored_asset_and_export_hashes_matched": true
+  },
+  "capture": {
+    "ui": "Publication-branch production build",
+    "data": "Real test project via read-only API proxy; unpublished plan field omitted for schema compatibility",
+    "network_writes": 0,
+    "playback_advanced": true,
+    "unpublished_storyboard_visible": false,
+    "cropped_to_exclude_unrelated_projects": true,
+    "ui_text_or_states_retouched": false
+  },
+  "assets": [
+    {
+      "path": "docs/results/wan-2.7/flume-wan-2.7.mp4",
+      "bytes": 4686571,
+      "sha256": "097e14c3dd3c53c99c1ad38487eb2b34b2f8df9a9accff64bf65088d0f7e17ef",
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "30/1",
+            "duration": "5.000000",
+            "nb_read_frames": "150"
+          },
+          {
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "r_frame_rate": "0/0",
+            "duration": "5.038005",
+            "nb_read_frames": "217"
+          }
+        ],
+        "format": {
+          "duration": "5.038005",
+          "size": "4686571"
+        }
+      }
+    },
+    {
+      "path": "docs/results/wan-2.7/preview.gif",
+      "bytes": 6159811,
+      "sha256": "443412390488fb3d18ae46ea6959cf039d3f0e22a2283a4d9ec102bfe6b02608",
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "gif",
+            "codec_type": "video",
+            "width": 640,
+            "height": 360,
+            "r_frame_rate": "10/1",
+            "duration": "5.000000",
+            "nb_read_frames": "50"
+          }
+        ],
+        "format": {
+          "duration": "5.000000",
+          "size": "6159811"
+        }
+      }
+    },
+    {
+      "path": "docs/brand/flume-workspace-live.png",
+      "bytes": 946391,
+      "sha256": "d96955d751e341f582cc22c80e5e6671c65fa9216428e5f5e5cd91bb74d59a1a",
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "png",
+            "codec_type": "video",
+            "width": 2096,
+            "height": 2338,
+            "r_frame_rate": "25/1",
+            "nb_read_frames": "1"
+          }
+        ],
+        "format": {
+          "size": "946391"
+        }
+      }
+    },
+    {
+      "path": "docs/brand/flume-take-export.png",
+      "bytes": 604297,
+      "sha256": "60d7cae6b14f9cc6492c7288995a6e74f0c89be56a6a5a7f380474d490a292ad",
+      "media": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "png",
+            "codec_type": "video",
+            "width": 2096,
+            "height": 1926,
+            "r_frame_rate": "25/1",
+            "nb_read_frames": "1"
+          }
+        ],
+        "format": {
+          "size": "604297"
+        }
+      }
+    }
+  ]
+}

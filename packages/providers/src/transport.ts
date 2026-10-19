@@ -116,3 +116,4 @@ export function createTransport(options: OpenRouterVideoOptions) {
   }
   return {request, baseUrl};
 }
+export type Transport = ReturnType<typeof createTransport>;

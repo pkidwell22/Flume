@@ -1,7 +1,8 @@
 import type { Pool } from 'pg';
 import { z } from 'zod';
-import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, estimateH3VideoCost, VIDEO_PRIVACY_MESSAGE,
- type VideoCapability, type VideoReceipt, type ProviderProblem, type VideoCatalogPricing, type H3VideoPricingMetadata } from '@flume/providers';
+import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, estimateH3VideoCost, estimateWanVideoCost, VIDEO_PRIVACY_MESSAGE,
+ isPriorJobVerificationReference, type VideoCapability, type VideoReceipt, type ProviderProblem, type VideoCatalogPricing,
+ type H3VideoPricingMetadata, type WanVideoPricingMetadata, type PriorJobVerificationReference } from '@flume/providers';
 import type { MediaStore } from '@flume/media';
 import { generatedAssetId } from '@flume/media';
 import type { ProviderPort as WorkerProvider, MediaPort as WorkerMedia, ProviderReceipt } from '@flume/worker';
@@ -11,24 +12,41 @@ import { sha256 } from './contracts.ts';
 import { createPhaseStore } from './phase-store.ts';
 
 const H3='minimax/hailuo-3';
+const WAN='alibaba/wan-2.7';
 /** Server-injected retention decision for the historical H3 hold only, not entitlement or spending approval. */
 export type ProviderBridgePrivacyPolicy={readonly h3RetentionDecision:'keep-blocked'|'allow-temporary-retention'};
+/** Server-only pointer to one prior completed job. Never exposed in public capability or review DTOs. */
+export type ProviderBridgeVerificationReference=PriorJobVerificationReference;
 const bodySchema=z.object({model:z.string(),prompt:z.string(),duration:z.number(),resolution:z.string(),aspect_ratio:z.string(),generate_audio:z.boolean(),seed:z.number().optional(),
  frame_images:z.array(z.object({type:z.literal('image_url'),image_url:z.object({url:z.string()}).strict(),frame_type:z.enum(['first_frame','last_frame'])}).strict()).optional()}).strict();
 const issue=(e:ProviderProblem)=>({code:e.providerCode==='zdr-violation-by-account'?'zdr-violation-by-account':e.code,message:e.message});
 /** No environment or credential discovery. The caller must explicitly configure the getter. */
-export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,getApiKey:()=>string|undefined=()=>undefined,transport?:{baseUrl:string;allowLoopbackHttpForTests:true},privacyPolicy?:ProviderBridgePrivacyPolicy) {
+export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,getApiKey:()=>string|undefined=()=>undefined,transport?:{baseUrl:string;allowLoopbackHttpForTests:true},privacyPolicy?:ProviderBridgePrivacyPolicy,verificationReference?:ProviderBridgeVerificationReference) {
  // Only this explicit decision lifts the local hold. A key or account setting is not consent.
  // Snapshot the decision so later caller mutation cannot split catalog and submit policy.
  const h3PrivacyBlocked=privacyPolicy?.h3RetentionDecision!=='allow-temporary-retention';
+ if(verificationReference!==undefined&&!isPriorJobVerificationReference(verificationReference))
+  throw new TypeError('verificationReference must be exactly one exact model id and one exact job id; values are never repaired.');
+ // Snapshot exact identity. This grants no approval and is re-proven on every refresh.
+ const verification=verificationReference===undefined?undefined:{modelId:verificationReference.modelId,jobId:verificationReference.jobId};
+ // Only the currently proven single model, cleared at the start of every refresh.
+ let verifiedModelId:string|null=null;
  const h3:VideoCapability={modelId:H3,name:'Hailuo 3',durations:[5],resolutions:['2K'],aspectRatios:['16:9'],frameRoles:['first_frame','last_frame'],seedSupported:false,generateAudioSupported:false,availability:h3PrivacyBlocked?'blocked':'unknown',blocker:h3PrivacyBlocked?VIDEO_PRIVACY_MESSAGE:null};
- const adapter=createOpenRouterVideoProvider({getApiKey,fetch:globalThis.fetch,timeoutMs:10000,...transport,privacyBlockedModelIds:h3PrivacyBlocked?[H3]:[],maxContentBytes:256*1024*1024,contentTimeoutMs:25000});
+ const adapter=createOpenRouterVideoProvider({getApiKey,fetch:globalThis.fetch,timeoutMs:10000,...transport,...(verification?{verificationReference:verification}:{}),privacyBlockedModelIds:h3PrivacyBlocked?[H3]:[],maxContentBytes:256*1024*1024,contentTimeoutMs:25000});
  const apiBase=transport?.baseUrl??'https://openrouter.ai/api/v1';
  let catalog:VideoCapability[]=[h3];
  let pricing:VideoCatalogPricing[]=[];
- const project=(c:VideoCapability)=>({modelId:c.modelId,name:c.name,durations:[...c.durations],resolutions:[...c.resolutions],aspectRatios:[...c.aspectRatios],frameRoles:c.frameRoles.map(r=>r==='first_frame'?'first':'last'),seedSupported:c.seedSupported,generateAudioSupported:c.generateAudioSupported,
-  availability:c.modelId===H3&&h3PrivacyBlocked?'blocked' as const:!getApiKey()?'blocked' as const:c.availability,
-  blocker:c.modelId===H3&&h3PrivacyBlocked?VIDEO_PRIVACY_MESSAGE:!getApiKey()?'No generation credentials are configured in this local session.':c.blocker});
+ const project=(c:VideoCapability)=>{
+  const privacy=c.modelId===H3&&h3PrivacyBlocked;
+  const noKey=!getApiKey();
+  // Precedence: explicit privacy hold, then missing credential, then a catalog-declared block,
+  // then the single currently proven route. Everything else stays exactly as observed (unknown).
+  const availability=privacy||noKey||c.availability==='blocked'?'blocked' as const
+   :c.modelId===verifiedModelId?'available' as const:c.availability;
+  return {modelId:c.modelId,name:c.name,durations:[...c.durations],resolutions:[...c.resolutions],aspectRatios:[...c.aspectRatios],frameRoles:c.frameRoles.map(r=>r==='first_frame'?'first':'last'),seedSupported:c.seedSupported,generateAudioSupported:c.generateAudioSupported,
+   availability,
+   blocker:privacy?VIDEO_PRIVACY_MESSAGE:noKey?'No generation credentials are configured in this local session.':c.blocker};
+ };
  const provider:ProviderPort={
   async capabilities(){return catalog.map(project);},
   async prepare({projectId,shot}){
@@ -47,8 +65,16 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
     const errors=validateVideoIntent(shot,capability,frames);
     if(errors.length)return {envelope:null,estimatedCostUsd:null,blockers:[...blockers,...errors.map(e=>e.message)]};
     const compiled=compileVideoRequest(shot,capability,frames);
-    // The pure estimator revalidates the complete untrusted SKU map; never prefilter it.
-    const estimate=estimateH3VideoCost(compiled,capability,price as H3VideoPricingMetadata);
+    // The pure estimators revalidate the complete untrusted SKU map; never prefilter it.
+    // Pricing support is explicit per model; no generic model-pricing guesser is used.
+    const estimate=compiled.modelId===WAN
+     ?estimateWanVideoCost(compiled,capability,price as WanVideoPricingMetadata)
+     :estimateH3VideoCost(compiled,capability,price as H3VideoPricingMetadata);
+    // A Wan review without a price could otherwise be approved with an attempt-only allowance.
+    // Require a known estimate for exactly Wan 2.7 before producing a review envelope.
+    if(compiled.modelId===WAN&&estimate.status!=='estimated')
+     return {envelope:null,estimatedCostUsd:null,blockers:[...blockers,{code:'WAN_ESTIMATE_UNKNOWN',
+      message:`A known Wan 2.7 catalog estimate is required before review. The estimator returned unknown (${estimate.reason}).`}]};
     return {envelope:{provider:compiled.provider,modelId:compiled.modelId,body:compiled.bodyJson,bodySha256:compiled.bodySha256},
      estimatedCostUsd:estimate.estimatedCostUsd,...(estimate.status==='estimated'?{estimate}:{}),blockers};
    }catch{return {envelope:null,estimatedCostUsd:null,blockers:[...blockers,'Owned frame preparation failed. Keep the shot and inspect its imported images.']};}
@@ -101,10 +127,17 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
   return toWorkerMedia(content.value);
  }};
  return {provider,workerProvider,workerMedia,async discover(){
+  // Every refresh must re-prove the same exact prior job; a failed refresh cannot keep either
+  // a previously verified route or a previously observed price.
+  verifiedModelId=null;
   const result=await adapter.discoverModels();
   if(result.status==='ok'){
    catalog=result.capabilities.some(c=>c.modelId===H3)?result.capabilities:[h3,...result.capabilities];
    pricing=result.pricing;
-  }else{catalog=[h3];pricing=[];} // A failed refresh cannot keep a previously observed price.
+   const evidence=result.verification;
+   if(evidence?.status==='verified'&&verification&&evidence.modelId===verification.modelId&&evidence.jobId===verification.jobId&&
+    catalog.some(c=>c.modelId===evidence.modelId)&&!(evidence.modelId===H3&&h3PrivacyBlocked)&&getApiKey())
+    verifiedModelId=evidence.modelId;
+  }else{catalog=[h3];pricing=[];} // A failed refresh cannot keep a previously observed price or route.
  }};
 }

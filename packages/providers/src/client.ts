@@ -6,12 +6,20 @@ import {createTransport} from './transport.ts';
 import {readVideoCatalog} from './catalog.ts';
 import {isReceipt, normalizeVideoStatus} from './status.ts';
 import {createContentReader} from './content.ts';
+import {verifyPriorJob, isPriorJobVerificationReference, type CatalogCanonicalIdentity} from './verification.ts';
 
 export function createOpenRouterVideoProvider(options: OpenRouterVideoOptions): OpenRouterVideoPort {
   const transport = createTransport(options);
   const zdrRequired = options.zdrRequired === true;
   const privacyBlockedModelIds = [...(options.privacyBlockedModelIds ?? [])];
   if (privacyBlockedModelIds.length > 1000 || !privacyBlockedModelIds.every(isModelId)) throw new TypeError('privacyBlockedModelIds must contain literal model identifiers.');
+  // Snapshot the optional prior-job pointer so a caller cannot retarget it mid-discovery.
+  // Invalid shapes are passed through untouched so verification refuses them; never repaired.
+  const configuredReference = options.verificationReference;
+  const verificationReference = configuredReference === undefined ? undefined
+    : isPriorJobVerificationReference(configuredReference)
+      ? {modelId: configuredReference.modelId, jobId: configuredReference.jobId}
+      : configuredReference;
   return {
     readContent: createContentReader(options, transport.baseUrl),
     async discoverModels(call: ProviderCallOptions = {}): Promise<DiscoveryResult> {
@@ -25,7 +33,13 @@ export function createOpenRouterVideoProvider(options: OpenRouterVideoOptions): 
         const models = (response.data as {data: Record<string, unknown>[]}).data;
         const pricing = models.map(model => ({provider: 'openrouter' as const, modelId: model.id as string,
           currency: 'USD' as const, pricingSkus: model.pricing_skus ?? null}));
-        return {status: 'ok', capabilities, pricing};
+        // Resolve optional prior-job evidence from this same catalog observation. Never POST,
+        // never retry, and never infer availability for any other model.
+        const verification = verificationReference === undefined ? undefined
+          : await verifyPriorJob(transport, verificationReference,
+            models.map((model): CatalogCanonicalIdentity => ({modelId: model.id as string, canonicalSlug: model.canonical_slug})),
+            {zdrRequired, privacyBlockedModelIds}, call);
+        return {status: 'ok', capabilities, pricing, ...(verification ? {verification} : {})};
       }
       catch {return {status: 'unavailable', error: problem('provider_invalid_catalog', 'The public video catalog is malformed or incomplete. No model availability was inferred.')};}
     },

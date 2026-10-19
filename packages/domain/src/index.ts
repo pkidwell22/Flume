@@ -117,7 +117,7 @@ export const AttemptSchema = z.object({
 export const BlockerSchema = z.object({ code: z.string().min(1), message: z.string().min(1) }).strict();
 /** Informational USD estimate bound to the exact provider body, never a spend cap. */
 export const CatalogEstimateSchema = z.object({
-  status: z.literal('estimated'), provider: z.literal('openrouter'), modelId: z.literal('minimax/hailuo-3'),
+  status: z.literal('estimated'), provider: z.literal('openrouter'), modelId: z.enum(['minimax/hailuo-3', 'alibaba/wan-2.7']),
   currency: z.literal('USD'), bodySha256: Sha256Schema, estimatedCostUsd: MoneyUsdSchema,
   basis: z.literal('catalog_pricing_skus'),
   label: z.literal('Catalog-based estimate; not a quote or provider-enforced spend cap.'),

@@ -82,12 +82,48 @@ export interface VideoPrivacyPolicy {
   privacyBlockedModelIds?: readonly string[];
 }
 
+/**
+ * Server-injected pointer to one PRIOR completed job, used only to decide whether a
+ * single catalog route was already accepted by the current account. It is not an
+ * entitlement flag, approval, spend authorization or promise of future acceptance.
+ */
+export interface PriorJobVerificationReference {
+  /** Exact requested catalog model id; never an alias, suffix-stripped or guessed form. */
+  readonly modelId: string;
+  /** Exact provider job id from that completed submission. */
+  readonly jobId: string;
+}
+export type PriorJobVerificationFailureReason =
+  | 'invalid_reference' | 'model_not_catalogued' | 'canonical_identity_missing' | 'canonical_identity_ambiguous'
+  | 'privacy_blocked' | 'credentials_missing' | 'job_unavailable' | 'job_identity_mismatch'
+  | 'job_not_completed' | 'generation_unavailable' | 'generation_identity_mismatch'
+  | 'generation_not_successful' | 'canonical_model_mismatch';
+/**
+ * Evidence from authenticated, same-origin, read-only job and generation metadata reads.
+ * Signed output URLs and other job payload fields are deliberately never retained.
+ */
+export type PriorJobVerification =
+  | {
+    readonly status: 'verified';
+    readonly modelId: string;
+    readonly jobId: string;
+    readonly generationId: string;
+    readonly canonicalModelId: string;
+  }
+  | {readonly status: 'unverified'; readonly reason: PriorJobVerificationFailureReason; readonly error: ProviderProblem | null};
+
 export interface OpenRouterVideoOptions extends VideoPrivacyPolicy {
   /** Supplied only by server configuration. Never read from environment in this package. */
   getApiKey: () => string | undefined;
   fetch: typeof globalThis.fetch;
   baseUrl?: string;
   allowLoopbackHttpForTests?: boolean;
+
+  /**
+   * Optional prior-job evidence request. When absent, discovery performs no authenticated
+   * reads. When present, a failed or malformed verification yields no verified route.
+   */
+  verificationReference?: PriorJobVerificationReference;
 
   /** Deadline covers headers AND the complete JSON body. Hard ceiling: 120 seconds. */
   timeoutMs?: number;
@@ -117,7 +153,9 @@ export interface VideoCatalogPricing {
   readonly currency: 'USD';
   readonly pricingSkus: unknown;
 }
-export type DiscoveryResult = {status: 'ok'; capabilities: VideoCapability[]; pricing: VideoCatalogPricing[]} | {status: 'unavailable'; error: ProviderProblem};
+export type DiscoveryResult =
+  | {status: 'ok'; capabilities: VideoCapability[]; pricing: VideoCatalogPricing[]; verification?: PriorJobVerification}
+  | {status: 'unavailable'; error: ProviderProblem};
 export type RemoteVideoOutput = {kind: 'openrouter_content'; jobId: string; index: number};
 export type VideoStatusResult =
   | {status: 'queued' | 'running'; receipt: VideoReceipt; providerStatus: 'pending' | 'in_progress'}

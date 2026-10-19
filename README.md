@@ -14,9 +14,28 @@ the same operations. It is built for work where the frame you start from
 and the frame you end on are separate creative decisions, not generic image references.
 
 > **Status: local-development checkpoint.** This is not a production release. The browser app, API,
-> database, and core editing workflow run locally. Live generation is blocked, and no live video
-> result has been verified for the documented checkpoint. Unreleased branch work is not included
-> in the capabilities described below.
+> database, and core editing workflow run locally. A live Wan 2.7 generation has completed through
+> review, approval, owned-media retrieval, take selection and export. Startup remains edit-only
+> unless explicitly configured; other routes are not implicitly enabled. Unreleased branch work
+> is not included in the capabilities described below.
+
+## Product workspace
+
+![Flume with a real generated Wan 2.7 take selected, its original prompt, model settings and review controls.](docs/brand/flume-workspace-live.png)
+
+*The publication-branch UI showing the owned result of a real application run. This is not a mockup
+or a storyboard preview. Screenshot provenance is recorded with the [verification result](docs/results/wan-2.7/README.md).*
+
+## Live generation result
+
+[![Animated preview of Flume's generated orange surveyor robot and glass monolith scene.](docs/results/wan-2.7/preview.gif)](docs/results/wan-2.7/flume-wan-2.7.mp4)
+
+**Wan 2.7 · 5-second video · 1280 × 720 · 30 fps · $0.50 reported cost for this run**
+
+Generated through Flume's **review → approval → single submit → owned take → inspection →
+selection → frozen export** workflow. The animation is a compressed preview; [download the
+unmodified exported MP4](docs/results/wan-2.7/flume-wan-2.7.mp4) or read the
+[settings, output details and verification limits](docs/results/wan-2.7/README.md).
 
 ## Mood film
 
@@ -38,8 +57,8 @@ a demonstration of in-app generation. Provenance and checksums live in
 | Separate start and end frame bindings, with per-role controls | Works locally |
 | Prompt and control editing with persisted, reloadable state | Works locally |
 | Generation review showing both frame roles and provider blockers | Works locally |
-| Generation orchestration, attempts, takes, inspection and selection, MP4 export of a frozen take | Implemented and exercised with controlled sample providers only |
-| Live generation | Blocked by a Hailuo 3 privacy hold |
+| Generation orchestration, owned takes, explicit inspection/selection and frozen MP4 export | Exercised with controlled providers and one live Wan 2.7 application workflow |
+| Live generation | Wan 2.7 verified with explicit configuration and prior-job evidence; default startup remains edit-only |
 | Recovery paths and launcher shutdown edge cases | Not yet fully verified |
 
 ## What works today
@@ -51,16 +70,17 @@ In the local browser you can:
 - Edit and save the prompt and controls, then reload the page to see the saved state.
 - Prepare a generation review showing both frame roles and provider blockers.
 
-These editing actions are verified against the real client and API, not a mock UI. Generation
-orchestration, approval and submission, attempts, owned takes, explicit inspection and selection,
-and MP4 export of a frozen selected take are implemented and exercised with controlled sample
-providers. That coverage does not establish live generation or complete recovery behavior. The
-default app has no sample-generation mode, and new takes are never selected automatically.
+These editing actions are verified against the real client and API, not a mock UI. A live
+five-second, 720p Wan 2.7 request completed through the application's review, approval, single-submit,
+retrieval, playback/inspection, explicit selection and frozen-export path. The returned media was
+downloaded and hash-verified. That bounded result does not prove other models, image-conditioned
+generation, future account access or complete recovery behavior. The default app has no
+sample-generation mode, and new takes are never selected automatically.
 
-![Flume's saved Red Mug shot with separate start and end reference images and no generated takes.](docs/brand/flume-workspace.png)
+![Flume's selected generated take and its ready frozen export with a download action.](docs/brand/flume-take-export.png)
 
-*The current guarded local build, using synthetic, owned sample references — not generated video.
-The visible warning reflects the unchanged app guard, not the account's current ZDR setting.*
+*One generated take, explicitly selected, with a ready frozen export. The screenshot is cropped
+to the product surface; unrelated projects and provider identifiers are not published.*
 
 ## Requirements
 
@@ -106,8 +126,9 @@ rather than stopping a service you do not own.
 4. Reload the page to confirm the state persisted.
 5. Prepare a generation review to see the frozen request and any provider blockers.
 
-The app still shows its Hailuo 3 privacy hold, so this is an editing and review walkthrough, not a
-live-generation demo.
+This walkthrough uses the default edit-only configuration. For an explicitly authorized live
+route, follow [provider configuration](apps/server/PROVIDER-CONFIGURATION.md). Configuration does
+not submit a job: review and approval remain separate actions.
 
 ## Configuration
 
@@ -119,6 +140,10 @@ live-generation demo.
 
 The default runtime is edit-only: it loads no generation credentials, and Hailuo 3 is reported as
 blocked. Setting an API key in your shell does not by itself enable generation.
+
+[Provider configuration](apps/server/PROVIDER-CONFIGURATION.md) documents server-side credential
+injection, account scope, prior-job verification and the supported Wan pricing profile. Do not put
+credentials or real job identifiers in source, frontend settings or committed examples.
 
 ## Local data, security, and shutdown
 
@@ -172,12 +197,16 @@ not forwarded by the test runner, so the Homebrew layout limitation above still 
 
 ## Known limitations
 
-- Earlier Hailuo 3 requests were rejected under OpenRouter's zero-data-retention (ZDR) policy. The
-  account owner now reports ZDR disabled, but that change is not yet a verified live result.
-- The app still holds an explicit Hailuo 3 privacy guard and loads no generation credentials by
-  default. Connecting it to the changed account remains pending validation, and no fallback
-  provider has been selected.
-- Live output retrieval and CDN compatibility are unverified; redirected content fails closed.
+- Video generation requires temporary output retention; OpenRouter does not route ZDR-enforced
+  video requests. The Hailuo 3 local hold remains enabled by default, and that route is not verified.
+- Only the explicitly evidenced model becomes available. The verified Wan profile is narrow:
+  2–10 seconds, 720p/1080p, 16:9, audio requested off and no seed. The live application test covered
+  one five-second, text-only 720p request; other combinations are not live-verified.
+- Prior completion does not guarantee future acceptance. Estimates are catalog-derived, not
+  provider-enforced final-charge caps. There is no automatic model fallback or paid retry.
+- Authenticated output retrieval worked for the tested route without a redirect. Other CDN paths
+  remain unverified, and redirected content fails closed. Inspect actual output streams: the
+  audio-off test still contained an AAC track.
 - Confirmation after accepted writes, recovery from failed take previews, and launcher
   cancellation and cleanup corrections still need final integrated verification. There is no manual
   UI for reconciling uncertain provider acceptance, and a provider response alone does not prove
