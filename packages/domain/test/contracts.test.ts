@@ -53,3 +53,22 @@ test('agent schema excludes approval and nested authority or accidental frame-ro
     assert.equal(domain.CommandSchema.safeParse({ ...commands[2], patch }).success, false);
   }
 });
+
+test('catalog estimates name exactly H3 or Wan 2.7, never an arbitrary or canonical suffix', () => {
+  assert.ok('CatalogEstimateSchema' in domain, 'the shared catalog estimate schema must remain exported');
+  const schema = (domain as any).CatalogEstimateSchema;
+  const estimate = {
+    status: 'estimated', provider: 'openrouter', modelId: 'alibaba/wan-2.7', currency: 'USD',
+    bodySha256: 'a'.repeat(64), estimatedCostUsd: '0.5', basis: 'catalog_pricing_skus',
+    label: 'Catalog-based estimate; not a quote or provider-enforced spend cap.',
+    providerEnforcedSpendCap: false,
+    lineItems: [{ sku: 'duration_seconds', quantity: 5, unitPriceUsd: '0.1', estimatedCostUsd: '0.5' }],
+  };
+  assert.equal(schema.safeParse(estimate).success, true);
+  assert.equal(schema.safeParse({ ...estimate, modelId: 'minimax/hailuo-3' }).success, true);
+  for (const modelId of ['alibaba/wan-2.7-20260414', 'alibaba/wan-2.6', 'another/model', '']) {
+    assert.equal(schema.safeParse({ ...estimate, modelId }).success, false, modelId);
+  }
+  assert.equal(schema.safeParse({ ...estimate, lineItems: [{ ...estimate.lineItems[0], sku: 'audio' }] }).success, false);
+  assert.equal(schema.safeParse({ ...estimate, approved: true }).success, false);
+});

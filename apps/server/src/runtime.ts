@@ -16,6 +16,8 @@ export interface RuntimeOptions {
  getApiKey?:Parameters<typeof createProviderBridge>[3];
  providerTransport?:Parameters<typeof createProviderBridge>[4];
  privacyPolicy?:Parameters<typeof createProviderBridge>[5];
+ /** Server-only prior completed job evidence. Never exposed in public reads. */
+ verificationReference?:Parameters<typeof createProviderBridge>[6];
  mediaTools?:MediaToolPaths;
  outputAdapter?:(store:MediaStore)=>WorkerMedia;
 }
@@ -25,7 +27,7 @@ export async function createRuntime(options:RuntimeOptions){
  if(options.getApiKey&&(!options.scope||options.scope==='openrouter/local-unconfigured/v1'||/[\s\x00-\x1f\x7f]/.test(options.scope)))throw new Error('Provider credentials require an explicit account scope.');
  const {store:mediaStore,media,drain}=await createMediaBridge(options.mediaRoot,options.mediaTools);
  const scope=options.scope??'openrouter/local-unconfigured/v1';
- const bridge=createProviderBridge(pool,mediaStore,scope,options.getApiKey,options.providerTransport,options.privacyPolicy);
+ const bridge=createProviderBridge(pool,mediaStore,scope,options.getApiKey,options.providerTransport,options.privacyPolicy,options.verificationReference);
  const boss=new PgBoss({db:{executeSql:(text,values)=>pool.query(text,values)},schema:'flume_queue',supervise:true,schedule:false});
  boss.on('error',()=>{console.error('Queue supervision error; durable jobs retained.');});
  await boss.start();

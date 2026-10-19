@@ -17,9 +17,10 @@ export interface H3VideoEstimateLineItem {
   readonly unitPriceUsd: string;
   readonly estimatedCostUsd: string;
 }
-export type H3VideoEstimateUnknownReason =
+export type VideoEstimateUnknownReason =
   | 'invalid_request' | 'invalid_capability' | 'model_mismatch' | 'unsupported_controls'
   | 'invalid_pricing' | 'missing_pricing_sku' | 'unsupported_pricing_units' | 'estimate_out_of_range';
+export type H3VideoEstimateUnknownReason = VideoEstimateUnknownReason;
 export type H3VideoCostEstimate = {
   readonly status: 'unknown';
   readonly estimatedCostUsd: null;
@@ -35,6 +36,37 @@ export type H3VideoCostEstimate = {
   readonly label: 'Catalog-based estimate; not a quote or provider-enforced spend cap.';
   readonly providerEnforcedSpendCap: false;
   readonly lineItems: readonly H3VideoEstimateLineItem[];
+};
+
+/** Wan 2.7 uses the same explicit catalog metadata shape; its observed SKU map is duration-only. */
+export interface WanVideoPricingMetadata {
+  readonly provider: 'openrouter';
+  readonly modelId: string;
+  readonly currency: 'USD';
+  readonly pricingSkus: Readonly<Record<string, string>>;
+}
+export interface WanVideoEstimateLineItem {
+  readonly sku: 'duration_seconds';
+  readonly quantity: number;
+  readonly unitPriceUsd: string;
+  readonly estimatedCostUsd: string;
+}
+export type WanVideoEstimateUnknownReason = VideoEstimateUnknownReason;
+export type WanVideoCostEstimate = {
+  readonly status: 'unknown';
+  readonly estimatedCostUsd: null;
+  readonly reason: WanVideoEstimateUnknownReason;
+} | {
+  readonly status: 'estimated';
+  readonly provider: 'openrouter';
+  readonly modelId: 'alibaba/wan-2.7';
+  readonly currency: 'USD';
+  readonly bodySha256: string;
+  readonly estimatedCostUsd: string;
+  readonly basis: 'catalog_pricing_skus';
+  readonly label: 'Catalog-based estimate; not a quote or provider-enforced spend cap.';
+  readonly providerEnforcedSpendCap: false;
+  readonly lineItems: readonly WanVideoEstimateLineItem[];
 };
 
 const H3 = 'minimax/hailuo-3';
@@ -130,5 +162,54 @@ export function estimateH3VideoCost(request: CompiledVideoRequest, capability: V
     bodySha256: request.bodySha256, estimatedCostUsd: usd(total), basis: 'catalog_pricing_skus',
     label: 'Catalog-based estimate; not a quote or provider-enforced spend cap.',
     providerEnforcedSpendCap: false, lineItems,
+  };
+}
+
+const WAN = 'alibaba/wan-2.7';
+const WAN_RESOLUTIONS = ['720p', '1080p'] as const;
+const wanUnknown = (reason: WanVideoEstimateUnknownReason): WanVideoCostEstimate =>
+  ({status: 'unknown', estimatedCostUsd: null, reason});
+
+/**
+ * Pure, single-request estimate for exactly Wan 2.7 using its observed catalog SKU map.
+ * The profile is deliberately narrow: 2-10 integer seconds, 720p/1080p, 16:9, silent,
+ * no seed. Its observed pricing is a flat per-second `duration_seconds` rate; any other
+ * SKU, unit, model identity or control is unknown rather than defaulted or guessed.
+ */
+export function estimateWanVideoCost(request: CompiledVideoRequest, capability: VideoCapability,
+  pricing: WanVideoPricingMetadata): WanVideoCostEstimate {
+  if (!isCompiledRequest(request) || request.body.prompt.length === 0 ||
+    Buffer.byteLength(request.body.prompt) > 65536) return wanUnknown('invalid_request');
+  if (!isCapability(capability)) return wanUnknown('invalid_capability');
+  if (request.modelId !== WAN || capability.modelId !== WAN) return wanUnknown('model_mismatch');
+  const body = request.body;
+  if (!Number.isSafeInteger(body.duration) || body.duration < 2 || body.duration > 10 ||
+    !capability.durations.includes(body.duration) ||
+    !(WAN_RESOLUTIONS as readonly string[]).includes(body.resolution) ||
+    !capability.resolutions.includes(body.resolution) ||
+    body.aspect_ratio !== '16:9' || !capability.aspectRatios.includes(body.aspect_ratio) ||
+    body.generate_audio !== false || Object.hasOwn(body, 'seed')) return wanUnknown('unsupported_controls');
+  const frameImages = body.frame_images ?? [];
+  if (frameImages.some(frame => !capability.frameRoles.includes(frame.frame_type)) ||
+    (frameImages.length === 1 && frameImages[0]!.frame_type === 'last_frame')) return wanUnknown('unsupported_controls');
+  if (!dataRecord(pricing) || pricing.provider !== 'openrouter' || pricing.currency !== 'USD' ||
+    typeof pricing.modelId !== 'string' ||
+    Object.keys(pricing).some(key => !['provider', 'modelId', 'currency', 'pricingSkus'].includes(key)) ||
+    !dataRecord(pricing.pricingSkus)) return wanUnknown('invalid_pricing');
+  if (pricing.modelId !== WAN) return wanUnknown('model_mismatch');
+  // Complete-SKU validation: the observed Wan map is duration-only, so any add-on unit is
+  // unfamiliar and must stay unknown instead of being silently folded into a flat rate.
+  if (Object.keys(pricing.pricingSkus).some(sku => sku !== 'duration_seconds')) return wanUnknown('unsupported_pricing_units');
+  if (!Object.hasOwn(pricing.pricingSkus, 'duration_seconds')) return wanUnknown('missing_pricing_sku');
+  const unitPriceUsd = pricing.pricingSkus.duration_seconds!;
+  if (!isMoney(unitPriceUsd)) return wanUnknown('invalid_pricing');
+  const cost = micros(unitPriceUsd) * BigInt(body.duration);
+  if (cost > MAX_MICROS) return wanUnknown('estimate_out_of_range');
+  return {
+    status: 'estimated', provider: 'openrouter', modelId: 'alibaba/wan-2.7', currency: 'USD',
+    bodySha256: request.bodySha256, estimatedCostUsd: usd(cost), basis: 'catalog_pricing_skus',
+    label: 'Catalog-based estimate; not a quote or provider-enforced spend cap.',
+    providerEnforcedSpendCap: false,
+    lineItems: [{sku: 'duration_seconds', quantity: body.duration, unitPriceUsd, estimatedCostUsd: usd(cost)}],
   };
 }
