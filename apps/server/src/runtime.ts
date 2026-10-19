@@ -5,7 +5,7 @@ import { PgBoss } from 'pg-boss';
 import { PgBossPhaseQueue, runWorker, type WorkerDependencies, type ProviderPort as WorkerProvider, type MediaPort as WorkerMedia } from '@flume/worker';
 import { freezeExportSelection, type MediaStore } from '@flume/media';
 import { createPhaseStore, createDispatchQueue } from './phase-store.ts';
-import { createMediaBridge, toOwnedAsset } from './media-bridge.ts';
+import { createMediaBridge, toOwnedAsset, type MediaToolPaths } from './media-bridge.ts';
 import { createProviderBridge } from './provider-bridge.ts';
 import { createExportStore } from './export-store.ts';
 import type { ProviderPort } from './ports.ts';
@@ -13,14 +13,19 @@ import type { ProviderPort } from './ports.ts';
 export interface RuntimeOptions {
  pool:Pool;mediaRoot:string;autoStart?:boolean;scope?:string;
  provider?:ProviderPort;workerProvider?:WorkerProvider;
+ getApiKey?:Parameters<typeof createProviderBridge>[3];
+ providerTransport?:Parameters<typeof createProviderBridge>[4];
+ privacyPolicy?:Parameters<typeof createProviderBridge>[5];
+ mediaTools?:MediaToolPaths;
  outputAdapter?:(store:MediaStore)=>WorkerMedia;
 }
 /** One API process supervises background phases; only the root launcher owns PostgreSQL. */
 export async function createRuntime(options:RuntimeOptions){
  const {pool}=options;
- const {store:mediaStore,media,drain}=await createMediaBridge(options.mediaRoot);
+ if(options.getApiKey&&(!options.scope||options.scope==='openrouter/local-unconfigured/v1'||/[\s\x00-\x1f\x7f]/.test(options.scope)))throw new Error('Provider credentials require an explicit account scope.');
+ const {store:mediaStore,media,drain}=await createMediaBridge(options.mediaRoot,options.mediaTools);
  const scope=options.scope??'openrouter/local-unconfigured/v1';
- const bridge=createProviderBridge(pool,mediaStore,scope);
+ const bridge=createProviderBridge(pool,mediaStore,scope,options.getApiKey,options.providerTransport,options.privacyPolicy);
  const boss=new PgBoss({db:{executeSql:(text,values)=>pool.query(text,values)},schema:'flume_queue',supervise:true,schedule:false});
  boss.on('error',()=>{console.error('Queue supervision error; durable jobs retained.');});
  await boss.start();

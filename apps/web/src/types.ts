@@ -10,7 +10,7 @@ export interface Take { id: string; projectId: string; shotId: string; attemptId
 export interface Attempt { id: string; projectId: string; shotId: string; shotRevision: number; status: 'queued' | 'running' | 'retrieving' | 'ready' | 'blocked' | 'failed' | 'acceptance_unknown'; providerJobId: string | null; errorCode: string | null; message: string | null }
 export interface Review { id: string; projectId: string; shotId: string; shotRevision: number; requestHash: string; prompt: string; controls: Controls; bindings: Bindings; estimatedCostUsd: string | null; blockers: Array<string | { code: string; message: string }>; approved: boolean }
 export interface Export { id: string; projectId: string; shotId: string; takeId: string; shotRevision: number; selectionRevision: number; status: 'queued' | 'running' | 'ready' | 'failed'; assetId: string | null; stale: boolean }
-export interface Capability { modelId: string; name: string; durations: number[]; resolutions: string[]; frameRoles: string[]; seedSupported: boolean; availability: 'available' | 'blocked' | 'unknown'; blocker: string | null }
+export interface Capability { modelId: string; name: string; durations: number[]; resolutions: string[]; aspectRatios?: string[]; frameRoles: string[]; seedSupported: boolean; generateAudioSupported?: boolean; availability: 'available' | 'blocked' | 'unknown'; blocker: string | null }
 export interface Workspace { project: Project | null; shots: Shot[]; assets: Asset[]; takes: Take[]; attempts: Attempt[]; reviews: Review[]; exports: Export[]; capabilities: Capability[] }
 export type CommandIntent =
   | { type: 'project.create'; name: string; brief: string }
