@@ -145,6 +145,10 @@ Tests use controlled providers with real disposable PostgreSQL clusters and FFmp
 need no provider keys and no production `DATABASE_URL`. Run suites sequentially in a clean
 environment, never against a shared database or the persistent `.flume/` store.
 
+Tooling tests look for PostgreSQL through `PG_BIN`, `pg_config --bindir`, the macOS
+Homebrew location, then `PATH`. Tests using this discovery helper explicitly **skip** when
+PostgreSQL is unavailable; a skipped test is not a pass. Check the skip count when reviewing results.
+
 PostgreSQL tests require a short, canonical absolute scratch path that you own. Set `TMPDIR` to that
 path, using only letters, numbers, underscores, dots, slashes, and hyphens; Unix socket length limits
 also apply. Server and database tests additionally require `FLUME_TEST_SCRATCH_ALLOWED` to match the
