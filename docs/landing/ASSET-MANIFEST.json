@@ -1,64 +1,65 @@
 {
-  "kind": "Static rendered export of the Flume landing-page design",
+  "kind": "GitHub-specific static adaptation of the Flume landing-page design",
   "not_live_application_screenshots": true,
-  "width": 1440,
-  "height": 7171,
+  "website_controls_removed": true,
+  "width": 1000,
+  "height": 4841,
   "images": [
     {
       "file": "01-hero.png",
-      "width": 1440,
-      "height": 720,
-      "bytes": 1133170,
-      "sha256": "a22ba70fc891d83daca9f05f8ca35c168a965f2cc904e062b0e7805098d21c31"
+      "width": 1000,
+      "height": 669,
+      "bytes": 769672,
+      "sha256": "805c0f7575e5fb9e8c5cd308ca8ffebdc92799a3d4056a0d4780d763ce1e4726"
     },
     {
       "file": "02-what-its-for.png",
-      "width": 1440,
-      "height": 511,
-      "bytes": 70960,
-      "sha256": "ec42417dedf5e5e2844f57900c2ad8f24008235ac11d2a0797b838f99a40f918"
+      "width": 1000,
+      "height": 405,
+      "bytes": 57464,
+      "sha256": "2aefe6b09b5d4ab53225d0c72411b4c78359354d1a1dad4bf7fc35b227bb57f0"
     },
     {
       "file": "03-workflow.png",
-      "width": 1440,
-      "height": 1137,
-      "bytes": 163121,
-      "sha256": "5632328198435a273d853ee22c141ddecc7d22879e68e0726517ef93e5b3eeed"
+      "width": 1000,
+      "height": 855,
+      "bytes": 129392,
+      "sha256": "8713f5e26c6aa0331695b4180b8d38b3f68fcf42b5d5bf73c9fb1d968657b1bc"
     },
     {
       "file": "04-detail.png",
-      "width": 1440,
-      "height": 1108,
-      "bytes": 1296378,
-      "sha256": "f67e405476cb281a973bc4a35d2f9f169cf2201ddf203b90c898d3d10d244392"
+      "width": 1000,
+      "height": 652,
+      "bytes": 778959,
+      "sha256": "8013632f03f533a6ff7a935435b48a0381c9ff7ce1e70fd4adc77dddb9571b1c"
     },
     {
       "file": "05-preview.png",
-      "width": 1440,
-      "height": 1333,
-      "bytes": 476735,
-      "sha256": "93ebb28d2108848fceaf2af774e4993723db73e1cc372c3221145bb8f799e563"
+      "width": 1000,
+      "height": 859,
+      "bytes": 231972,
+      "sha256": "cd6828c721999e4ddde8fdf7752ee302d10294c15d2da86569fb69742ad8e303"
     },
     {
       "file": "06-showcase.png",
-      "width": 1440,
-      "height": 1473,
-      "bytes": 517823,
-      "sha256": "17cab3f43b538ee79f3e58af5195b67ce91162ad806b01ddf8e9d792da3ae503"
+      "width": 1000,
+      "height": 664,
+      "bytes": 276125,
+      "sha256": "5c15ce1e8f93b2c41163a7dbda4427945c091b402c4eb9fc600aee25d899403a"
     },
     {
       "file": "07-open-source.png",
-      "width": 1440,
-      "height": 765,
-      "bytes": 95024,
-      "sha256": "3add774109758092c6ec3a0071f1ef646c6fb585ef1ce4a1810e2646915466d5"
+      "width": 1000,
+      "height": 642,
+      "bytes": 76023,
+      "sha256": "8438ee4c767113eb99b63190da896e0a86ed9e140c63ad968f7ab2373fc5eac3"
     },
     {
       "file": "08-footer.png",
-      "width": 1440,
-      "height": 124,
-      "bytes": 14724,
-      "sha256": "c25aeec4de42a5ee5f1c1332026b37ec7193f19ab64da858a248f2498e2e7362"
+      "width": 1000,
+      "height": 95,
+      "bytes": 14088,
+      "sha256": "9017dbee7f49b2d5f720306083a8ab8b6f35605785123600f96b057fa55fe7ab"
     }
   ]
 }

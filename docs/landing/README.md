@@ -2,25 +2,33 @@
 
 [← README](../../README.md) · [Development and verification](../../DEVELOPMENT.md)
 
-The repository's visual introduction is the saved forest landing-page design, exported as eight
-PNG sections. It preserves the page's composition, Archivo and IBM Plex Mono typography,
-photography, copy and prototype labels rather than recreating the page in GitHub's default type.
+The repository's visual introduction is a **GitHub-specific static adaptation** of the saved forest
+landing-page design, presented as eight PNG sections. It retains the forest imagery, Archivo and
+IBM Plex Mono typography, editorial layout and prototype labels, while removing website-only UI.
+The original interactive landing page is unchanged.
+
+Removed from the images: navigation links, GitHub/scroll CTAs, workflow-preview links, preview tabs,
+illustration action buttons, aspect-ratio controls, the empty video placeholder and the clone/copy
+widget. The masthead is now a simple wordmark and descriptor. Usable links and the copyable clone
+command remain ordinary Markdown beneath the images.
 
 ## What is being shown
 
-These are **rendered exports of a design page**, not live-canvas captures and not screenshots of
-the running Flume application. The page was rendered at 1440 CSS pixels wide, at 1× pixel ratio,
-with all scroll-revealed content visible and motion disabled. A small local adapter replaced the
-design canvas runtime; local image and font files replaced hosted asset references. The standalone
-source export is retained separately, not shipped as part of this README update.
+These are **rendered design images**, not live-canvas captures and not screenshots of the running
+Flume application. The README edition was rendered at 1000 CSS pixels wide, at 1× pixel ratio, with
+all content visible and motion disabled. Typography and spacing were adjusted for GitHub's narrower
+content column. The saved page was first resolved through its local canvas adapter, then adapted
+into standalone static HTML with no scripts or interactive elements. Local files supply the images
+and fonts. That rendering source is retained separately, not shipped as a website in this update.
 
 The coordinator decoded all eight PNGs and compared their concatenated RGB pixels with the full-page
-export: they are identical. Together they form a 1440 × 7171 page. GitHub may introduce small gaps
+export: they are identical. Together they form a 1000 × 4841 page. GitHub may introduce small gaps
 between sections and scales the images to its content width. Open an image to inspect it at full size.
 
 The forest and house photographs are AI-generated design-study stills, **not Flume generation
-results**. The workspace preview retains its visible **“Prototype · fixture data”** label. Its missing
-end-frame and video slots are intentional, labelled empty states, not failed image loads.
+results**. The workspace illustration retains an explicit **prototype with fixture data** label.
+Its missing end-frame is an intentional labelled state, not a failed image load. The website's
+unattached-video placeholder is omitted from the README rather than presented as playable media.
 
 The design includes the intended sound and mixed-export workflow. That is not a claim those features
 are in the published application checkpoint. See the [current capabilities](../../DEVELOPMENT.md#at-a-glance)
@@ -84,17 +92,17 @@ photograph, not output from Flume.
 [Preview image](05-preview.png)
 
 **Prototype · fixture data.** The preview shows a timber house on a soundstage as the opening frame,
-a labelled missing closing frame, shot direction, fixture model settings and an empty take list.
-The Direct tab is captured; the Review and Sound tabs pictured beside it are not interactive here.
+a labelled missing closing frame, shot direction and fixture model settings.
+It is a static illustration of the directing view; the tabs and action buttons have been removed.
 The model name and settings are explicitly fixture values, not evidence of a live provider request.
 
 ### 6. Worlds, built and lit
 
 [Showcase image](06-showcase.png)
 
-Portrait and landscape studies of a timber house set on a soundstage. The page shows an aspect-ratio
-selector and an explicitly empty clip slot: no video is attached to that design page. The photographs
-are design studies, not extracted film frames. Real, separately documented creative media remains
+Portrait and widescreen studies of a timber house set on a soundstage. The aspect-ratio selector
+and empty clip placeholder have been removed. These photographs are design studies, not extracted
+film frames. Real, separately documented creative media remains
 available in [the mood-film collection](../../readme-promos/README.md).
 
 ### 7. Yours to run, read and change
@@ -119,10 +127,11 @@ stills, not Flume output. Interface views are prototypes with fixture data.”
 
 ## Links and interaction
 
-The pictured navigation, buttons, tabs, aspect controls and copy button are pixels in the README,
-not working controls. Real Markdown links beneath the images lead to setup, current capabilities,
-verified results and the mood film. Private design-board links are not published. GitHub cannot
-execute the original page's JavaScript, CSS layout or motion inside a README.
+The rendered README edition contains no anchors, buttons, inputs, selectors, tabs, navigation,
+video elements or scripts. Real Markdown links beneath the images lead to setup, current
+capabilities, verified results and the mood film; the clone command is selectable and copyable text.
+Private design-board links are not published. GitHub does not need to execute the original page's
+JavaScript, CSS layout or motion to display this edition.
 
 ## Assets and typography
 
