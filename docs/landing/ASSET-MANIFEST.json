@@ -1,0 +1,64 @@
+{
+  "kind": "Static rendered export of the Flume landing-page design",
+  "not_live_application_screenshots": true,
+  "width": 1440,
+  "height": 7171,
+  "images": [
+    {
+      "file": "01-hero.png",
+      "width": 1440,
+      "height": 720,
+      "bytes": 1133170,
+      "sha256": "a22ba70fc891d83daca9f05f8ca35c168a965f2cc904e062b0e7805098d21c31"
+    },
+    {
+      "file": "02-what-its-for.png",
+      "width": 1440,
+      "height": 511,
+      "bytes": 70960,
+      "sha256": "ec42417dedf5e5e2844f57900c2ad8f24008235ac11d2a0797b838f99a40f918"
+    },
+    {
+      "file": "03-workflow.png",
+      "width": 1440,
+      "height": 1137,
+      "bytes": 163121,
+      "sha256": "5632328198435a273d853ee22c141ddecc7d22879e68e0726517ef93e5b3eeed"
+    },
+    {
+      "file": "04-detail.png",
+      "width": 1440,
+      "height": 1108,
+      "bytes": 1296378,
+      "sha256": "f67e405476cb281a973bc4a35d2f9f169cf2201ddf203b90c898d3d10d244392"
+    },
+    {
+      "file": "05-preview.png",
+      "width": 1440,
+      "height": 1333,
+      "bytes": 476735,
+      "sha256": "93ebb28d2108848fceaf2af774e4993723db73e1cc372c3221145bb8f799e563"
+    },
+    {
+      "file": "06-showcase.png",
+      "width": 1440,
+      "height": 1473,
+      "bytes": 517823,
+      "sha256": "17cab3f43b538ee79f3e58af5195b67ce91162ad806b01ddf8e9d792da3ae503"
+    },
+    {
+      "file": "07-open-source.png",
+      "width": 1440,
+      "height": 765,
+      "bytes": 95024,
+      "sha256": "3add774109758092c6ec3a0071f1ef646c6fb585ef1ce4a1810e2646915466d5"
+    },
+    {
+      "file": "08-footer.png",
+      "width": 1440,
+      "height": 124,
+      "bytes": 14724,
+      "sha256": "c25aeec4de42a5ee5f1c1332026b37ec7193f19ab64da858a248f2498e2e7362"
+    }
+  ]
+}
