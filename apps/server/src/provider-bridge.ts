@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import { z } from 'zod';
-import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, estimateH3VideoCost, estimateWanVideoCost, VIDEO_PRIVACY_MESSAGE,
+import { createOpenRouterVideoProvider, compileVideoRequest, validateVideoIntent, estimateH3VideoCost, estimateWanVideoCost,
  isPriorJobVerificationReference, type VideoCapability, type VideoReceipt, type ProviderProblem, type VideoCatalogPricing,
  type H3VideoPricingMetadata, type WanVideoPricingMetadata, type PriorJobVerificationReference } from '@flume/providers';
 import type { MediaStore } from '@flume/media';
@@ -12,6 +12,7 @@ import { sha256 } from './contracts.ts';
 import { createPhaseStore } from './phase-store.ts';
 
 const H3='minimax/hailuo-3';
+export const H3_RETENTION_HOLD_MESSAGE = "Hailuo 3 is blocked by Flume's local retention policy. This is separate from your OpenRouter account ZDR settings. Enabling this route requires an explicit decision to allow temporary video retention; editing remains available.";
 const WAN='alibaba/wan-2.7';
 /** Server-injected retention decision for the historical H3 hold only, not entitlement or spending approval. */
 export type ProviderBridgePrivacyPolicy={readonly h3RetentionDecision:'keep-blocked'|'allow-temporary-retention'};
@@ -31,7 +32,7 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
  const verification=verificationReference===undefined?undefined:{modelId:verificationReference.modelId,jobId:verificationReference.jobId};
  // Only the currently proven single model, cleared at the start of every refresh.
  let verifiedModelId:string|null=null;
- const h3:VideoCapability={modelId:H3,name:'Hailuo 3',durations:[5],resolutions:['2K'],aspectRatios:['16:9'],frameRoles:['first_frame','last_frame'],seedSupported:false,generateAudioSupported:false,availability:h3PrivacyBlocked?'blocked':'unknown',blocker:h3PrivacyBlocked?VIDEO_PRIVACY_MESSAGE:null};
+ const h3:VideoCapability={modelId:H3,name:'Hailuo 3',durations:[5],resolutions:['2K'],aspectRatios:['16:9'],frameRoles:['first_frame','last_frame'],seedSupported:false,generateAudioSupported:false,availability:h3PrivacyBlocked?'blocked':'unknown',blocker:h3PrivacyBlocked?H3_RETENTION_HOLD_MESSAGE:null};
  const adapter=createOpenRouterVideoProvider({getApiKey,fetch:globalThis.fetch,timeoutMs:10000,...transport,...(verification?{verificationReference:verification}:{}),privacyBlockedModelIds:h3PrivacyBlocked?[H3]:[],maxContentBytes:256*1024*1024,contentTimeoutMs:25000});
  const apiBase=transport?.baseUrl??'https://openrouter.ai/api/v1';
  let catalog:VideoCapability[]=[h3];
@@ -39,13 +40,13 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
  const project=(c:VideoCapability)=>{
   const privacy=c.modelId===H3&&h3PrivacyBlocked;
   const noKey=!getApiKey();
-  // Precedence: explicit privacy hold, then missing credential, then a catalog-declared block,
+  // Report missing configuration first; a local retention hold is not an account ZDR observation.
   // then the single currently proven route. Everything else stays exactly as observed (unknown).
   const availability=privacy||noKey||c.availability==='blocked'?'blocked' as const
    :c.modelId===verifiedModelId?'available' as const:c.availability;
   return {modelId:c.modelId,name:c.name,durations:[...c.durations],resolutions:[...c.resolutions],aspectRatios:[...c.aspectRatios],frameRoles:c.frameRoles.map(r=>r==='first_frame'?'first':'last'),seedSupported:c.seedSupported,generateAudioSupported:c.generateAudioSupported,
    availability,
-   blocker:privacy?VIDEO_PRIVACY_MESSAGE:noKey?'No generation credentials are configured in this local session.':c.blocker};
+   blocker:noKey?'No generation credentials are configured in this local session.':privacy?H3_RETENTION_HOLD_MESSAGE:c.blocker};
  };
  const provider:ProviderPort={
   async capabilities(){return catalog.map(project);},
@@ -56,7 +57,7 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
    if(!capability)return {envelope:null,estimatedCostUsd:null,blockers:['The requested model is absent from the verified catalog. No fallback was selected.']};
    const blockers:{code:string;message:string}[]=[];
    const availability=project(capability);
-   if(availability.blocker)blockers.push({code:capability.modelId===H3&&h3PrivacyBlocked?'provider_privacy_blocked':'PROVIDER_UNAVAILABLE',message:availability.blocker});
+   if(availability.blocker)blockers.push({code:availability.blocker===H3_RETENTION_HOLD_MESSAGE?'provider_privacy_blocked':'PROVIDER_UNAVAILABLE',message:availability.blocker});
    if(availability.availability==='unknown')blockers.push({code:'ENTITLEMENT_UNKNOWN',message:'Catalog presence does not establish entitlement. This route has not been verified.'});
    try{
     const firstFrame=await resolveFrame(media,projectId,shot.bindings.firstFrameAssetId,'first_frame');
@@ -98,7 +99,9 @@ export function createProviderBridge(pool:Pool,media:MediaStore,scope:string,get
     await createPhaseStore(pool).store.observeReceipt(intent.key,intent,receipt);
     return {kind:'blocked',issue:issue(result.error)};
    }
-   return {kind:result.status==='blocked'?'blocked':result.status==='failed'?'rejected':'unknown',issue:issue(result.error)};
+   const reportedIssue=issue(result.error);
+   if(h3PrivacyBlocked&&intent.request.modelId===H3&&result.error.code==='provider_privacy_blocked'&&result.error.httpStatus===null&&result.error.providerCode===null)reportedIssue.message=H3_RETENTION_HOLD_MESSAGE;
+   return {kind:result.status==='blocked'?'blocked':result.status==='failed'?'rejected':'unknown',issue:reportedIssue};
   },
   async status(receipt,signal){
    const result=await adapter.status(await toReceipt(receipt),{signal});

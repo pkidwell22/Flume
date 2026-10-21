@@ -101,6 +101,12 @@ FLUME_API_URL=http://127.0.0.1:4410 npm run dev --workspace=@flume/web -- --host
 
 For the chat lane, the browser contract remains same-origin `/api`; no container hostname or credential belongs in frontend source.
 
+## Generation availability versus account ZDR
+
+The default Docker stack is edit-only: a text-chat secret does not configure the video provider, and media workers remain disabled. Its generation warning reports missing generation credentials; it does not infer the account's Zero Data Retention settings.
+
+Separately, the Hailuo 3 route has an application-local temporary-retention hold (`FLUME_H3_RETENTION_DECISION=keep-blocked` by default). This is not a live observation of the OpenRouter dashboard. An explicit `allow-temporary-retention` decision lifts only that local hold, not credential, entitlement, pricing, worker, review or approval requirements. Actual upstream `zdr-violation-by-account`, guardrail or request errors remain provider privacy errors. No account setting is changed automatically.
+
 ## Worker/provider enablement
 
 Do not enable the worker override merely to make health green. Before using `compose.workers.yaml`, an operator must:
