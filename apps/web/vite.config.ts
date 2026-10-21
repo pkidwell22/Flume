@@ -5,7 +5,9 @@ if (!['127.0.0.1', 'localhost', '[::1]'].includes(apiOrigin.hostname) || apiOrig
   throw new Error('FLUME_API_URL must be a plain loopback HTTP origin.');
 }
 export default defineConfig({
-  server: { host: '127.0.0.1', port: 4310, strictPort: true, allowedHosts: ['localhost'], proxy: { '/api': { target: apiOrigin.origin, changeOrigin: false } } },
+  // The target is constrained to loopback above. Rewriting only Host lets a frontend-only
+  // dev server reach the stable gateway; browser Origin and X-Flume-Client remain untouched.
+  server: { host: '127.0.0.1', port: 4310, strictPort: true, allowedHosts: ['localhost'], proxy: { '/api': { target: apiOrigin.origin, changeOrigin: true } } },
   preview: { host: '127.0.0.1', port: 4173, strictPort: true },
   build: { target: 'es2022' },
 });

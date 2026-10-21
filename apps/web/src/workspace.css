@@ -144,6 +144,29 @@
 .fl-workspace__provider-blocker strong { color: var(--fl-warning); font-weight: 600; }
 .fl-workspace__provider-blocker p { overflow-wrap: anywhere; }
 .fl-workspace__provider-blocker p > span { color: var(--fl-muted); }
+.fl-chat-shell { position: fixed; z-index: 45; inset: 64px 16px 16px auto; width: min(760px, calc(100vw - 32px)); display: flex; flex-direction: column; border: 1px solid var(--fl-ghost-line); border-radius: 12px; background: var(--fl-surface); box-shadow: 0 28px 80px rgb(0 0 0 / .6); overflow: clip; }
+.fl-chat-shell__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--fl-line); font-size: 13px; }
+.fl-chat { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); }
+.fl-chat__rail { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-right: 1px solid var(--fl-line); overflow: auto; }
+.fl-chat__rail > button:not(.fl-btn) { padding: 9px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fl-text-2); text-align: left; overflow-wrap: anywhere; }
+.fl-chat__rail > button[aria-current='true'] { border-color: var(--fl-tungsten); color: var(--fl-ink); background: var(--fl-control); }
+.fl-chat__main { min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.fl-chat__main > header { display: flex; align-items: center; gap: 10px; }
+.fl-chat__main > header button { flex-shrink: 0; white-space: nowrap; }
+.fl-chat__messages { flex: 1; min-height: 160px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.fl-chat__messages article { max-width: 86%; padding: 11px 13px; border: 1px solid var(--fl-rule); border-radius: 10px; background: var(--fl-well); }
+.fl-chat__messages article[data-role='user'] { align-self: flex-end; background: #211d16; border-color: #4d422e; }
+.fl-chat__messages p { margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fl-chat__messages small { display: block; margin-top: 7px; color: var(--fl-muted); font: 10.5px var(--fl-font-mono); }
+.fl-chat__context { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 9px; border: 1px dashed var(--fl-rule); border-radius: 9px; color: var(--fl-muted); font: 10.5px var(--fl-font-mono); }
+.fl-chat__context b { color: var(--fl-text-2); }.fl-chat__context label { display: inline-flex; gap: 4px; }
+.fl-chat textarea { min-height: 76px; resize: vertical; border: 1px solid var(--fl-rule); border-radius: 9px; background: var(--fl-well); color: var(--fl-ink); padding: 10px; font: inherit; }
+.fl-chat__actions { display: flex; align-items: center; justify-content: space-between; color: var(--fl-muted); font: 11px var(--fl-font-mono); }
+.fl-chat__proposal-mode,.fl-chat__proposal { display:grid; gap:8px; padding:12px; border:1px solid var(--fl-line); border-radius:9px; background:rgb(255 255 255 / .025); }
+.fl-chat__proposal h3 { margin:0 0 4px; font:600 11px/1.3 var(--fl-font-mono); text-transform:uppercase; color:var(--fl-muted); }
+.fl-chat__proposal p { margin:0; white-space:pre-wrap; }
+.fl-chat__empty { margin: auto; text-align: center; }.fl-chat__empty button { margin-top: 12px; }
+@media (max-width: 640px) { .fl-chat { grid-template-columns: 1fr; }.fl-chat__rail { max-height: 120px; border-right: 0; border-bottom: 1px solid var(--fl-line); }.fl-chat-shell { inset: 58px 6px 6px; width: auto; } }
 .fl-workspace__status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fl-unknown); }
 .fl-workspace__composer { min-width: 0; padding-top: 4px; }
 
@@ -237,6 +260,33 @@
 .fl-empty { display: grid; justify-items: center; gap: 14px; width: min(100%, 640px); margin-block: auto; text-align: center; }
 .fl-empty h1 { font-weight: 800; font-size: 42px; line-height: 1; font-stretch: 78%; letter-spacing: -.005em; text-wrap: balance; }
 .fl-empty > p:not(.fl-eyebrow, .fl-mono) { max-width: 470px; color: var(--fl-text-2); font-size: 14px; text-wrap: pretty; }
+
+/* Mountain Meadow artwork belongs to the welcome state, never the user's footage. */
+.fl-empty.fl-workspace__environment { position: relative; isolation: isolate; width: 100%; max-width: 1440px; min-height: clamp(460px, 64vh, 720px); flex-shrink: 0; padding: clamp(28px, 5vw, 72px); border: 1px solid rgb(183 199 196 / .12); border-radius: var(--fl-radius-surface); background: #10231f; text-align: left; justify-items: start; }
+.fl-workspace__landscape { position: absolute; inset: 0; border-radius: inherit; z-index: -2; pointer-events: none; }
+.fl-workspace__landscape img { width: 100%; height: 100%; display: block; border-radius: inherit; object-fit: cover; object-position: 66% center; }
+.fl-workspace__environment::after { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none; background: linear-gradient(90deg, rgb(5 16 16 / .94), rgb(5 16 16 / .76) 31%, rgb(5 16 16 / .24) 65%, rgb(5 16 16 / .08)), linear-gradient(0deg, rgb(5 16 16 / .5), transparent 60%); }
+.fl-workspace__welcome-copy { display: grid; justify-items: start; align-content: center; gap: 20px; width: min(100%, 440px); }
+.fl-empty.fl-workspace__environment h1 { max-width: 10ch; color: #e8eeea; font-size: clamp(42px, 4.8vw, 68px); line-height: 1.02; text-wrap: balance; }
+.fl-workspace__welcome-copy > p:not(.fl-eyebrow, .fl-mono, .fl-workspace__byline) { max-width: 360px; color: #c5d4ce; font-size: 15px; line-height: 1.65; text-wrap: pretty; }
+.fl-workspace__welcome-copy .fl-eyebrow { color: #b7c7c4; overflow-wrap: anywhere; }
+.fl-workspace__welcome-copy .fl-mono { max-width: 350px; color: #b7c7c4; font-size: 11px; line-height: 1.7; }
+.fl-workspace__byline { margin-top: 12px; color: #b7c7c4; font-size: 12px; font-weight: 500; letter-spacing: .035em; }
+@media (forced-colors: active) {
+  .fl-workspace__landscape, .fl-workspace__environment::after { display: none; }
+  .fl-empty.fl-workspace__environment { background: Canvas; border-color: CanvasText; }
+  .fl-empty.fl-workspace__environment h1, .fl-workspace__welcome-copy p { color: CanvasText; }
+}
+
+@media (max-width: 600px) {
+  .fl-empty.fl-workspace__environment { min-height: 620px; padding: 28px 24px; align-items: end; }
+  .fl-workspace__landscape img { object-position: center top; }
+  .fl-workspace__environment::after { background: linear-gradient(180deg, rgb(5 16 16 / .05), rgb(5 16 16 / .18) 24%, rgb(5 16 16 / .86) 53%, #091717 100%); }
+  .fl-workspace__welcome-copy { gap: 16px; }
+  .fl-empty.fl-workspace__environment h1 { font-size: 42px; }
+  .fl-workspace__welcome-copy > p:not(.fl-eyebrow, .fl-mono, .fl-workspace__byline) { font-size: 14px; }
+}
+
 .fl-workspace__loading-frame { width: min(100%, 560px); aspect-ratio: 16 / 9; border-radius: 3px; background: var(--fl-well); outline: 1px dashed #4a4842; outline-offset: -1px; }
 
 /* Takes view: the real TakeReview — inspect, then select. */

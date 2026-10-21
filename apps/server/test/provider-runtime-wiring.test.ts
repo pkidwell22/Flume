@@ -19,8 +19,8 @@ test('default and incomplete configurations remain edit-only with zero submissio
  try{
   await migrate(db.pool);
   const cases:[Record<string,string>,string][]=[
-   [{},'provider_privacy_blocked'],
-   [{OPENROUTER_API_KEY:'synthetic-runtime-key'},'provider_privacy_blocked'],
+   [{},'PROVIDER_UNAVAILABLE'],
+   [{OPENROUTER_API_KEY:'synthetic-runtime-key'},'PROVIDER_UNAVAILABLE'],
    [{FLUME_PROVIDER_MODE:'openrouter',FLUME_OPENROUTER_SCOPE:'openrouter/fixture/v1',FLUME_H3_RETENTION_DECISION:'allow-temporary-retention'},'PROVIDER_UNAVAILABLE'],
    [{FLUME_PROVIDER_MODE:'openrouter',FLUME_OPENROUTER_SCOPE:'openrouter/fixture/v1',OPENROUTER_API_KEY:'synthetic-runtime-key'},'provider_privacy_blocked'],
   ];

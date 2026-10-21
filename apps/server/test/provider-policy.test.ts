@@ -10,7 +10,7 @@ import {createProviderBridge, type ProviderBridgePrivacyPolicy} from '../src/pro
 import type {Shot} from '../src/dto.ts';
 import type {DispatchIntent, ProviderReceipt} from '@flume/worker';
 import {sha256} from '../src/contracts.ts';
-import {VIDEO_PRIVACY_MESSAGE} from '@flume/providers';
+import {H3_RETENTION_HOLD_MESSAGE} from '../src/provider-bridge.ts';
 import {createCommandService} from '../src/service.ts';
 import {ownedPostgres} from '../../../packages/database/test/owned-postgres.ts';
 
@@ -133,9 +133,10 @@ test('default, key-only and non-affirmative policies keep H3 blocked with zero P
       if (discover) await bridge.discover();
       const capability = (await bridge.provider.capabilities()).find(c => c.modelId === H3)!;
       assert.equal(capability.availability, 'blocked');
-      assert.equal(capability.blocker, VIDEO_PRIVACY_MESSAGE);
-      assert.deepEqual((await prepare(bridge)).blockers, [{code: 'provider_privacy_blocked', message: VIDEO_PRIVACY_MESSAGE}]);
-      assert.deepEqual(await bridge.workerProvider.submit(intent(), signal()), {kind: 'blocked', issue: {code: 'provider_privacy_blocked', message: VIDEO_PRIVACY_MESSAGE}});
+      const message=key ? H3_RETENTION_HOLD_MESSAGE : 'No generation credentials are configured in this local session.';
+      assert.equal(capability.blocker, message);
+      assert.deepEqual((await prepare(bridge)).blockers, [{code: key ? 'provider_privacy_blocked' : 'PROVIDER_UNAVAILABLE', message}]);
+      assert.deepEqual(await bridge.workerProvider.submit(intent(), signal()), {kind: 'blocked', issue: {code: 'provider_privacy_blocked', message: H3_RETENTION_HOLD_MESSAGE}});
     }
   }
   assert.equal(f.requests.filter(r => r.method === 'POST').length, 0);
@@ -147,7 +148,7 @@ test('controlled transport configuration cannot implicitly override the explicit
   const f = await fixture(t);
   const transport = {...f.transport, privacyBlockedModelIds: []};
   const bridge = createProviderBridge(noDatabase, noMedia, scope, () => 'SYNTHETIC-FIXTURE-KEY', transport);
-  assert.deepEqual(await bridge.workerProvider.submit(intent(), signal()), {kind: 'blocked', issue: {code: 'provider_privacy_blocked', message: VIDEO_PRIVACY_MESSAGE}});
+  assert.deepEqual(await bridge.workerProvider.submit(intent(), signal()), {kind: 'blocked', issue: {code: 'provider_privacy_blocked', message: H3_RETENTION_HOLD_MESSAGE}});
   assert.deepEqual(f.requests, []);
 });
 

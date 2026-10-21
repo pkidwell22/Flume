@@ -19,7 +19,19 @@ test('empty workspace invites creation without inventing shots or provider resul
   const html = renderToStaticMarkup(<FlumeApp controller={store} components={parts} autoStart={false} />);
   assert.match(html, /Create a project/);
   assert.match(html, /A place for your next film/);
+  assert.match(html, /by Mountain Meadow Systems/);
+  assert.match(html, /alpine-forest-wide.webp/);
+  assert.match(html, /aria-hidden="true"/);
   assert.doesNotMatch(html, /Editor contract probe|Take review contract probe|Generation complete/);
+});
+
+test('an empty saved project uses house artwork without inventing project media', async () => {
+  const store = controller({ ...empty, project: { id: 'p', name: 'Mountain film', brief: '', revision: 1 } });
+  await store.openProject('p');
+  const html = renderToStaticMarkup(<FlumeApp controller={store} components={parts} autoStart={false} />);
+  assert.match(html, /Mountain film/); assert.match(html, /Create a shot/);
+  assert.match(html, /by Mountain Meadow Systems/); assert.match(html, /alpine-forest-wide.webp/);
+  assert.equal(store.getSnapshot().workspace?.assets.length, 0);
 });
 
 test('an open shot composes the editor in the slate beside the saved frame pair, with results and activity one step away', async () => {

@@ -123,6 +123,25 @@ test('the reel sizes clips by saved duration, disambiguates titles and holds nav
   assert.equal(clips[1]!.getAttribute('aria-disabled'), null);
 });
 
+test('FlumeApp refreshes the WorkspaceController after chat apply without clearing edits made in flight', async () => {
+  const workspace = base(); let reads = 0, resolveApply!: (value: any) => void;
+  const controller = new WorkspaceController({
+    listProjects: async () => [workspace.project!], getWorkspace: async () => { reads++; return structuredClone(workspace); },
+    command: async () => { throw Error('chat apply uses the server port'); }, uploadAsset: async () => { throw Error('unused'); },
+  });
+  await controller.openProject('p'); const target = workspace.shots[0]!;
+  const proposal = { id: 'proposal', shotId: target.id, instruction: 'Tighten', before: { title: target.title, prompt: target.prompt, revision: target.revision }, after: { title: 'Tighter', prompt: 'A tighter direction' }, rationale: 'Specific', status: 'pending' as const, failure: null, appliedRevision: null };
+  const chatPort: any = { models: async () => ['google/gemini-2.5-flash-lite'], list: async () => [{ id: 'conversation', projectId: 'p', title: 'Scene', modelId: 'google/gemini-2.5-flash-lite', messages: [], proposals: [proposal] }], create: async () => { throw Error('unused'); }, rename: async () => { throw Error('unused'); }, stream: async () => {}, propose: async () => { throw Error('unused'); }, dismissProposal: async () => { throw Error('unused'); }, applyProposal: async () => new Promise(resolve => { resolveApply = resolve; }) };
+  render(<FlumeApp controller={controller} components={parts} chatPort={chatPort} autoStart={false} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Chat' })); await React.act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+  await React.act(async () => controller.markDirty(target.id));
+  await React.act(async () => resolveApply({ ...proposal, status: 'applied', appliedRevision: 2 }));
+  assert.equal(reads, 2, 'initial open plus authoritative apply readback');
+  assert.equal(controller.getSnapshot().dirtyShotIds.has(target.id), true, 'in-flight edits remain dirty');
+  assert.match(document.body.textContent ?? '', /Applied · saved revision 2/);
+});
+
 test('the activity drawer groups every attempt by shot, counts what needs watching and returns focus on Escape', async () => {
   const { commands } = await mount();
   const opener = screen.getByRole('button', { name: /^Activity/ });

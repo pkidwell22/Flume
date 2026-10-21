@@ -9,20 +9,29 @@ import type { DrawerKind } from './Drawers.tsx';
 import { ownedMediaUrl, restoreOpener } from './shell.ts';
 import { frameState, isUnknown, needsWatching, shotNumber, shotPhase, shotTakes } from './shot-status.ts';
 import type { FrameKey } from './shot-status.ts';
+import { ChatPanel, type ChatPort } from './ChatPanel.tsx';
+
+function WelcomeLandscape() {
+  return <picture className="fl-workspace__landscape" aria-hidden="true">
+    <source media="(max-width: 600px)" srcSet="/art/alpine-forest-portrait.webp" />
+    <img src="/art/alpine-forest-wide.webp" width={1584} height={672} alt="" decoding="async" fetchPriority="high" />
+  </picture>;
+}
 
 export { ownedMediaUrl } from './shell.ts';
 
-export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; autoStart?: boolean; initialProjectId?: string; previewLabel?: string }
+export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; chatPort?: ChatPort; autoStart?: boolean; initialProjectId?: string; previewLabel?: string }
 
 const drawerTitles: Record<DrawerKind, string> = { projects: 'Projects', library: 'Library', activity: 'Activity', export: 'Export' };
 
-export function FlumeApp({ controller, components, autoStart = true, initialProjectId, previewLabel }: FlumeAppProps) {
+export function FlumeApp({ controller, components, chatPort, autoStart = true, initialProjectId, previewLabel }: FlumeAppProps) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const { Brand, TakeReview, ActivityPanel, GenerationReview } = components;
   const drawerId = useId();
   const [creating, setCreating] = useState<'project' | 'shot' | null>(null);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   // The stage view belongs to one shot; another shot always opens on its frames.
   const [stage, setStage] = useState<{ shotId: string | null; view: 'frames' | 'takes' }>({ shotId: null, view: 'frames' });
   const [discardEpoch,setDiscardEpoch] = useState(0);
@@ -110,6 +119,7 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
         <button type="button" className="fl-tbtn fl-workspace__library-button" aria-expanded={openDrawer === 'library'} aria-controls={openDrawer === 'library' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('library')}><span>Library</span><span className="fl-tbtn__meta" aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
         <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'activity'} aria-controls={openDrawer === 'activity' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('activity')}>Activity{watching.length > 0 && <span className="fl-count" data-tone={watching.some(isUnknown) ? 'unknown' : 'running'}><span className="fl-vh">, </span>{watching.length}<span className="fl-vh"> to watch</span></span>}</button>
         <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'export'} aria-controls={openDrawer === 'export' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('export')}>Export</button>
+        {chatPort && <button type="button" className="fl-tbtn" aria-expanded={chatOpen} disabled={!project} onClick={() => setChatOpen(value => !value)}>Chat</button>}
       </div>
     </header>
 
@@ -143,8 +153,8 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
           </Drawer>}
           <div className="fl-workspace__stagescroll">
           {(state.phase === 'loading' || state.phase === 'idle') ? <div className="fl-empty" role="status"><div className="fl-workspace__loading-frame" aria-hidden="true" /><h1>Opening your workspace…</h1><p>Loading saved projects, shots and media.</p></div>
-            : !project ? <div className="fl-empty fl-workspace__welcome"><p className="fl-eyebrow">Flume</p><h1>A place for your next film.</h1><p>Create a project, shape a shot, and give its first and last moments their own frames.</p><button className="fl-btn fl-btn--primary" disabled={held || state.phase === 'error'} onClick={() => setCreating('project')}>Create a project</button><p className="fl-mono fl-dim">Your work saves locally. Generation is reviewed before it is sent.</p></div>
-            : !shot || !workspace ? <div className="fl-empty fl-workspace__first-shot"><p className="fl-eyebrow">{project.name}</p><h1>A new film</h1><p>A shot holds your direction, its start and end frames and every take. Nothing is sent until you approve a request.</p><button className="fl-btn fl-btn--primary" disabled={held} onClick={() => setCreating('shot')}>Create a shot</button></div>
+            : !project ? <div className="fl-empty fl-workspace__welcome fl-workspace__environment"><WelcomeLandscape /><div className="fl-workspace__welcome-copy"><p className="fl-eyebrow">Flume</p><h1>A place for your next film.</h1><p>Create a project, shape a shot, and give its first and last moments their own frames.</p><button className="fl-btn fl-btn--primary" disabled={held || state.phase === 'error'} onClick={() => setCreating('project')}>Create a project</button><p className="fl-mono fl-dim">Your work saves locally. Generation is reviewed before it is sent.</p><p className="fl-workspace__byline">by Mountain Meadow Systems</p></div></div>
+            : !shot || !workspace ? <div className="fl-empty fl-workspace__first-shot fl-workspace__environment"><WelcomeLandscape /><div className="fl-workspace__welcome-copy"><p className="fl-eyebrow">{project.name}</p><h1>A new film</h1><p>A shot holds your direction, its start and end frames and every take. Nothing is sent until you approve a request.</p><button className="fl-btn fl-btn--primary" disabled={held} onClick={() => setCreating('shot')}>Create a shot</button><p className="fl-workspace__byline">by Mountain Meadow Systems</p></div></div>
             : <>
               <RunCard shot={shot} number={shotNumber(shotIndex)} workspace={workspace} onOpenActivity={() => setDrawer('activity')} />
               {view === 'frames' ? <FramePair key={shot.id} shot={shot} workspace={workspace} />
@@ -176,6 +186,7 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
     {review && shot && workspace && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
     {creating && <CreateDialog kind={creating} busy={held} onDismiss={() => setCreating(null)} onCreate={async (name, detail) => { await notify(() => creating === 'project' ? controller.createProject(name, detail) : controller.createShot(name, detail)); setCreating(null); }} />}
     {leaving && <Modal label="Leave this shot?" onDismiss={() => setLeaving(null)}><h2>Keep your changes?</h2><p>This shot has unsaved edits. Stay to save them, or discard the draft before leaving. Saved media is not removed.</p><div className="fl-workspace__dialog-actions"><button className="fl-btn fl-btn--ghost" onClick={() => setLeaving(null)}>Stay here</button><button className="fl-btn fl-btn--ghost" onClick={finishNavigation}>Discard and continue</button></div></Modal>}
+    {chatOpen && chatPort && project && <section className="fl-chat-shell" role="dialog" aria-modal="false" aria-label="Project chat"><div className="fl-chat-shell__head"><strong>Project assistant</strong><button className="fl-drawer__close" aria-label="Close project chat" onClick={() => setChatOpen(false)}>×</button></div><ChatPanel key={project.id} port={chatPort} project={project} shot={shot} dirty={!!shot && state.dirtyShotIds.has(shot.id)} blocked={!!state.busy || !!state.uncertainCommand || (!!shot && state.dirtyShotIds.has(shot.id))} assets={workspace?.assets ?? []} onApplied={async () => { await controller.refresh(); if (controller.getSnapshot().error) throw new Error('Applied proposal readback failed.'); }} /></section>}
   </div>;
 }
 

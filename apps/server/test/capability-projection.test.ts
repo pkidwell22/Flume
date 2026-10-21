@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Pool } from 'pg';
 import type { MediaStore } from '@flume/media';
-import { VIDEO_PRIVACY_MESSAGE } from '@flume/providers';
+import {H3_RETENTION_HOLD_MESSAGE} from '../src/provider-bridge.ts';
 import { FlumeClient, FlumeClientError } from '../../../packages/client/src/index.ts';
 import type { CapabilityView } from '../../../packages/shot-editor/src/types.ts';
 import type { Capability as WebCapability } from '../../web/src/types.ts';
@@ -91,7 +91,7 @@ test('catalog metadata reaches the canonical client and editor view exactly with
   assert.deepEqual(h3.aspectRatios, ['16:9']);
   assert.equal(h3.generateAudioSupported, false);
   assert.equal(h3.availability, 'blocked');
-  assert.equal(h3.blocker, VIDEO_PRIVACY_MESSAGE);
+  assert.equal(h3.blocker, H3_RETENTION_HOLD_MESSAGE);
   assert.equal(fetch.mock.callCount(), 1, 'Discovery only; no prepare, submit or polling');
 
   // A consumer cannot mutate the bridge's retained aspect-ratio metadata.

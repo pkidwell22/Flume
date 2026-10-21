@@ -23,12 +23,12 @@
     "pg-boss": "12.11.1",
     "@fastify/multipart": "10.1.4",
     "pg": "8.23.1",
-    "drizzle-orm": "0.45.4"
+    "drizzle-orm": "0.45.4",
+    "tsx": "4.23.15"
   },
   "devDependencies": {
     "@types/pg": "8.23.1",
     "@types/node": "26.6.5",
-    "typescript": "5.9.3",
-    "tsx": "4.23.15"
+    "typescript": "5.9.3"
   }
 }

@@ -1,0 +1,86 @@
+name: ${COMPOSE_PROJECT_NAME:-flume-stable}
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${FLUME_IMAGE:-flume:stable-candidate}
+    init: true
+    restart: "no"
+    read_only: true
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: flume
+      POSTGRES_USER: flume
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      FLUME_PUBLIC_ORIGIN: http://127.0.0.1:${FLUME_HOST_PORT:-4410}
+      FLUME_DEV_ORIGIN: ${FLUME_DEV_ORIGIN:-}
+      FLUME_GATEWAY_PORT: "8080"
+      FLUME_INTERNAL_API_PORT: "4311"
+      FLUME_PROVIDER_MODE: edit-only
+      FLUME_WORKERS_ENABLED: "0"
+    secrets:
+      - postgres_password
+    volumes:
+      - media_data:/data/media
+    tmpfs:
+      - /tmp:size=512m,mode=0700,uid=10001,gid=10001
+    ports:
+      - 127.0.0.1:${FLUME_HOST_PORT:-4410}:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const q=require('node:http').get({hostname:'127.0.0.1',port:8080,path:'/api/health',headers:{Host:new URL(process.env.FLUME_PUBLIC_ORIGIN).host}},r=>{r.resume();if(r.statusCode!==200)process.exitCode=1});q.setTimeout(2000,()=>q.destroy());q.on('error',()=>{process.exitCode=1})"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    cpus: 2.0
+    mem_limit: 2g
+    pids_limit: 256
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  db:
+    image: postgres:18.0-bookworm
+    restart: "no"
+    environment:
+      POSTGRES_DB: flume
+      POSTGRES_USER: flume
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flume -d flume"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 128
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+
+secrets:
+  postgres_password:
+    file: ${FLUME_POSTGRES_PASSWORD_FILE:-./secrets/postgres_password}
+
+volumes:
+  postgres_data:
+  media_data:

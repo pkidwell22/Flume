@@ -1,0 +1,16 @@
+# Inspection-only opt-in. The running application never uses this as FLUME_STORAGE_ROOT.
+# Active media remains the project-owned writable media_data volume.
+services:
+  app:
+    volumes:
+      - type: volume
+        source: media_reference
+        target: /reference-media
+        read_only: true
+        volume:
+          nocopy: true
+
+volumes:
+  media_reference:
+    external: true
+    name: ${FLUME_MEDIA_REFERENCE_VOLUME:?set the existing volume name explicitly}
