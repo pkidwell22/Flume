@@ -3,8 +3,24 @@ import assert from 'node:assert/strict';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
-import { ProjectRail, type ProjectRailProps } from '../src/ProjectRail.tsx';
-import type { Project, Shot } from '../src/types.ts';
+import { Reel } from '../src/Reel.tsx';
+import { ProjectsDrawer } from '../src/Drawers.tsx';
+import type { Project, Shot, Take } from '../src/types.ts';
+
+// Ported from the ProjectRail suite: the rail's navigation duties now live in the
+// Projects drawer list and the Reel. Same props shape, same behavioural assertions.
+interface NavProps {
+  projects: readonly Project[]; shots: readonly Shot[]; takes?: readonly Take[]; dataState?: 'ready' | 'loading' | 'error';
+  activeProjectId: string | null; activeShotId: string | null; disabled?: boolean;
+  onProjectActivate(id: string): void; onShotActivate(id: string): void; onCreateProject(): void; onCreateShot(): void;
+}
+function Nav({ projects, shots, takes = [], dataState = 'ready', activeProjectId, activeShotId, disabled = false, onProjectActivate, onShotActivate, onCreateProject, onCreateShot }: NavProps) {
+  const project = projects.find(item => item.id === activeProjectId) ?? null;
+  return <>
+    <ProjectsDrawer projects={projects} activeProjectId={activeProjectId} dataState={dataState} disabled={disabled} onOpen={onProjectActivate} onCreate={onCreateProject} />
+    <Reel project={project} shots={shots} workspace={{ assets: [], capabilities: [], attempts: [], takes: [...takes] }} dataState={dataState} activeShotId={activeShotId} disabled={disabled} status="" onShotActivate={onShotActivate} onCreateShot={onCreateShot} />
+  </>;
+}
 
 // Explicit test fixtures, never production defaults or a live workspace.
 const projects: Project[] = [
@@ -16,25 +32,24 @@ function shot(id: string, title: string, projectId = projects[0].id): Shot {
 }
 const shots = [shot('shot:α', 'Open window'), shot('shot/β', 'Crossing')];
 
-async function mount(overrides: Partial<ProjectRailProps> = {}) {
-  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://rail.test' });
+async function mount(overrides: Partial<NavProps> = {}) {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://reel.test' });
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   const calls: unknown[][] = [];
-  const props: ProjectRailProps = {
-    projects, shots, activeProjectId: projects[0].id, activeShotId: shots[0].id, collapsed: false,
+  const props: NavProps = {
+    projects, shots, activeProjectId: projects[0].id, activeShotId: shots[0].id,
     onProjectActivate: id => { calls.push(['project', id]); },
     onShotActivate: id => { calls.push(['shot', id]); },
     onCreateProject: () => { calls.push(['create-project']); },
     onCreateShot: () => { calls.push(['create-shot']); },
-    onCollapsedChange: value => { calls.push(['collapsed', value]); },
     ...overrides,
   };
   const root = createRoot(dom.window.document.getElementById('root')!);
-  const render = async (next: Partial<ProjectRailProps> = {}) => { Object.assign(props, next); await act(async () => { root.render(<ProjectRail {...props} />); }); };
+  const render = async (next: Partial<NavProps> = {}) => { Object.assign(props, next); await act(async () => { root.render(<Nav {...props} />); }); };
   const button = (label: string) => {
     const found = Array.from(dom.window.document.querySelectorAll<HTMLButtonElement>('button')).find(item => item.getAttribute('aria-label') === label || item.textContent === label);
     assert.ok(found, `Missing button: ${label}`);
@@ -52,7 +67,7 @@ test('full long names, supplied order and take-selection facts survive compact r
   const longName = 'A project <not markup> & ' + 'long'.repeat(80);
   const longTitle = 'A shot <script> & ' + 'wide'.repeat(90);
   const selected = { ...shots[1], title: longTitle, selectedTakeId: 'take:saved' };
-  const ui = await mount({ projects: [{ ...projects[0], name: longName }], shots: [selected, shots[0]], activeShotId: selected.id, collapsed: true });
+  const ui = await mount({ projects: [{ ...projects[0], name: longName }], shots: [selected, shots[0]], activeShotId: selected.id });
   try {
     const projectButton = ui.button(`Open project: ${longName}`);
     const shotButton = ui.button(`Open shot: ${longTitle}`);
@@ -67,7 +82,7 @@ test('full long names, supplied order and take-selection facts survive compact r
     assert.match(shotButton.textContent!, /Current shot/);
     assert.match(ui.button('Open shot: Open window').textContent!, /No take selected/);
     assert.equal(ui.dom.window.document.querySelectorAll('script').length, 0);
-    const rendered = Array.from(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] li button'));
+    const rendered = Array.from(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] .fl-clip'));
     assert.deepEqual(rendered.map(item => item.getAttribute('aria-label')), [`Open shot: ${longTitle}`, 'Open shot: Open window']);
     assert.ok(rendered.every(item => item.getAttribute('type') === 'button'));
     await ui.click(`Open shot: ${longTitle}`);
@@ -95,26 +110,26 @@ test('returned unselected takes retain the review cue without inventing selectio
 test('loading and failed data are not presented as verified zero counts', async () => {
   const ui = await mount({ projects: [], shots: [], activeProjectId: null, activeShotId: null, dataState: 'loading' });
   try {
-    const counts = () => Array.from(ui.dom.window.document.querySelectorAll('.fl-project-rail__count')).map(el => el.textContent);
-    assert.deepEqual(counts(), ['—', '—']);
+    const counts = () => Array.from(ui.dom.window.document.querySelectorAll('.fl-reel__bar > .fl-mono')).map(el => el.textContent);
+    assert.deepEqual(counts(), ['—']);
     assert.match(ui.dom.window.document.body.textContent!, /Loading projects/);
     assert.match(ui.dom.window.document.body.textContent!, /Loading shots/);
     assert.doesNotMatch(ui.dom.window.document.body.textContent!, /No projects yet|No shots yet|Choose a project/);
     await ui.render({ dataState: 'error' });
-    assert.deepEqual(counts(), ['—', '—']);
+    assert.deepEqual(counts(), ['—']);
     assert.match(ui.dom.window.document.body.textContent!, /Projects unavailable/);
     assert.match(ui.dom.window.document.body.textContent!, /Shots unavailable/);
     assert.doesNotMatch(ui.dom.window.document.body.textContent!, /No projects yet|No shots yet|Choose a project/);
     await ui.render({ dataState: 'ready' });
-    assert.deepEqual(counts(), ['0', '0']);
+    assert.deepEqual(counts(), ['0 shots · 00:00']);
     assert.match(ui.dom.window.document.body.textContent!, /No projects yet/);
     await ui.render({ projects, shots, activeProjectId: projects[0].id, activeShotId: shots[0].id });
     const row = ui.button('Open shot: Open window');
     await ui.render({ dataState: 'loading', disabled: true });
     assert.ok(ui.button('Open shot: Open window') === row, 'cached rows retain identity during a load');
-    assert.deepEqual(counts(), ['—', '—']);
+    assert.deepEqual(counts(), ['—']);
     await ui.render({ dataState: 'ready', disabled: false });
-    assert.deepEqual(counts(), ['2', '2']);
+    assert.deepEqual(counts(), ['2 shots · 00:10']);
   } finally { await ui.close(); }
 });
 
@@ -125,43 +140,18 @@ test('duplicate names have ordinal accessible context while callbacks retain lit
   try {
     const projectLabels = [`Open project: ${name} (project 1 of 2)`, `Open project: ${name} (project 2 of 2)`];
     const shotLabels = [`Open shot: ${title} (shot 1 of 2 in ${name})`, `Open shot: ${title} (shot 2 of 2 in ${name})`];
-    const labels = () => Array.from(ui.dom.window.document.querySelectorAll('.fl-project-rail__item')).map(el => el.getAttribute('aria-label'));
+    const labels = () => Array.from(ui.dom.window.document.querySelectorAll('.fl-drawer__project, .fl-clip')).map(el => el.getAttribute('aria-label'));
     assert.deepEqual(labels(), [...projectLabels, ...shotLabels]);
     assert.equal(ui.button(projectLabels[1]).title, name);
     assert.equal(ui.button(shotLabels[1]).title, title);
     await ui.click(projectLabels[1]); await ui.click(shotLabels[1]);
     assert.deepEqual(ui.calls, [['project', projects[1].id], ['shot', shots[1].id]]);
     assert.equal(ui.button(shotLabels[0]).getAttribute('aria-current'), 'page');
-    await ui.render({ collapsed: true, disabled: true });
+    await ui.render({ disabled: true });
     assert.deepEqual(labels(), [...projectLabels, ...shotLabels]);
     await ui.click(shotLabels[1]);
     assert.equal(ui.calls.length, 2);
-    assert.equal(ui.dom.window.document.querySelectorAll('.fl-project-rail script').length, 0);
-  } finally { await ui.close(); }
-});
-
-test('collapse only requests a density change and preserves navigation nodes and focus', async () => {
-  const ui = await mount();
-  try {
-    const toggle = ui.button('Collapse project rail');
-    toggle.focus();
-    const current = ui.button('Open shot: Open window');
-    await ui.click('Collapse project rail');
-    assert.deepEqual(ui.calls, [['collapsed', true]]);
-    assert.equal(toggle.getAttribute('aria-expanded'), 'true', 'parent may decline collapse');
-    await ui.render({ collapsed: true });
-    assert.ok(ui.button('Expand project rail') === toggle);
-    assert.ok(ui.button('Open shot: Open window') === current);
-    assert.ok(ui.dom.window.document.activeElement === toggle);
-    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-    const controlledId = toggle.getAttribute('aria-controls');
-    assert.ok(controlledId && ui.dom.window.document.getElementById(controlledId));
-    current.focus();
-    await ui.render({ collapsed: false });
-    assert.ok(ui.dom.window.document.activeElement === current);
-    await ui.render({ collapsed: true, disabled: true });
-    await ui.click('Expand project rail');
-    assert.deepEqual(ui.calls.at(-1), ['collapsed', false], 'density remains usable during a hold');
+    assert.equal(ui.dom.window.document.querySelectorAll('script').length, 0);
   } finally { await ui.close(); }
 });
 
@@ -170,7 +160,7 @@ test('empty and stale selections never invent records, auto-select or enable sho
   try {
     assert.match(ui.dom.window.document.body.textContent!, /No projects yet/);
     assert.match(ui.dom.window.document.body.textContent!, /Choose a project to see its shots/);
-    assert.equal(ui.dom.window.document.querySelectorAll('li').length, 0);
+    assert.equal(ui.dom.window.document.querySelectorAll('.fl-clip, .fl-drawer__project').length, 0);
     assert.equal(ui.button('Add shot').getAttribute('aria-disabled'), 'true');
     await ui.click('Add shot');
     assert.deepEqual(ui.calls, []);
@@ -180,11 +170,11 @@ test('empty and stale selections never invent records, auto-select or enable sho
     assert.match(ui.dom.window.document.body.textContent!, /No shots yet/);
     assert.equal(ui.button('Add shot').hasAttribute('aria-disabled'), false);
     await ui.render({ shots: [...shots, shot('foreign', 'Other project shot', projects[1].id)], activeShotId: 'foreign' });
-    assert.equal(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] li').length, 2);
+    assert.equal(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] .fl-clip').length, 2);
     assert.doesNotMatch(ui.dom.window.document.body.textContent!, /Other project shot/);
     assert.equal(ui.dom.window.document.querySelectorAll('[aria-current="page"]').length, 0);
     await ui.render({ activeProjectId: 'missing-project' });
-    assert.equal(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] li').length, 0);
+    assert.equal(ui.dom.window.document.querySelectorAll('nav[aria-label="Shots"] .fl-clip').length, 0);
     assert.equal(ui.button('Add shot').getAttribute('aria-disabled'), 'true');
     assert.deepEqual(ui.calls, [['create-project']]);
   } finally { await ui.close(); }

@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "prompt-review-regression.test.tsx", "prompt-review-regression.support.ts",
-    "../../src/App.tsx", "../../src/ProjectRail.tsx", "../../../../packages/ui/Brand.tsx",
+    "../../src/App.tsx", "../../src/Reel.tsx", "../../src/Drawers.tsx", "../../../../packages/ui/Brand.tsx",
     "../../../../packages/shot-editor/src/**/*.tsx",
     "../../../../packages/activity-review/src/**/*.tsx",
     "../../../../packages/take-review/src/**/*.tsx"

@@ -26,25 +26,28 @@ function fixture(workspace: Workspace = empty) {
 function inspect(controller: WorkspaceController) {
   const dom = new JSDOM(renderToStaticMarkup(<FlumeApp controller={controller} components={parts} autoStart={false} />));
   try {
-    const rail = dom.window.document.querySelector('.fl-project-rail')!;
-    const media = dom.window.document.querySelector<HTMLButtonElement>('.fl-workspace__library-button')!;
+    const document = dom.window.document;
+    const reel = document.querySelector('.fl-reel')!;
+    const media = document.querySelector<HTMLButtonElement>('.fl-workspace__library-button')!;
     return {
-      counts: [...rail.querySelectorAll('.fl-project-rail__count')].map(el => el.textContent),
-      text: rail.textContent!, media: media.textContent, mediaDisabled: media.disabled,
-      alert: dom.window.document.querySelector('[role="alert"]')?.textContent,
-      descriptions: [...rail.querySelectorAll('.fl-project-rail__take')].map(el => el.textContent),
-      current: rail.querySelector('[aria-current="page"]')?.getAttribute('aria-label'),
-      projectCurrent: rail.querySelector('.fl-project-rail__project[aria-current]')?.getAttribute('aria-label'),
+      counts: [document.querySelector('.fl-workspace__project-meta')!.textContent, reel.querySelector('.fl-reel__bar > .fl-mono')!.textContent],
+      text: reel.textContent!, media: media.textContent, mediaDisabled: media.disabled,
+      alert: document.querySelector('[role="alert"]')?.textContent,
+      descriptions: [...reel.querySelectorAll('.fl-clip__status')].map(el => el.firstChild?.textContent),
+      current: reel.querySelector('[aria-current="page"]')?.getAttribute('aria-label'),
+      projectName: document.querySelector('.fl-workspace__project-name')?.textContent,
+      projectCountLabel: document.querySelector('.fl-workspace__project-meta')?.getAttribute('aria-label'),
+      page: document.body.textContent!,
     };
   } finally { dom.window.close(); }
 }
 
-test('App maps idle/loading and failed project reads to unavailable rail counts, then verified empty to zero', async () => {
+test('App maps idle/loading and failed project reads to unavailable counts, then verified empty to zero', async () => {
   const { controller, behavior } = fixture();
   let view = inspect(controller);
   assert.deepEqual(view.counts, ['—', '—']);
   assert.match(view.text, /Loading shots/);
-  assert.equal(view.media, 'Project media—');
+  assert.equal(view.media, 'Library—');
   assert.equal(view.mediaDisabled, true);
   behavior.failWorkspace = true;
   const opening = controller.openProject('project:α');
@@ -55,11 +58,15 @@ test('App maps idle/loading and failed project reads to unavailable rail counts,
   assert.match(view.text, /Shots unavailable/);
   assert.doesNotMatch(view.text, /Choose a project|No shots yet/);
   assert.match(view.alert!, /Workspace unavailable/);
-  assert.equal(view.media, 'Project media—');
+  assert.equal(view.media, 'Library—');
   behavior.failWorkspace = false;
   await controller.openProject();
-  assert.deepEqual(inspect(controller).counts, ['0', '0']);
-  assert.equal(inspect(controller).media, 'Project media0');
+  // A verified empty read is a real zero, and without a project there is no reel to count.
+  const dom = new JSDOM(renderToStaticMarkup(<FlumeApp controller={controller} components={parts} autoStart={false} />));
+  assert.equal(dom.window.document.querySelector('.fl-workspace__project-meta')!.textContent, '0 projects');
+  assert.equal(dom.window.document.querySelector('.fl-reel'), null);
+  assert.equal(dom.window.document.querySelector('.fl-workspace__library-button')!.textContent, 'Library0');
+  dom.window.close();
 });
 
 test('initial project-list error is not a verified empty list', async () => {
@@ -68,8 +75,9 @@ test('initial project-list error is not a verified empty list', async () => {
   await controller.start();
   const view = inspect(controller);
   assert.deepEqual(view.counts, ['—', '—']);
-  assert.match(view.text, /Projects unavailable/);
-  assert.doesNotMatch(view.text, /No projects yet/);
+  assert.equal(view.projectCountLabel, 'Project count unavailable');
+  assert.match(view.text, /Shots unavailable/);
+  assert.doesNotMatch(view.page, /No projects yet|0 projects/);
   assert.match(view.alert!, /List unavailable/);
 });
 
@@ -80,14 +88,14 @@ test('App preserves authoritative project fallback and all take cues without sel
   // Direct open leaves project index empty; current authoritative project must survive.
   await controller.openProject(project.id);
   let view = inspect(controller);
-  assert.deepEqual(view.counts, ['1', '3']);
-  assert.equal(view.projectCurrent, 'Open project: Project');
+  assert.deepEqual(view.counts, ['1 project', '3 shots · 00:15']);
+  assert.equal(view.projectName, 'Project');
   assert.deepEqual(view.descriptions, ['No take selected', 'Takes to review', 'Take selected']);
   assert.equal(controller.getSnapshot().workspace?.shots[1].selectedTakeId, null);
   assert.equal(view.current, 'Open shot: no-take');
   assert.equal(view.mediaDisabled, false);
   controller.reportError({ code: 'READBACK_FAILED', message: 'Accepted but readback unavailable' });
   view = inspect(controller);
-  assert.deepEqual(view.counts, ['1', '3'], 'loaded snapshot is not erased by a command readback error');
+  assert.deepEqual(view.counts, ['1 project', '3 shots · 00:15'], 'loaded snapshot is not erased by a command readback error');
   assert.match(view.alert!, /readback unavailable/);
 });
