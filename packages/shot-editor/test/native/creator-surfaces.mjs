@@ -21,7 +21,7 @@ let child, timer, log = '', code, signal, report;
 try {
   const main = await readFile(join(root, 'apps/web/src/main.tsx'), 'utf8');
   const imports = [...main.matchAll(/^import ['"]([^'"]+\.css)['"];$/gm)].map(match => match[1]);
-  assert.deepEqual(imports, ['@flume/ui/theme.css', '@flume/shot-editor/styles.css', '../../../packages/shot-editor/src/creator-controls.css', '@flume/take-review/styles.css', '@flume/activity-review/styles.css', './workspace.css', './project-rail.css'], 'Do not test a stale or approximate CSS import order');
+  assert.deepEqual(imports, ['@flume/ui/theme.css', '@flume/shot-editor/styles.css', '../../../packages/shot-editor/src/creator-controls.css', '@flume/take-review/styles.css', '@flume/activity-review/styles.css', './workspace.css'], 'Do not test a stale or approximate CSS import order');
   const css = imports.map(specifier => specifier.startsWith('.') ? resolve(root, 'apps/web/src', specifier) : specifier);
   const fixturePath = join(native, 'creator-surfaces-fixture.tsx');
   const fixture = (await readFile(fixturePath, 'utf8')).replace('/* __ACTUAL_ENTRY_CSS__ */', css.map(p => `import ${JSON.stringify(p)};`).join('\n'));

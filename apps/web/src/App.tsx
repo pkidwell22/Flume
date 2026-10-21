@@ -1,31 +1,46 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { WorkspaceController } from './controller.ts';
 import type { WorkspaceComponents } from './ports.ts';
-import type { Asset, Shot, Workspace, WorkspaceState } from './types.ts';
-import { ProjectRail } from './ProjectRail.tsx';
+import type { Shot, Workspace, WorkspaceState } from './types.ts';
+import { Reel } from './Reel.tsx';
+import { ActivityDrawer, Drawer, ExportDrawer, LibraryDrawer, ProjectsDrawer } from './Drawers.tsx';
+import type { DrawerKind } from './Drawers.tsx';
+import { ownedMediaUrl, restoreOpener } from './shell.ts';
+import { frameState, isUnknown, needsWatching, shotNumber, shotPhase, shotTakes } from './shot-status.ts';
+import type { FrameKey } from './shot-status.ts';
+
+export { ownedMediaUrl } from './shell.ts';
 
 export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; autoStart?: boolean; initialProjectId?: string; previewLabel?: string }
+
+const drawerTitles: Record<DrawerKind, string> = { projects: 'Projects', library: 'Library', activity: 'Activity', export: 'Export' };
 
 export function FlumeApp({ controller, components, autoStart = true, initialProjectId, previewLabel }: FlumeAppProps) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const { Brand, TakeReview, ActivityPanel, GenerationReview } = components;
+  const drawerId = useId();
   const [creating, setCreating] = useState<'project' | 'shot' | null>(null);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
-  const [libraryOpen, setLibraryOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  // The stage view belongs to one shot; another shot always opens on its frames.
+  const [stage, setStage] = useState<{ shotId: string | null; view: 'frames' | 'takes' }>({ shotId: null, view: 'frames' });
   const [discardEpoch,setDiscardEpoch] = useState(0);
-  const uploadRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
   const reviewOpener = useRef<HTMLElement | null>(null);
   const restoreReviewFocus = useRef(false);
   const workspace = state.workspace;
   const project = workspace?.project;
-  const shot = workspace?.shots.find(item => item.id === state.activeShotId);
+  const shots = workspace && project ? workspace.shots.filter(item => item.projectId === project.id) : [];
+  const shotIndex = shots.findIndex(item => item.id === state.activeShotId);
+  const shot = shotIndex >= 0 ? shots[shotIndex] : undefined;
   const review = workspace?.reviews.find(item => item.id === state.reviewId);
   const busy = !!state.busy;
   const held = busy || !!state.uncertainCommand;
   const activeWork = workspace?.attempts.some(item => ['queued', 'running', 'retrieving'].includes(item.status)) || workspace?.exports.some(item => ['queued', 'running'].includes(item.status));
+  const watching = workspace?.attempts.filter(item => item.projectId === project?.id && needsWatching(item)) ?? [];
+  const dataState = state.phase === 'ready' ? 'ready' : state.phase === 'error' ? 'error' : 'loading';
+  const view = stage.shotId === shot?.id ? stage.view : 'frames';
 
   useEffect(() => { if (autoStart) void controller.start(initialProjectId); }, [autoStart, controller, initialProjectId]);
   useEffect(() => {
@@ -68,25 +83,34 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
     if (shot) controller.clearDirty(shot.id);
     leaving?.(); setLeaving(null);
   }
+  function openShot(id: string, nextView: 'frames' | 'takes' = 'frames') {
+    navigate(() => { if (id === shot?.id || controller.selectShot(id)) setStage({ shotId: id, view: nextView }); });
+  }
+  const toggleDrawer = (kind: DrawerKind) => setDrawer(current => current === kind ? null : kind);
   const capability = workspace?.capabilities.find(item => item.modelId === shot?.controls.modelId);
   const blocker = capability?.availability === 'blocked' ? capability.blocker ?? 'This model is not available through the configured provider.' : null;
+  const saveLabel = busy ? 'Saving / checking…' : state.uncertainCommand ? 'Request needs checking' : state.dirtyShotIds.size ? 'Unsaved changes' : state.error ? 'Check saved state' : project ? 'Saved workspace' : 'Local workspace';
+  const phase = shot && workspace ? shotPhase(shot, workspace, { dirty: state.dirtyShotIds.has(shot.id), review: review && !state.dirtyShotIds.has(shot.id) ? review : null }) : null;
+  const projects = project && !state.projects.some(item => item.id === project.id) ? [...state.projects, project] : state.projects;
+  const openDrawer = drawer && (drawer === 'projects' || project) ? drawer : null;
 
   return <div className="fl-theme fl-workspace">
-    <a className="fl-workspace__skip" href="#fl-canvas">Skip to workspace</a>
+    <a className="fl-workspace__skip" href="#fl-canvas">Skip to stage</a>
     {previewLabel && <div className="fl-workspace__preview-label" role="note">{previewLabel}</div>}
-    <header className="fl-workspace__topbar">
+    <header className="fl-workspace__top">
       <div className="fl-workspace__brand"><Brand /></div>
-      <div className="fl-workspace__project-switch">
-        <label htmlFor="fl-project">Project</label>
-        <select id="fl-project" value={project?.id ?? ''} disabled={held || state.phase === 'loading'} onChange={event => { const id = event.target.value; navigate(() => { setLibraryOpen(false); run(() => controller.openProject(id)); }); }}>
-          {!project && <option value="">Choose a project</option>}
-          {state.projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          {project && !state.projects.some(item => item.id === project.id) && <option value={project.id}>{project.name}</option>}
-        </select>
+      <button type="button" className="fl-workspace__project" aria-expanded={openDrawer === 'projects'} aria-controls={openDrawer === 'projects' ? drawerId : undefined} onClick={() => toggleDrawer('projects')}>
+        <span className="fl-workspace__project-name">{project?.name ?? (dataState === 'loading' ? 'Opening…' : 'Choose a project')}</span>
+        <span className="fl-workspace__project-meta" aria-label={dataState !== 'ready' ? 'Project count unavailable' : undefined}>{dataState === 'ready' ? `${projects.length} ${projects.length === 1 ? 'project' : 'projects'}` : '—'}</span>
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4.5l3 3 3-3" /></svg>
+      </button>
+      <div className="fl-workspace__top-r">
+        <span className="fl-workspace__save-state" aria-live="polite">{saveLabel}</span>
+        <button type="button" className="fl-tbtn" disabled={busy || state.phase === 'loading'} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Refresh</button>
+        <button type="button" className="fl-tbtn fl-workspace__library-button" aria-expanded={openDrawer === 'library'} aria-controls={openDrawer === 'library' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('library')}><span>Library</span><span className="fl-tbtn__meta" aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
+        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'activity'} aria-controls={openDrawer === 'activity' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('activity')}>Activity{watching.length > 0 && <span className="fl-count" data-tone={watching.some(isUnknown) ? 'unknown' : 'running'}><span className="fl-vh">, </span>{watching.length}<span className="fl-vh"> to watch</span></span>}</button>
+        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'export'} aria-controls={openDrawer === 'export' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('export')}>Export</button>
       </div>
-      <button className="fl-workspace__quiet" disabled={held} onClick={() => navigate(() => setCreating('project'))}>New project</button>
-      <div className="fl-workspace__save-state" aria-live="polite">{busy ? 'Saving / checking…' : state.uncertainCommand ? 'Request needs checking' : state.dirtyShotIds.size ? 'Unsaved changes' : state.error ? 'Check saved state' : project ? 'Saved workspace' : 'Local workspace'}</div>
-      <button className="fl-workspace__quiet" disabled={busy || state.phase === 'loading'} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Refresh</button>
     </header>
 
     {state.error && <div className="fl-workspace__issue" role="alert">
@@ -95,50 +119,63 @@ export function FlumeApp({ controller, components, autoStart = true, initialProj
         {state.error.currentRevision !== undefined && <p>Your draft is still here. Saved revision is {state.error.currentRevision}. Refresh, then compare or discard the draft in the editor; nothing is overwritten automatically.</p>}
         {state.uncertainCommand && <p>New actions are on hold. Check the saved state, or retry the original request with the same identity. Do not start another generation.</p>}
       </div>
-      <button className="fl-workspace__button" disabled={busy} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Check saved state</button>
-      {state.uncertainCommand && <button className="fl-workspace__button" disabled={busy} onClick={() => run(() => controller.retryUncertain())}>Retry original request</button>}
+      <button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={busy} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Check saved state</button>
+      {state.uncertainCommand && <button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={busy} onClick={() => run(() => controller.retryUncertain())}>Retry original request</button>}
     </div>}
 
-    <div className="fl-workspace__body" data-rail-collapsed={railCollapsed}>
-      <div className="fl-workspace__rail">
-        <ProjectRail projects={project && !state.projects.some(item => item.id === project.id) ? [...state.projects, project] : state.projects}
-          shots={workspace?.shots ?? []} takes={workspace?.takes ?? []} activeProjectId={project?.id ?? null} activeShotId={state.activeShotId}
-          dataState={state.phase === 'idle' ? 'loading' : state.phase}
-          collapsed={railCollapsed} disabled={held || state.phase === 'loading'} onCollapsedChange={setRailCollapsed}
-          onProjectActivate={id => navigate(() => { setLibraryOpen(false); run(() => controller.openProject(id)); })}
-          onShotActivate={id => navigate(() => { setLibraryOpen(false); controller.selectShot(id); })}
-          onCreateProject={() => navigate(() => setCreating('project'))}
-          onCreateShot={() => navigate(() => setCreating('shot'))} />
-        <div className="fl-workspace__sidebar-bottom">
-          <button className="fl-workspace__library-button" aria-pressed={libraryOpen} disabled={!project || held} onClick={() => navigate(() => setLibraryOpen(!libraryOpen))}><span>Project media</span><span aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
-          <p>Imports stay in this project.<br />A take is selected only by you.</p>
+    <div className="fl-workspace__app" data-slate={!!(project && shot) || undefined}>
+      <main id="fl-canvas" className="fl-workspace__stage" tabIndex={-1} aria-label="Stage" data-drawer={openDrawer ? true : undefined}>
+        {shot && workspace && project && <div className="fl-workspace__stagebar">
+          <div className="fl-seg" role="group" aria-label="Stage view">
+            <button type="button" aria-pressed={view === 'frames'} onClick={() => setStage({ shotId: shot.id, view: 'frames' })}>Frames</button>
+            <button type="button" aria-pressed={view === 'takes'} onClick={() => setStage({ shotId: shot.id, view: 'takes' })}>Takes <span className="fl-mono">{shotTakes(shot, workspace.takes).length}</span></button>
+          </div>
+          <span className="fl-workspace__stagebar-mid fl-mono">{shot.selectedTakeId ? 'Selected take on the reel' : 'No selected take'}{state.dirtyShotIds.has(shot.id) ? ' · showing the saved shot' : ''}</span>
+          <span className="fl-mono fl-dim">{shot.controls.aspectRatio} · {shot.controls.resolution}</span>
+        </div>}
+        <div className="fl-workspace__stagebody">
+          {openDrawer && <Drawer key={openDrawer} id={drawerId} title={drawerTitles[openDrawer]} meta={openDrawer === 'library' && workspace ? `${workspace.assets.length} files` : undefined} onClose={() => setDrawer(null)}>
+            {openDrawer === 'projects' ? <ProjectsDrawer projects={projects} activeProjectId={project?.id ?? null} dataState={dataState} disabled={held || state.phase === 'loading'} onOpen={id => navigate(() => { setDrawer(null); run(() => controller.openProject(id)); })} onCreate={() => navigate(() => setCreating('project'))} />
+              : !workspace ? null
+              : openDrawer === 'library' ? <LibraryDrawer workspace={workspace} shots={shots} held={held} onImport={file => run(() => controller.uploadAsset(file))} />
+              : openDrawer === 'activity' ? <ActivityDrawer workspace={workspace} shots={shots} held={held} ActivityPanel={ActivityPanel} onResume={id => notify(() => controller.resume(id))} onOpenShot={id => openShot(id)} />
+              : <ExportDrawer workspace={workspace} shots={shots} held={held} onOpenTakes={id => openShot(id, 'takes')} />}
+          </Drawer>}
+          <div className="fl-workspace__stagescroll">
+          {(state.phase === 'loading' || state.phase === 'idle') ? <div className="fl-empty" role="status"><div className="fl-workspace__loading-frame" aria-hidden="true" /><h1>Opening your workspace…</h1><p>Loading saved projects, shots and media.</p></div>
+            : !project ? <div className="fl-empty fl-workspace__welcome"><p className="fl-eyebrow">Flume</p><h1>A place for your next film.</h1><p>Create a project, shape a shot, and give its first and last moments their own frames.</p><button className="fl-btn fl-btn--primary" disabled={held || state.phase === 'error'} onClick={() => setCreating('project')}>Create a project</button><p className="fl-mono fl-dim">Your work saves locally. Generation is reviewed before it is sent.</p></div>
+            : !shot || !workspace ? <div className="fl-empty fl-workspace__first-shot"><p className="fl-eyebrow">{project.name}</p><h1>A new film</h1><p>A shot holds your direction, its start and end frames and every take. Nothing is sent until you approve a request.</p><button className="fl-btn fl-btn--primary" disabled={held} onClick={() => setCreating('shot')}>Create a shot</button></div>
+            : <>
+              <RunCard shot={shot} number={shotNumber(shotIndex)} workspace={workspace} onOpenActivity={() => setDrawer('activity')} />
+              {view === 'frames' ? <FramePair key={shot.id} shot={shot} workspace={workspace} />
+                : <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={shotTakes(shot, workspace.takes)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} /></section>}
+            </>}
+          </div>
         </div>
-      </div>
-
-      <main id="fl-canvas" className="fl-workspace__main" tabIndex={-1}>
-        {(state.phase === 'loading' || state.phase === 'idle') ? <div className="fl-workspace__loading" role="status"><div className="fl-workspace__loading-frame" /><h1>Opening your workspace…</h1><p>Loading saved projects, shots and media.</p></div>
-          : !project ? <div className="fl-workspace__welcome"><div className="fl-workspace__blank-film" aria-hidden="true"><span /><span /><span /></div><h1>A place for your next film.</h1><p>Create a project, shape a shot, and give its first and last moments their own frames.</p><button className="fl-workspace__button fl-workspace__button--primary" disabled={held || state.phase === 'error'} onClick={() => setCreating('project')}>Create a project</button><p className="fl-workspace__fine">Your work saves locally. Generation is reviewed before it is sent.</p></div>
-          : <>
-            <div className="fl-workspace__shot-header"><div><p>{libraryOpen ? 'Project media' : project.name}</p><h1>{libraryOpen ? 'Your source material' : shot?.title ?? 'Make your first shot.'}</h1></div>{libraryOpen ? <button className="fl-workspace__button" onClick={() => setLibraryOpen(false)}>Back to shot</button> : <button className="fl-workspace__quiet" disabled={held} onClick={() => navigate(() => setCreating('shot'))}>Add shot</button>}</div>
-            {libraryOpen ? <section className="fl-workspace__library" aria-label="Project media library">
-              <div className="fl-workspace__library-intro"><p>Import an image, then explicitly choose it as a start or end frame in the shot editor. Importing never changes a shot.</p><button className="fl-workspace__button" disabled={held} onClick={() => uploadRef.current?.click()}>Import image</button><input ref={uploadRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { const file = event.target.files?.[0]; if (file) run(() => controller.uploadAsset(file)); event.currentTarget.value = ''; }} /></div>
-              {workspace.assets.length ? <ul className="fl-workspace__asset-grid">{workspace.assets.map(asset => <li key={asset.id}><figure><div>{asset.kind === 'image' ? <img src={ownedMediaUrl(asset)} alt={asset.filename} /> : <video src={ownedMediaUrl(asset)} controls preload="metadata" playsInline />}</div><figcaption><strong>{asset.filename}</strong><span>{originLabel(asset)} · {asset.width} × {asset.height}</span></figcaption></figure></li>)}</ul> : <p className="fl-workspace__empty-note">No media yet. Import your first image to begin.</p>}
-            </section> : shot ? <>
-              {blocker && <div className="fl-workspace__provider-blocker"><span className="fl-workspace__status-dot" aria-hidden="true" /><p><strong>Generation unavailable.</strong> {blocker} <span>Editing is still available.</span></p></div>}
-              <div className="fl-workspace__editing-layout">
-                <MediaStage key={shot.id} shot={shot} workspace={workspace} />
-                <section className="fl-workspace__composer" aria-label="Shot composer"><EditorBoundary key={`${shot.id}:${discardEpoch}`} shot={shot} workspace={workspace} state={state} controller={controller} components={components} onPrepare={(revision, opener) => { reviewOpener.current = opener; return controller.prepare(shot.id, revision); }} /></section>
-              </div>
-              {review && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
-              <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={workspace.takes.filter(take => take.shotId === shot.id)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} /></section>
-              <section className="fl-workspace__activity" aria-label="Generation activity"><ActivityPanel attempts={workspace.attempts.filter(item => item.shotId === shot.id)} busy={held} onResume={id => notify(() => controller.resume(id))} /></section>
-            </> : <div className="fl-workspace__first-shot"><div className="fl-workspace__empty-aperture" aria-hidden="true" /><p>A shot holds your direction, frame references and every take.</p><button className="fl-workspace__button fl-workspace__button--primary" disabled={held} onClick={() => setCreating('shot')}>Create a shot</button></div>}
-          </>}
       </main>
+
+      {project && shot && workspace && phase && <aside className="fl-workspace__slate" aria-label="Shot slate">
+        <div className="fl-workspace__slatehead">
+          <div className="fl-workspace__shotnum" aria-hidden="true">{shotNumber(shotIndex)}</div>
+          <div>
+            <p className="fl-eyebrow">{project.name}</p>
+            <h1 className="fl-workspace__shottitle"><span className="fl-vh">Shot {shotNumber(shotIndex)}, </span>{shot.title}</h1>
+            <div className="fl-workspace__headmeta"><span className="fl-mono fl-dim">{shot.controls.durationSeconds} s · {shot.controls.aspectRatio} · {shot.controls.resolution}</span><span className="fl-phase" data-phase={phase.key}>{phase.key === 'running' && <span className="fl-pulse" aria-hidden="true" />}{phase.label}</span></div>
+          </div>
+        </div>
+        {blocker && <div className="fl-workspace__provider-blocker"><span className="fl-workspace__status-dot" aria-hidden="true" /><p><strong>Generation unavailable.</strong> {blocker} <span>Editing is still available.</span></p></div>}
+        <section className="fl-workspace__composer" aria-label="Shot composer"><EditorBoundary key={`${shot.id}:${discardEpoch}`} shot={shot} workspace={workspace} state={state} controller={controller} components={components} onPrepare={(revision, opener) => { reviewOpener.current = opener; return controller.prepare(shot.id, revision); }} /></section>
+      </aside>}
+
+      {(project || dataState !== 'ready') && <Reel project={project ?? null} shots={shots} workspace={workspace} dataState={dataState} activeShotId={state.activeShotId} disabled={held || state.phase === 'loading'}
+        status={state.notice ?? 'Original media stays in your project. No generation starts automatically.'}
+        onShotActivate={id => openShot(id)} onCreateShot={() => navigate(() => setCreating('shot'))} />}
     </div>
-    <footer className="fl-workspace__footer"><span role="status">{state.notice ?? (project ? 'Original media stays in your project. No generation starts automatically.' : 'Create something worth keeping.')}</span><span>Flume / Creative workspace</span></footer>
+    {!project && <p className="fl-workspace__footer" role="status">{state.notice ?? 'Create something worth keeping.'}</p>}
+
+    {review && shot && workspace && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
     {creating && <CreateDialog kind={creating} busy={held} onDismiss={() => setCreating(null)} onCreate={async (name, detail) => { await notify(() => creating === 'project' ? controller.createProject(name, detail) : controller.createShot(name, detail)); setCreating(null); }} />}
-    {leaving && <Modal label="Leave this shot?" onDismiss={() => setLeaving(null)}><h2>Keep your changes?</h2><p>This shot has unsaved edits. Stay to save them, or discard the draft before leaving. Saved media is not removed.</p><div className="fl-workspace__dialog-actions"><button className="fl-workspace__button" onClick={() => setLeaving(null)}>Stay here</button><button className="fl-workspace__button" onClick={finishNavigation}>Discard and continue</button></div></Modal>}
+    {leaving && <Modal label="Leave this shot?" onDismiss={() => setLeaving(null)}><h2>Keep your changes?</h2><p>This shot has unsaved edits. Stay to save them, or discard the draft before leaving. Saved media is not removed.</p><div className="fl-workspace__dialog-actions"><button className="fl-btn fl-btn--ghost" onClick={() => setLeaving(null)}>Stay here</button><button className="fl-btn fl-btn--ghost" onClick={finishNavigation}>Discard and continue</button></div></Modal>}
   </div>;
 }
 
@@ -160,34 +197,54 @@ function EditorBoundary({ shot, workspace, state, controller, components, onPrep
   </div>;
 }
 
-export function ownedMediaUrl(asset: Asset, origin = typeof window === 'undefined' ? 'http://flume.local' : window.location.origin): string | undefined {
-  // Media comes from the owned API, never directly from a provider or arbitrary URL.
-  try { const url = new URL(asset.mediaUrl, origin); return url.origin === origin && !url.username && !url.password && url.pathname.startsWith('/api/media/') ? `${url.pathname}${url.search}` : undefined; }
-  catch { return undefined; }
-}
-function originLabel(asset: Asset) { return asset.origin === 'sample' ? 'Sample media' : asset.origin === 'imported' ? 'Imported media' : 'Generated media'; }
+const frameCopy: Record<FrameKey, { label: string; verb: string; empty: string; hint: string }> = {
+  firstFrameAssetId: { label: 'Start frame', verb: 'Opens on', empty: 'Your shot starts here.', hint: 'Choose a start frame in the slate.' },
+  lastFrameAssetId: { label: 'End frame', verb: 'Lands on', empty: 'Give the shot an ending.', hint: 'Choose an end frame in the slate.' },
+};
 
-function MediaStage({ shot, workspace }: { shot: Shot; workspace: Workspace }) {
-  const [view, setView] = useState<'first' | 'last' | 'selected'>(shot.selectedTakeId ? 'selected' : 'first');
-  const [failedId, setFailedId] = useState<string | null>(null);
-  const take = workspace.takes.find(item => item.id === shot.selectedTakeId);
-  const assetId = view === 'first' ? shot.bindings.firstFrameAssetId : view === 'last' ? shot.bindings.lastFrameAssetId : take?.assetId;
-  const asset = workspace.assets.find(item => item.id === assetId);
-  const labels = { first: 'Start frame', last: 'End frame', selected: 'Selected take' };
-  const url = asset && ownedMediaUrl(asset);
-  return <section className="fl-workspace__stage" aria-label="Shot preview">
-    <div className="fl-workspace__stage-toolbar"><div className="fl-workspace__view-switch" role="group" aria-label="Preview source">{(['first', 'last', 'selected'] as const).map(item => <button key={item} aria-pressed={view === item} onClick={() => setView(item)}>{labels[item]}</button>)}</div><span>{shot.controls.aspectRatio}</span></div>
-    <div className={`fl-workspace__screen${asset ? ' fl-workspace__screen--media' : ''}`}>
-      {asset && url && failedId !== asset.id ? asset.kind === 'video' ? <video key={asset.id} src={url} controls playsInline preload="metadata" onError={() => setFailedId(asset.id)} aria-label={`${labels[view]}: ${asset.filename}`} /> : <img key={asset.id} src={url} alt={`${labels[view]}: ${asset.filename}`} onError={() => setFailedId(asset.id)} />
-        : <div className="fl-workspace__stage-empty"><div className="fl-workspace__empty-aperture" aria-hidden="true" /><h2>{asset ? 'This preview could not load.' : view === 'selected' ? 'The choice is yours.' : view === 'first' ? 'Your shot starts here.' : 'Give the shot an ending.'}</h2><p>{asset ? 'Refresh the project to check the owned media. Your shot settings are unchanged.' : view === 'selected' ? 'Inspect a take, then select it. Completed generations are never selected automatically.' : `Import an image and choose it as the ${view === 'first' ? 'start' : 'end'} frame in the editor.`}</p></div>}
+/** The saved shot's two frame roles and direction. Media is owned and shown whole, never cropped. */
+function FramePair({ shot, workspace }: { shot: Shot; workspace: Workspace }) {
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+  return <div className="fl-pair-wrap">
+    <div className="fl-pair">
+      {(['firstFrameAssetId', 'lastFrameAssetId'] as const).map(key => {
+        const copy = frameCopy[key];
+        const frame = frameState(shot, key, workspace);
+        const url = frame.asset && ownedMediaUrl(frame.asset);
+        const shown = !!(frame.asset && url && !failed[frame.asset.id]);
+        return <figure key={key} className="fl-frame" aria-label={copy.label}>
+          <figcaption className="fl-frame__cap"><span className="fl-eyebrow">{copy.label} · {copy.verb}</span><span className="fl-chip" data-kind={frame.kind}>{frame.label}</span></figcaption>
+          <div className="fl-gate" data-kind={frame.kind} data-media={shown || undefined}>
+            {shown && <img key={frame.asset!.id} src={url} alt={`${copy.label}: ${frame.asset!.filename}`} onError={() => setFailed(previous => ({ ...previous, [frame.asset!.id]: true }))} />}
+            {!shown && <div className="fl-gate__msg">{frame.kind === 'missing' ? <><b>File not found</b><span>This shot still points to <span className="fl-mono">{shot.bindings[key]}</span>. Choose a replacement or clear it in the slate.</span></>
+              : frame.asset ? <><b>This preview could not load.</b><span>Refresh the project to check the owned media. Your shot settings are unchanged.</span></>
+              : <><b>{copy.empty}</b><span>{copy.hint}</span></>}</div>}
+            {frame.kind === 'unsupported' && shown && <span className="fl-gate__kept">Kept on the shot. This model doesn’t take {key === 'firstFrameAssetId' ? 'a start' : 'an end'} frame, so review stays blocked until you clear it or change the model.</span>}
+            <i className="fl-cn fl-cn--tl" aria-hidden="true" /><i className="fl-cn fl-cn--tr" aria-hidden="true" /><i className="fl-cn fl-cn--bl" aria-hidden="true" /><i className="fl-cn fl-cn--br" aria-hidden="true" />
+          </div>
+          <div className="fl-frame__file"><span>{frame.asset?.filename ?? (frame.kind === 'missing' ? 'Unavailable image' : 'No frame bound')}</span><span>{frame.asset ? `${frame.asset.width} × ${frame.asset.height}` : ''}</span></div>
+        </figure>;
+      })}
+      <div className="fl-pair__conn" aria-hidden="true"><svg viewBox="0 0 40 12" width="40" height="12" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M1 6h36M32 1.5 37 6l-5 4.5" /></svg><span className="fl-mono">{shot.controls.durationSeconds} s</span></div>
     </div>
-    <div className="fl-workspace__stage-caption"><span>{asset ? originLabel(asset) : 'No frame bound'}{asset && <span> / {asset.filename}</span>}</span><span>{asset ? `${asset.width} × ${asset.height}` : 'Saved shot preview'}</span></div>
-  </section>;
+    <p className="fl-script" data-empty={!shot.prompt.trim() || undefined}><span className="fl-eyebrow">Saved direction</span>{shot.prompt.trim() ? shot.prompt : 'No direction yet. Write it in the slate; it is sent exactly as written.'}</p>
+  </div>;
 }
 
-function restoreOpener(opener: Element | null, surface: HTMLElement) {
-  const active = document.activeElement;
-  if (opener instanceof HTMLElement && opener.isConnected && !opener.matches(':disabled, [aria-disabled="true"]') && !opener.closest('[inert], [hidden]') && opener.getClientRects().length && getComputedStyle(opener).visibility === 'visible' && !document.querySelector('dialog[open]') && (active === document.body || surface.contains(active))) opener.focus();
+/** Shows only what Activity knows. No percentage or time remaining is ever invented. */
+function RunCard({ shot, number, workspace, onOpenActivity }: { shot: Shot; number: string; workspace: Workspace; onOpenActivity(): void }) {
+  const attempts = workspace.attempts.filter(item => item.shotId === shot.id && item.projectId === shot.projectId && needsWatching(item));
+  if (!attempts.length) return null;
+  const unknown = attempts.some(isUnknown);
+  return <div className="fl-run" data-state={unknown ? 'unknown' : 'running'} role="status">
+    <div className="fl-run__copy">
+      <p className="fl-eyebrow">Shot {number} · {attempts.length === 1 ? `revision ${attempts[0]!.shotRevision}` : `${attempts.length} attempts`}</p>
+      <h2>{unknown ? 'Status unknown' : 'Generating'}</h2>
+      <p>{unknown ? 'Flume couldn’t confirm whether the provider accepted this request. Sending it again could create another charge. Check the existing attempt in Activity.' : 'The model doesn’t report progress, so none is shown. You can keep working; new takes are never selected automatically.'}</p>
+    </div>
+    {!unknown && <div className="fl-bar" aria-hidden="true"><span /></div>}
+    <button type="button" className="fl-btn fl-btn--ghost fl-btn--sm" onClick={onOpenActivity}>Open activity</button>
+  </div>;
 }
 
 function Modal({ label, onDismiss, children, busy = false }: { label: string; onDismiss(): void; children: ReactNode; busy?: boolean }) {
@@ -203,5 +260,5 @@ function Modal({ label, onDismiss, children, busy = false }: { label: string; on
 function CreateDialog({ kind, busy, onCreate, onDismiss }: { kind: 'project' | 'shot'; busy: boolean; onCreate(name: string, detail: string): Promise<void>; onDismiss(): void }) {
   const [name, setName] = useState(''); const [detail, setDetail] = useState(''); const [error, setError] = useState<string | null>(null);
   async function submit(event: FormEvent) { event.preventDefault(); try { await onCreate(name, detail); } catch (error) { setError(error instanceof Error ? error.message : 'Could not create this item.'); } }
-  return <Modal label={`Create a ${kind}`} onDismiss={onDismiss} busy={busy}><form onSubmit={submit}><h2>Create a {kind}</h2><p>{kind === 'project' ? 'Give your film a home. You can start with a single shot.' : 'Name the moment. Its direction and frame references come next.'}</p><label htmlFor="fl-create-name">{kind === 'project' ? 'Project name' : 'Shot title'}</label><input autoFocus id="fl-create-name" value={name} onChange={event => setName(event.target.value)} required maxLength={240} disabled={busy} /><label htmlFor="fl-create-detail">{kind === 'project' ? 'Brief' : 'Shot direction'} <span>(optional)</span></label><textarea id="fl-create-detail" rows={4} value={detail} onChange={event => setDetail(event.target.value)} disabled={busy} />{error && <p role="alert">{error}</p>}<div className="fl-workspace__dialog-actions"><button type="button" className="fl-workspace__button" disabled={busy} onClick={onDismiss}>Cancel</button><button className="fl-workspace__button fl-workspace__button--primary" disabled={busy || !name.trim()}>{busy ? 'Creating…' : `Create ${kind}`}</button></div></form></Modal>;
+  return <Modal label={`Create a ${kind}`} onDismiss={onDismiss} busy={busy}><form onSubmit={submit}><h2>Create a {kind}</h2><p>{kind === 'project' ? 'Give your film a home. You can start with a single shot.' : 'Name the moment. Its direction and frame references come next.'}</p><label htmlFor="fl-create-name">{kind === 'project' ? 'Project name' : 'Shot title'}</label><input autoFocus id="fl-create-name" value={name} onChange={event => setName(event.target.value)} required maxLength={240} disabled={busy} /><label htmlFor="fl-create-detail">{kind === 'project' ? 'Brief' : 'Shot direction'} <span>(optional)</span></label><textarea id="fl-create-detail" rows={4} value={detail} onChange={event => setDetail(event.target.value)} disabled={busy} />{error && <p role="alert">{error}</p>}<div className="fl-workspace__dialog-actions"><button type="button" className="fl-btn fl-btn--ghost" disabled={busy} onClick={onDismiss}>Cancel</button><button className="fl-btn fl-btn--primary" disabled={busy || !name.trim()}>{busy ? 'Creating…' : `Create ${kind}`}</button></div></form></Modal>;
 }

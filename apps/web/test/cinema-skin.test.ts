@@ -16,8 +16,8 @@ function rule(source: string, selector: string) {
 test('conditioning images keep full content and have bounded grid minima', () => {
   for (const [source, selector] of [
     [editor, '.fl-shot-editor__image img'],
-    [workspace, '.fl-workspace__shot-image img'],
-    [workspace, '.fl-workspace__screen img, .fl-workspace__screen video'],
+    [workspace, '.fl-gate img'],
+    [workspace, '.fl-insp__prev img, .fl-insp__prev video'],
   ]) {
     const body = rule(source, selector!);
     assert.match(body, /object-fit:\s*contain/);

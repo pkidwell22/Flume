@@ -34,7 +34,7 @@ test('creator surface roles use existing skin tokens, without global overrides',
 test('creator import order is explicit and popup geometry stays in its owner', async () => {
   const main = await readFile(new URL('../../../apps/web/src/main.tsx', import.meta.url), 'utf8');
   const imports = [...main.matchAll(/^import ['"]([^'"]+\.css)['"];$/gm)].map(match => match[1]);
-  assert.deepEqual(imports, ['@flume/ui/theme.css', '@flume/shot-editor/styles.css', '../../../packages/shot-editor/src/creator-controls.css', '@flume/take-review/styles.css', '@flume/activity-review/styles.css', './workspace.css', './project-rail.css']);
+  assert.deepEqual(imports, ['@flume/ui/theme.css', '@flume/shot-editor/styles.css', '../../../packages/shot-editor/src/creator-controls.css', '@flume/take-review/styles.css', '@flume/activity-review/styles.css', './workspace.css']);
   const assembly = await css('creator-controls.css');
   assert.deepEqual([...assembly.matchAll(/@import '([^']+)';/g)].map(match => match[1]), ['./model-picker.css', './generation-settings.css', './prompt-composer.css']);
   for (const source of [await css('model-picker.css'), await css('prompt-composer.css')]) {
