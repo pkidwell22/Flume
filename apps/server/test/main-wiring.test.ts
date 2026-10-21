@@ -10,7 +10,10 @@ test('actual main entry invokes configuration and read-only discovery before ser
  const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  for(const configured of [true,false]){
   const events:string[]=[],logs:string[]=[];let options:any;
+  const unexpectedChat = () => { throw new Error('Chat must not initialize without an explicit store root'); };
   const modules:Record<string,unknown>={
+   './chat-service.ts':{createChatService:unexpectedChat,createOpenRouterChatProvider:unexpectedChat},
+   './chat-store.ts':{createFileChatStore:unexpectedChat},
    pg:{Pool:class {async end(){events.push('pool.close');}}},
    '@flume/database':{async migrate(){events.push('migrate');}},
    './runtime.ts':{async createRuntime(input:any){events.push('runtime');options=input;return {serviceOptions:{},async discover(){events.push('discover');},async close(){events.push('runtime.close');}};}},

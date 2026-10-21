@@ -1,0 +1,15 @@
+# Opt-in text chat only. Media generation workers remain disabled.
+services:
+  app:
+    environment:
+      FLUME_CHAT_STORE_ROOT: /data/chat
+      FLUME_CHAT_API_KEY_FILE: /run/secrets/chat_openrouter
+    secrets:
+      - chat_openrouter
+    volumes:
+      - chat_data:/data/chat
+secrets:
+  chat_openrouter:
+    file: ${FLUME_CHAT_API_KEY_FILE:?Set an absolute private OpenRouter key file path}
+volumes:
+  chat_data:

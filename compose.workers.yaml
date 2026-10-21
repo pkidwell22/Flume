@@ -1,0 +1,17 @@
+# Paid/provider work is deliberately absent from compose.yaml. Use this override only after
+# the operator has audited durable queues and explicitly authorized worker/provider activity.
+services:
+  app:
+    environment:
+      FLUME_WORKERS_ENABLED: "1"
+      FLUME_QUEUE_AUDITED: "1"
+      FLUME_PROVIDER_MODE: openrouter
+      FLUME_OPENROUTER_SCOPE: ${FLUME_OPENROUTER_SCOPE:?set an explicit non-secret account scope}
+      FLUME_H3_RETENTION_DECISION: ${FLUME_H3_RETENTION_DECISION:-keep-blocked}
+      OPENROUTER_API_KEY_FILE: /run/secrets/openrouter_api_key
+    secrets:
+      - openrouter_api_key
+
+secrets:
+  openrouter_api_key:
+    file: ${FLUME_OPENROUTER_API_KEY_FILE:?set an untracked provider secret-file path}

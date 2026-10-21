@@ -1,0 +1,45 @@
+{
+  "provider": "OpenRouter",
+  "model": "google/gemini-3.1-flash-image-preview",
+  "reportedGenerationCostUSD": 0.068651,
+  "requestedCount": 1,
+  "verifiedOriginalCount": 1,
+  "original": {
+    "file": "mountain-meadow-alpine-forest_20261021_012754.jpg",
+    "format": "JPEG",
+    "width": 1584,
+    "height": 672,
+    "bytes": 858347,
+    "sha256": "2f2fc482659d40f37403b8acd07cbb19c5099016a4175982ccb2c4be1b0e2861"
+  },
+  "derivatives": [
+    {
+      "file": "alpine-forest-wide.webp",
+      "format": "WEBP",
+      "width": 1584,
+      "height": 672,
+      "bytes": 167214,
+      "sha256": "804307ff84a4e7ef644ef0101381b9407a17a6fbecd296ba0edc9b096d91f4bf",
+      "sourceCrop": null
+    },
+    {
+      "file": "alpine-forest-portrait.webp",
+      "format": "WEBP",
+      "width": 538,
+      "height": 672,
+      "bytes": 63574,
+      "sha256": "68dd0c4b95b1a9109523c477064cc75b1f13d4172b6c413b7fc8dd8166c39a60",
+      "sourceCrop": [
+        792,
+        0,
+        1330,
+        672
+      ]
+    }
+  ],
+  "notes": [
+    "Original retained unchanged.",
+    "Lossy WebP compression; portrait is an explicit crop. No upscaling or object retouching.",
+    "Decorative application artwork, never an owned project take."
+  ]
+}

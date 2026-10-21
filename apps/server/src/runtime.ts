@@ -64,7 +64,7 @@ export async function createRuntime(options:RuntimeOptions){
   let closing:Promise<void>|undefined;
   return {
    worker,mediaStore,boss,runExport,
-   serviceOptions:{provider:options.provider??bridge.provider,queue:createDispatchQueue(pool,queue,scope),media,workerAvailable:true},
+   serviceOptions:{provider:options.provider??bridge.provider,queue:createDispatchQueue(pool,queue,scope),media,workerAvailable:options.autoStart!==false},
    discover:bridge.discover,
    close:()=>closing??=(async()=>{controller.abort();await Promise.all([loop,exportLoop]);await Promise.allSettled([...activeMedia]);await drain();await boss.stop();})(),
   };
