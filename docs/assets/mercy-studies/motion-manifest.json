@@ -1,0 +1,123 @@
+{
+  "clips": [
+    {
+      "slug": "vow",
+      "originalSha256": "eae91d872edce7e8c0d2d6eca0d160909c2d3cb951431b0913c2b9f9a64e8bbc",
+      "originalBytes": 41185603,
+      "originalDimensions": [
+        1920,
+        1080
+      ],
+      "durationSeconds": 8.0,
+      "originalAudioStreams": 0,
+      "fullDecodePassed": true,
+      "previewSha256": "ea1b5c685b6d6a9f651d81860b08218994bdf9b5acd42f9f2dfdab9f0373848e",
+      "previewBytes": 13712192,
+      "previewDimensions": [
+        1280,
+        720
+      ],
+      "previewHasAudio": false,
+      "derivative": "Full-duration H264 CRF20, Lanczos1280x720, audio removed, faststart; no trim; original preserved",
+      "sampleTimesSeconds": [
+        0.15,
+        0.8363636363636364,
+        1.5227272727272727,
+        2.209090909090909,
+        2.8954545454545455,
+        3.5818181818181816,
+        4.2681818181818185,
+        4.954545454545455,
+        5.6409090909090915,
+        6.327272727272728,
+        7.013636363636364,
+        7.7
+      ],
+      "model": "google/veo-3.1",
+      "providerReportedCostUsd": "1.6",
+      "editorialStatus": "motion-study",
+      "sampledVisualReview": "Strongest first motion test: the supported pair moves away from the departing formation. Several steps rather than exactly one. Not a final edit.",
+      "inputRole": "first_frame"
+    },
+    {
+      "slug": "archive",
+      "originalSha256": "e1a3b24c558b05020c14860c26e31b91ebb701e136e951a9f750415b56c4c8c6",
+      "originalBytes": 14738646,
+      "originalDimensions": [
+        1920,
+        1080
+      ],
+      "durationSeconds": 8.0,
+      "originalAudioStreams": 0,
+      "fullDecodePassed": true,
+      "previewSha256": "2cfb60ba65eed241691ea7dd00c3951e0a99bf8f5772f7a97ff0405d1be2bebb",
+      "previewBytes": 4227865,
+      "previewDimensions": [
+        1280,
+        720
+      ],
+      "previewHasAudio": false,
+      "derivative": "Full-duration H264 CRF20, Lanczos1280x720, audio removed, faststart; no trim; original preserved",
+      "sampleTimesSeconds": [
+        0.15,
+        0.8363636363636364,
+        1.5227272727272727,
+        2.209090909090909,
+        2.8954545454545455,
+        3.5818181818181816,
+        4.2681818181818185,
+        4.954545454545455,
+        5.6409090909090915,
+        6.327272727272728,
+        7.013636363636364,
+        7.7
+      ],
+      "model": "google/veo-3.1",
+      "providerReportedCostUsd": "1.6",
+      "editorialStatus": "motion-study",
+      "sampledVisualReview": "Exchange and gate response are visible. Fine ceramic motif/color continuity softens during the transfer; not cleared as a final prop-continuity shot.",
+      "inputRole": "first_frame"
+    },
+    {
+      "slug": "pilgrim",
+      "originalSha256": "2f42ba71f898423433e9590d52890fc48ee354a68fb0fb6dc368573859392631",
+      "originalBytes": 37172632,
+      "originalDimensions": [
+        1920,
+        1080
+      ],
+      "durationSeconds": 8.0,
+      "originalAudioStreams": 0,
+      "fullDecodePassed": true,
+      "previewSha256": "71d7f9b2a19f8f0c89396bee18626fba4db43e3050387122a14cfa29a0dc5a54",
+      "previewBytes": 10593598,
+      "previewDimensions": [
+        1280,
+        720
+      ],
+      "previewHasAudio": false,
+      "derivative": "Full-duration H264 CRF20, Lanczos1280x720, audio removed, faststart; no trim; original preserved",
+      "sampleTimesSeconds": [
+        0.15,
+        0.8363636363636364,
+        1.5227272727272727,
+        2.209090909090909,
+        2.8954545454545455,
+        3.5818181818181816,
+        4.2681818181818185,
+        4.954545454545455,
+        5.6409090909090915,
+        6.327272727272728,
+        7.013636363636364,
+        7.7
+      ],
+      "model": "google/veo-3.1",
+      "providerReportedCostUsd": "1.6",
+      "editorialStatus": "motion-study",
+      "sampledVisualReview": "Character/animal action and abandoned cargo are present, but the intended sacrifice is not strongly readable without another shot. Motion/world study, not a complete narrative.",
+      "inputRole": "first_frame"
+    }
+  ],
+  "verification": "Full media decode, measured streams and12 timestamped samples per clip. Continuous editorial viewing is not claimed.",
+  "providerReportedVideoCostUsd": "4.8"
+}
