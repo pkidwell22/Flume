@@ -1,0 +1,192 @@
+{
+  "title": "Mercy studies \u2014 original asset pilot",
+  "status": "Visual development and motion-test inputs; not a final-film or deployed-carousel claim",
+  "selectedStillCount": 12,
+  "imageRequestCount": 14,
+  "providerReportedImageCostUsd": "0.9459195",
+  "originality": "Generated original assets. No third-party creator imagery was supplied as image conditioning. Later images use our own generated references.",
+  "assets": [
+    {
+      "id": "VOW-01",
+      "role": "character",
+      "file": "vow-01.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "a70c122a979c42c28b780c7c5f80a26475f17ca32430b23aeea68e586be6ce39",
+      "previewSha256": "f46003ad8f8338b75ea3b6862f79a9c6b64666304c924b9a179797c7885ab718",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "VOW-02",
+      "role": "prop",
+      "file": "vow-02.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "5a9fd2d56fd3c22b9b13b09103627b0dc4715108723e152bc03f13e77556d686",
+      "previewSha256": "d0b49bbae6880b043a3f59ec4590b0b29875a17e2c867ceb07d6ca532b5517ff",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "VOW-03",
+      "role": "environment",
+      "file": "vow-03.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "e3d5a553b683344f03523d4644d8d9070313541a2d9a3a6d71ab573dfbc492af",
+      "previewSha256": "3edfa669faa4555f3b02cd363c2f8e14dd7ef294975df9a53d3531f36440f433",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "VOW-04B",
+      "role": "hero-keyframe",
+      "file": "vow-04b.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "d3ab360eed8a25da686d7820921819bdbd65fa8b9146dfcd31d21c8d0443cca3",
+      "previewSha256": "13670ea61c80723e3f8c7a02d1845d603a392d1e9c700ebeeaf0c7cbdca2c0db",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": [
+        "VOW-04 rejected staging"
+      ]
+    },
+    {
+      "id": "ARCHIVE-01",
+      "role": "character",
+      "file": "archive-01.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "9a71d72c0ce7ceb83ee0c85c34985a536fb455f77ba5cc9f085ecaf9c666a2a7",
+      "previewSha256": "ef56fbdebddd12e7cad329b1e69e6bd1e1a58f7ac363815fe3cfc9a87c35706c",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "ARCHIVE-02",
+      "role": "prop",
+      "file": "archive-02.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "c1d5012e8c3adaff48dd3cc49c5173016a3c374b64d2920a151ec80ac70288ca",
+      "previewSha256": "8aa2a17e145cb166837528af3c42bdf8d271c0cd5a7df403696f7995ab104ff8",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "ARCHIVE-03",
+      "role": "environment",
+      "file": "archive-03.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "abe43d96a727f10f4e49d7d6ab8b3335e2ca0aafa6e8e13d11e918e2c2f196c2",
+      "previewSha256": "0f23a98dea880cd15682df2aaca728647dde78d2b99fb8a8bbd08271a014644b",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "ARCHIVE-04",
+      "role": "hero-keyframe",
+      "file": "archive-04.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "db0a19d078394db0fc07f4005bbeea2cf52e7938a8ef52f641cdfad4eb3e56a1",
+      "previewSha256": "a33f8c840ab71091bf8ff686d8a01c9a317ce852197d6f1adaa725354eda6458",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": [
+        "ARCHIVE-01",
+        "ARCHIVE-02",
+        "ARCHIVE-03"
+      ]
+    },
+    {
+      "id": "PILGRIM-01",
+      "role": "character",
+      "file": "pilgrim-01.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "2ceeb7fabcf52200d1a203197ea40d3d5b4c6cd5495fb0bac540e77bd4678e52",
+      "previewSha256": "726ab48716600a580382de3f1b320919ded309dcf701eb762f9440f2d094f5d6",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": []
+    },
+    {
+      "id": "PILGRIM-02",
+      "role": "prop",
+      "file": "pilgrim-02.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "afef431644a9534f0c7ad8ac1d8bc900f938b9286e327e5784ec5d7a2d947b81",
+      "previewSha256": "a7d927b37dfaa964a13168e2641e0155e88c5db23d85573e3f18bec0803d5183",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": [
+        "PILGRIM-01"
+      ]
+    },
+    {
+      "id": "PILGRIM-03B",
+      "role": "environment",
+      "file": "pilgrim-03b.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "feb89eccac71ac2c5b461f05ff56a1e91b28b3f21f28ea0c890ec7e686254b6d",
+      "previewSha256": "84608a53f94f2e2f26d8c32545e8b0fc770810005b8aee555663bf5b43f27965",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": [
+        "PILGRIM-03 rejected layout"
+      ]
+    },
+    {
+      "id": "PILGRIM-04",
+      "role": "hero-keyframe",
+      "file": "pilgrim-04.webp",
+      "model": "google/gemini-3.1-flash-image",
+      "originalDimensions": [
+        1376,
+        768
+      ],
+      "originalSha256": "6d90a41e1301c1b911f176af3120813c50296c625c7c9bb3f899576a07484980",
+      "previewSha256": "1da68337a1b0433eaa6aa70aa293887605b458e6b110d154e838ae580a2e67cd",
+      "derivative": "WebP quality90, no resize/crop; original PNG retained separately",
+      "inputAssetIds": [
+        "PILGRIM-01",
+        "PILGRIM-02",
+        "PILGRIM-03B"
+      ]
+    }
+  ]
+}

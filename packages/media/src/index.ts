@@ -11,6 +11,8 @@ import { storage, copyLocal, copyHandle, regular, hashFile, writeStream } from '
 import type { Storage } from './storage.ts';
 import { inspectFile } from './inspect.ts';
 export { MediaError, DEFAULT_LIMITS } from './types.ts';
+export { cancelMediaProcesses } from './process.ts';
+export { verifyNativeRgbFrame } from './verified-rgb.ts';
 export type * from './types.ts';
 
 function validateImport(input: ImportInfo) {

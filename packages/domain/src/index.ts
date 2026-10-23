@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+export const CHAT_MODEL_REGISTRY = Object.freeze([
+  Object.freeze({ id: 'ollama/kimi-k3', provider: 'ollama', providerModelId: 'kimi-k3', visual: true, label: 'Kimi K3' }),
+  Object.freeze({ id: 'ollama/gemma4:31b', provider: 'ollama', providerModelId: 'gemma4:31b', visual: true, label: 'Gemma 4 31B' }),
+  Object.freeze({ id: 'google/gemini-2.5-flash-lite', provider: 'openrouter', providerModelId: 'google/gemini-2.5-flash-lite', visual: false, label: 'Gemini 2.5 Flash Lite' }),
+  Object.freeze({ id: 'google/gemini-2.5-flash', provider: 'openrouter', providerModelId: 'google/gemini-2.5-flash', visual: false, label: 'Gemini 2.5 Flash' }),
+  Object.freeze({ id: 'openai/gpt-4.1-mini', provider: 'openrouter', providerModelId: 'openai/gpt-4.1-mini', visual: false, label: 'GPT-4.1 mini' }),
+] as const);
+export type ChatModelId = typeof CHAT_MODEL_REGISTRY[number]['id'];
+export function getChatModel(modelId: string) { return CHAT_MODEL_REGISTRY.find(model => model.id === modelId); }
+export function isOllamaChatModel(modelId: string) { return getChatModel(modelId)?.provider === 'ollama'; }
+export function supportsChatVisuals(modelId: string) { return getChatModel(modelId)?.visual === true; }
+
 /** Platform resource UUIDs, matching HTTP and PostgreSQL. Validate only: never trim or change case.
  * Provider/model/job/output identifiers are opaque strings and must not use this schema. */
 export const IdSchema = z.string().uuid();

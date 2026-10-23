@@ -15,6 +15,8 @@ export interface MediaPort {
  /** Verify cleanly decoded, immutable owned bytes and hash; no DB transaction is held. */
  verifyOwned(asset:OwnedAsset):Promise<void>;
  readOwned(asset:OwnedAsset):Promise<Uint8Array>;
+ /** Derive an immutable endpoint image from an already-owned video. */
+ extractFrame?(input:{id:string;projectId:string;sourceAssetId:string;frame:'first'|'last'}):Promise<OwnedAsset>;
 }
 export type QueueJob={id:string;kind:'generation'|'resume'|'export';resourceId:string;projectId:string;payload:Record<string,unknown>};
 export interface TransactionalQueuePort {

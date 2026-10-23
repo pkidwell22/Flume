@@ -29,11 +29,15 @@ export async function extract(s: Storage, source: Inspection, path: string, outp
   check(source.kind === 'video', 'VIDEO_REQUIRED');
   check(mode === 'first' || mode === 'last', 'INVALID_FRAME_MODE');
   const chosen = mode === 'last' ? source.frames.at(-1)! : source.frames[0];
+  // Keep native decoding strict. Only the subsequent, identity-checked RGB conversion may accept
+  // FFmpeg 7 arm64's single exact software-colorspace notice.
+  await run(s.ffmpeg, [...ffBase, ...inputArgs(path, formatOf(source), s, true), '-map', `0:${source.streamIndex}`,
+    '-an', '-sn', '-dn', '-f', 'null', '-'], s.limits, dirname(path));
   const text = (await run(s.ffmpeg, [...ffBase, '-n', '-copyts', ...inputArgs(path, formatOf(source), s, true),
     '-filter_complex', `[0:${source.streamIndex}]format=rgb24,select=eq(n\\,${chosen.index}),split=2[image][hash]`,
     '-map', '[image]', '-frames:v', '1', '-fps_mode', 'passthrough', '-c:v', 'png', '-threads', '1', '-update', '1', '-fs', String(s.limits.maxBytes), output,
     '-map', '[hash]', '-frames:v', '1', '-fps_mode', 'passthrough', '-enc_time_base', source.timeBase,
-    '-c:v', 'rawvideo', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'framehash', '-hash', 'sha256', '-'], s.limits, dirname(path))).toString();
+    '-c:v', 'rawvideo', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'framehash', '-hash', 'sha256', '-'], s.limits, dirname(path), 'software-rgb-conversion')).toString();
   const hash = parseHashes(text);
   check(hash.timeBase === source.timeBase && hash.rows.length === 1 && hash.rows[0][2] === chosen.pts && hash.rows[0][5] === chosen.rgbSha256, 'EXTRACTION_MISMATCH');
   // Decode the PNG independently. File hash and decoded pixels are different identities.

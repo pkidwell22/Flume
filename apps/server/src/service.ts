@@ -113,6 +113,22 @@ export function createCommandService({pool,provider=blockedProvider,queue=durabl
     if(bytes.byteLength!==asset.byteSize||sha256(bytes)!==asset.sha256)throw new ServiceError('MEDIA_INTEGRITY','Owned media bytes failed integrity verification.',422);
     return {bytes,mimeType:asset.mimeType,sha256:asset.sha256};
   }
+  async function extractReferenceFrame(raw:Actor,input:{projectId:string;assetId:string;frame:'first'|'last'}) {
+    const actor=actorSchema.parse(raw);uuid.parse(input.projectId);uuid.parse(input.assetId);authorize(actor,input.projectId);
+    if(actor.kind!=='operator')throw new ServiceError('OPERATOR_REQUIRED','Only the configured operator may extract reference frames.',403);
+    if(input.frame!=='first'&&input.frame!=='last')throw new ServiceError('INVALID_FRAME_MODE','Frame must be first or last.',400);
+    if(!media?.extractFrame)throw new ServiceError('MEDIA_UNAVAILABLE','Reference frame extraction is not configured.',503);
+    const row=(await pool.query("SELECT * FROM flume.assets WHERE id=$1 AND project_id=$2 AND kind='video'",[input.assetId,input.projectId])).rows[0];
+    if(!row)throw new ServiceError('ASSET_NOT_FOUND','Owned source video not found in this project.',404);
+    const source=ownedAssetSchema.parse(ownedAsset(row));await media.verifyOwned(source);
+    const id=randomUUID(),derived=ownedAssetSchema.parse(await media.extractFrame({id,projectId:input.projectId,sourceAssetId:source.id,frame:input.frame}));
+    const provenance=derived.provenance as Record<string,unknown>|undefined;
+    if(derived.id!==id||derived.projectId.toLowerCase()!==input.projectId.toLowerCase()||derived.kind!=='image'||derived.mimeType!=='image/png'||
+      provenance?.kind!=='extracted-frame'||provenance.sourceAssetId!==source.id||provenance.sourceSha256!==source.sha256||provenance.frame!==input.frame)
+      throw new ServiceError('EXTRACTION_INTEGRITY','Extracted frame provenance or ownership does not match the source.',422);
+    await media.verifyOwned(derived);
+    return await transaction(pool,async c=>assetDto(await insertAsset(c,derived)));
+  }
   async function health(){await pool.query('SELECT 1');return {ok:true,store:'postgresql',workerAvailable};}
-  return {command,listProjects,getWorkspace,uploadAsset,readMedia,health};
+  return {command,listProjects,getWorkspace,uploadAsset,readMedia,extractReferenceFrame,health};
 }

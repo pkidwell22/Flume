@@ -15,4 +15,5 @@ export * from './chat-contracts.ts';
 export { createFileChatStore } from './chat-store.ts';
 export type { ChatStore } from './chat-store.ts';
 export { createChatService, createOpenRouterChatProvider } from './chat-service.ts';
-export type { ChatService, ChatProvider, ChatProviderEvent, ChatContext } from './chat-service.ts';
+export {createOllamaChatProvider} from './chat-ollama.ts';
+export type { ChatService, ChatProvider, ChatProviderEvent, ChatContext,ChatVisualResolver,VisualReference,VisualImage,VisualResult } from './chat-service.ts';

@@ -1,13 +1,19 @@
 import { z } from 'zod';
+import { CHAT_MODEL_REGISTRY } from '@flume/domain';
 import { uuid } from './contracts.ts';
 
-export const CHAT_MODELS = ['google/gemini-2.5-flash-lite', 'google/gemini-2.5-flash', 'openai/gpt-4.1-mini'] as const;
+export const CHAT_MODELS = CHAT_MODEL_REGISTRY.map(model => model.id) as [typeof CHAT_MODEL_REGISTRY[number]['id'], ...typeof CHAT_MODEL_REGISTRY[number]['id'][]];
 export const ChatModelSchema = z.enum(CHAT_MODELS);
 export const ChatUsageSchema = z.strictObject({ promptTokens: z.number().int().nonnegative(), completionTokens: z.number().int().nonnegative() });
+export const VisualReferenceSchema=z.strictObject({
+  assetId:uuid,sourceSha256:z.string().regex(/^[0-9a-f]{64}$/),kind:z.enum(['image','video']),durationSeconds:z.number().nonnegative().nullable(),totalFrames:z.number().int().positive(),
+  sampling:z.enum(['uniform-frame-index-v1','still-image-v1']),frames:z.array(z.strictObject({index:z.number().int().nonnegative(),timestampSeconds:z.number().nonnegative(),sha256:z.string().regex(/^[0-9a-f]{64}$/)})).min(1).max(16),audio:z.literal('not-analyzed'),
+});
 export const ChatContextSchema = z.strictObject({
   project: z.strictObject({ id: uuid, name: z.string(), brief: z.string() }),
   shot: z.strictObject({ id: uuid, title: z.string(), prompt: z.string(), revision: z.number().int(), aspectRatio: z.string() }).nullable(),
   assets: z.array(z.strictObject({ id: uuid, filename: z.string(), kind: z.string(), origin: z.string(), width: z.number(), height: z.number() })).max(4),
+  references:z.array(VisualReferenceSchema).max(4).default([]),
   disclosure: z.array(z.string()),
 });
 export const ChatMessageSchema = z.strictObject({
@@ -20,6 +26,7 @@ export const ShotEditProposalSchema = z.strictObject({
   id: uuid, requestId: uuid, requestFingerprint: z.string().length(64), applyCommandId: uuid,
   actorId: uuid, projectId: uuid, conversationId: uuid, shotId: uuid, modelId: ChatModelSchema,
   instruction: z.string().trim().min(1).max(4_000),
+  referenceSource:z.strictObject({messageId:uuid,content:z.string().max(64_000),references:z.array(VisualReferenceSchema).min(1).max(4)}).nullable().default(null),
   before: z.strictObject({ title: z.string(), prompt: z.string(), revision: z.number().int().nonnegative() }),
   after: z.strictObject({ title: z.string().max(240), prompt: z.string().max(20_000) }).nullable(),
   rationale: z.string().max(1_000).nullable(),
@@ -36,13 +43,14 @@ export const ChatConversationSchema = z.strictObject({
 export type ChatConversation = z.infer<typeof ChatConversationSchema>;
 export type ChatUsage = z.infer<typeof ChatUsageSchema>;
 export type ChatContextRecord = z.infer<typeof ChatContextSchema>;
-export const CreateChatSchema = z.strictObject({ projectId: uuid, title: z.string().trim().min(1).max(120).default('New conversation'), modelId: ChatModelSchema });
+export type ChatContextInput = z.input<typeof ChatContextSchema>;
+export const CreateChatSchema = z.strictObject({ projectId: uuid, title: z.string().trim().min(1).max(120).default('New conversation'), modelId: ChatModelSchema.optional() });
 export const RenameChatSchema = z.strictObject({ projectId: uuid, title: z.string().trim().min(1).max(120) });
 export const SendChatSchema = z.strictObject({
   projectId: uuid, requestId: uuid, modelId: ChatModelSchema, content: z.string().trim().min(1).max(12_000),
   context: z.strictObject({ shotId: uuid.nullable().optional(), assetIds: z.array(uuid).max(4).default([]) }).default({ assetIds: [] }),
 });
-export const ProposeShotEditSchema = z.strictObject({ projectId: uuid, requestId: uuid, modelId: ChatModelSchema, shotId: uuid, instruction: z.string().trim().min(1).max(4_000) });
+export const ProposeShotEditSchema = z.strictObject({ projectId: uuid, requestId: uuid, modelId: ChatModelSchema, shotId: uuid, instruction: z.string().trim().min(1).max(4_000),sourceMessageId:uuid.optional() });
 export const ProposalActionSchema = z.strictObject({ projectId: uuid });
 
 export class ChatError extends Error {

@@ -1,0 +1,60 @@
+{
+  "purpose": "Original Flume Home showreel; generated with user authorization. Private receipts and unmodified originals retained separately.",
+  "clips": [
+    {
+      "slug": "afternoon-room",
+      "title": "Afternoon, unhurried",
+      "model": "google/veo-3.1",
+      "sourceSha256": "89f95cf8bedb611d0328866ef67fcfa87e8dab7a473d65c422b9bb233806a90f",
+      "previewSha256": "2f4a8b51a607afdaabc692810f0000b07386a0ccd015009e2f20b197ce4a1358",
+      "posterSha256": "7b2aede361595b5fad0ed3ed6a5aaf21c0515786ee904feb6f2e20ca963ecb4d",
+      "posterSeconds": 0.2,
+      "width": 1920,
+      "height": 1080,
+      "durationSeconds": 8.0,
+      "previewBytes": 791018,
+      "originalBytes": 7002613,
+      "estimatedCostUsd": "1.60",
+      "previewInSeconds": 3,
+      "previewDurationSeconds": 5,
+      "editorialFilter": "scale=1280:720",
+      "posterSourceSeconds": 3.2,
+      "providerReportedCostUsd": "1.6"
+    },
+    {
+      "slug": "desert-light",
+      "title": "Light and form",
+      "model": "alibaba/wan-2.7",
+      "sourceSha256": "c3c4dae0037dd2b00e533b002a61a827406a9638b7b9d48095aec69704035de5",
+      "previewSha256": "84d20108f942c25d3103d8e923960767ccf7958cf7f74a64320363ea19518c03",
+      "posterSha256": "fb424d865b397e22f0c7fef9182d76f4d7220c528ceb77672f1c4b5fc804a9f9",
+      "posterSeconds": 0.2,
+      "width": 1280,
+      "height": 720,
+      "durationSeconds": 5.038005,
+      "previewBytes": 2639667,
+      "originalBytes": 7044364,
+      "estimatedCostUsd": "0.500000"
+    },
+    {
+      "slug": "last-bus",
+      "title": "Before the last bus",
+      "model": "google/veo-3.1",
+      "sourceSha256": "b53b2f748c10afe78df2c0b0ee60dbf1d05f5a6cd90401e4c077da3304bd3c5f",
+      "previewSha256": "f254e211d51f7a8f3bc6cc8d0067527923ddc07b8a916d12f87f51670f901bd8",
+      "posterSha256": "d793c06052d4a5fc5adb40fa61d480ae7183fb87d177498436cecc1e01f32cc7",
+      "posterSeconds": 0.2,
+      "width": 1920,
+      "height": 1080,
+      "durationSeconds": 8.0,
+      "previewBytes": 3432916,
+      "originalBytes": 14830902,
+      "estimatedCostUsd": "1.60",
+      "previewInSeconds": 0,
+      "previewDurationSeconds": 8,
+      "editorialFilter": "crop=1836:828:42:124,scale=1280:-2,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black",
+      "posterSourceSeconds": 0.2,
+      "providerReportedCostUsd": "1.6"
+    }
+  ]
+}

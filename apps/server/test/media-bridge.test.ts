@@ -123,6 +123,45 @@ test('the unchanged Homebrew default and explicit installation symlinks produce 
  assert.deepEqual(inspections[0],inspections[1]);
 });
 
+test('bridge extracts registered first and last frames with exact source provenance',async t=>{
+ const dir=await ownedDir(t),video=join(dir,'endpoints.mkv');
+ ff(['-f','lavfi','-i','testsrc2=size=64x48:rate=5','-frames:v','4','-c:v','ffv1','-level','3',video]);
+ const b=await bridge.createMediaBridge(join(dir,'store'),{ffmpegPath:FFMPEG,ffprobePath:FFPROBE});
+ try{
+  const source=await b.media.importLocal({id:randomUUID(),projectId,filename:'endpoints.mkv',mimeType:'video/x-matroska',bytes:await readFile(video)});
+  for(const frame of ['first','last'] as const){
+   const derived=await b.media.extractFrame!({id:randomUUID(),projectId,sourceAssetId:source.id,frame});
+   assert.equal(derived.kind,'image');assert.equal(derived.mimeType,'image/png');
+   const provenance=derived.provenance as any;
+   assert.equal(provenance.kind,'extracted-frame');assert.equal(provenance.frame,frame);assert.equal(provenance.sourceSha256,source.sha256);
+   assert.equal(provenance.sourceAssetId,source.id);assert.equal(provenance.sourceFrameCount,4);assert.equal(provenance.frameIndex,frame==='first'?0:3);
+   assert.match(provenance.pts,/^\d+$/);assert.match(provenance.timeBase,/^\d+\/\d+$/);assert.match(provenance.rgbSha256,/^[a-f0-9]{64}$/);
+   assert.equal(provenance.imageSha256,derived.sha256);assert.equal(provenance.pixelPolicy,'encoded-raster-rgb24-noautorotate');
+   await b.media.verifyOwned(derived);
+  }
+ }finally{await b.drain();}
+});
+
+test('bridge admits at most two media workers and refuses bounded-queue overflow with a busy code',async t=>{
+ const dir=await ownedDir(t),image=join(dir,'source.png'),pidLog=join(dir,'worker-pids');
+ ff(['-f','lavfi','-i','color=green:size=32x24','-frames:v','1','-update','1',image]);await writeFile(pidLog,'');
+ const tools=join(dir,'slow-tools');await mkdir(tools);
+ const paths={ffmpegPath:join(tools,'ffmpeg'),ffprobePath:join(tools,'ffprobe')};
+ for(const [path,target] of [[paths.ffmpegPath,FFMPEG],[paths.ffprobePath,FFPROBE]])await writeFile(path,`#!/bin/sh\nprintf '%s\\n' "$$" >> ${quote(pidLog)}\nsleep 0.3\nexec ${quote(await realpath(target))} "$@"\n`,{mode:0o700});
+ const b=await bridge.createMediaBridge(join(dir,'store'),paths),bytes=await readFile(image);
+ const started=Date.now();
+ const jobs=Array.from({length:6},()=>b.media.importLocal({id:randomUUID(),projectId,filename:'source.png',mimeType:'image/png',bytes}));
+ for(const job of jobs)void job.catch(()=>{});
+ await assert.rejects(jobs[5],{code:'MEDIA_BUSY'});
+ assert.ok(Date.now()-started<100,'overflow must be refused at bridge admission, before storage/native work');
+ for(let i=0;i<100&&(await readFile(pidLog,'utf8')).trim().split('\n').filter(Boolean).length<1;i++)await new Promise(resolve=>setTimeout(resolve,10));
+ const pids=(await readFile(pidLog,'utf8')).trim().split('\n').filter(Boolean).map(Number);
+ assert.ok(pids.length>=1&&pids.length<=2,'no more than two admitted jobs may reach native media work before either completes');
+ assert.ok(pids.every(pid=>{try{process.kill(pid,0);return true;}catch{return false;}}),'admitted native processes must still be active');
+ const settled=await Promise.allSettled(jobs.slice(0,5));assert.equal(settled.filter(result=>result.status==='fulfilled').length,5);
+ await b.drain();
+});
+
 test('worker jobs fail closed when either explicitly configured executable disappears after bridge creation', async t => {
  const dir=await ownedDir(t);
  for (const field of ['ffmpegPath','ffprobePath'] as const) {

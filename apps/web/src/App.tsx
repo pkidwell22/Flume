@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore }
 import type { FormEvent, ReactNode } from 'react';
 import type { WorkspaceController } from './controller.ts';
 import type { WorkspaceComponents } from './ports.ts';
-import type { Shot, Workspace, WorkspaceState } from './types.ts';
+import type { Project, Shot, Workspace, WorkspaceState } from './types.ts';
 import { Reel } from './Reel.tsx';
 import { ActivityDrawer, Drawer, ExportDrawer, LibraryDrawer, ProjectsDrawer } from './Drawers.tsx';
 import type { DrawerKind } from './Drawers.tsx';
@@ -10,7 +10,9 @@ import { ownedMediaUrl, restoreOpener } from './shell.ts';
 import { frameState, isUnknown, needsWatching, shotNumber, shotPhase, shotTakes } from './shot-status.ts';
 import type { FrameKey } from './shot-status.ts';
 import { ChatPanel, type ChatPort } from './ChatPanel.tsx';
+import { HomeShowreel } from './HomeShowreel.tsx';
 
+// Non-Home empty workspaces retain their established environmental artwork.
 function WelcomeLandscape() {
   return <picture className="fl-workspace__landscape" aria-hidden="true">
     <source media="(max-width: 600px)" srcSet="/art/alpine-forest-portrait.webp" />
@@ -20,11 +22,11 @@ function WelcomeLandscape() {
 
 export { ownedMediaUrl } from './shell.ts';
 
-export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; chatPort?: ChatPort; autoStart?: boolean; initialProjectId?: string; previewLabel?: string }
+export interface FlumeAppProps { controller: WorkspaceController; components: WorkspaceComponents; chatPort?: ChatPort; autoStart?: boolean; initialProjectId?: string; initialView?: 'home' | 'workspace'; previewLabel?: string }
 
 const drawerTitles: Record<DrawerKind, string> = { projects: 'Projects', library: 'Library', activity: 'Activity', export: 'Export' };
 
-export function FlumeApp({ controller, components, chatPort, autoStart = true, initialProjectId, previewLabel }: FlumeAppProps) {
+export function FlumeApp({ controller, components, chatPort, autoStart = true, initialProjectId, initialView, previewLabel }: FlumeAppProps) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const { Brand, TakeReview, ActivityPanel, GenerationReview } = components;
   const drawerId = useId();
@@ -32,12 +34,26 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [home, setHome] = useState(() => initialView ? initialView === 'home' : autoStart && !initialProjectId);
+  const [projectQuery, setProjectQuery] = useState('');
+  const [homeMessage, setHomeMessage] = useState<string | null>(null);
   // The stage view belongs to one shot; another shot always opens on its frames.
   const [stage, setStage] = useState<{ shotId: string | null; view: 'frames' | 'takes' }>({ shotId: null, view: 'frames' });
   const [discardEpoch,setDiscardEpoch] = useState(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const reviewOpener = useRef<HTMLElement | null>(null);
   const restoreReviewFocus = useRef(false);
+  const navigationEpoch = useRef(0);
+  const [historyIdentity] = useState(() => {
+    const marker = typeof window === 'undefined' ? undefined : window.history.state?.flume;
+    return marker && typeof marker.session === 'string' && Number.isSafeInteger(marker.index) && marker.index >= 0
+      ? { session: marker.session, index: marker.index as number }
+      : { session: crypto.randomUUID(), index: 0 };
+  });
+  const historySession = useRef(historyIdentity.session);
+  const historyIndex = useRef(historyIdentity.index);
+  const historyTagged = useRef(false);
+  const suppressPop = useRef(0);
   const workspace = state.workspace;
   const project = workspace?.project;
   const shots = workspace && project ? workspace.shots.filter(item => item.projectId === project.id) : [];
@@ -50,14 +66,15 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
   const watching = workspace?.attempts.filter(item => item.projectId === project?.id && needsWatching(item)) ?? [];
   const dataState = state.phase === 'ready' ? 'ready' : state.phase === 'error' ? 'error' : 'loading';
   const view = stage.shotId === shot?.id ? stage.view : 'frames';
+  const atHome = home;
 
   useEffect(() => { if (autoStart) void controller.start(initialProjectId); }, [autoStart, controller, initialProjectId]);
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === 'visible') void controller.refresh(); };
+    const refresh = () => { if (document.visibilityState === 'visible') void (atHome ? controller.refreshProjects() : controller.refresh()); };
     const timer = activeWork ? window.setInterval(refresh, 4000) : undefined;
     window.addEventListener('focus', refresh);
     return () => { if (timer !== undefined) window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [controller, activeWork]);
+  }, [controller, activeWork, atHome]);
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => { if (state.dirtyShotIds.size || busy || state.uncertainCommand) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', guard);
@@ -66,7 +83,7 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
 
   useEffect(() => {
     const panel = reviewRef.current;
-    if (!panel || !review) return;
+    if (atHome || !panel || !review) return;
     const previous = reviewOpener.current;
     panel.focus({ preventScroll: true });
     panel.scrollIntoView({ block: 'nearest' });
@@ -75,7 +92,7 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
       reviewOpener.current = null;
       restoreReviewFocus.current = false;
     };
-  }, [review?.id]);
+  }, [review?.id, atHome]);
 
   async function notify<T>(action: () => Promise<T>): Promise<T> {
     try { return await action(); }
@@ -95,6 +112,105 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
   function openShot(id: string, nextView: 'frames' | 'takes' = 'frames') {
     navigate(() => { if (id === shot?.id || controller.selectShot(id)) setStage({ shotId: id, view: nextView }); });
   }
+  function rememberProject(id: string) {
+    try { window.localStorage.setItem('flume.resumeProjectId', id); } catch { /* Storage is optional. */ }
+  }
+  function updateLocation(id?: string, replace = false) {
+    if (!autoStart) return;
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('projectId', id); else url.searchParams.delete('projectId');
+    if (!replace) historyIndex.current += 1;
+    const state = { flume: { session: historySession.current, index: historyIndex.current } };
+    window.history[replace ? 'replaceState' : 'pushState'](state, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+  async function openProject(id: string, intent: 'workspace' | 'shot' | 'chat' | 'takes' | 'library' = 'workspace', replace = false, history = true): Promise<boolean> {
+    if (held) return false;
+    if (!state.projects.some(item => item.id === id)) {
+      setHomeMessage('That project is not available.');
+      return false;
+    }
+    const epoch = ++navigationEpoch.current;
+    setHomeMessage(null);
+    await notify(() => controller.openProject(id));
+    if (epoch !== navigationEpoch.current) return false;
+    const snapshot = controller.getSnapshot();
+    const opened = snapshot.workspace;
+    if (snapshot.phase !== 'ready' || opened?.project?.id !== id) {
+      setHomeMessage('That project could not be opened. Your previous workspace is unchanged.');
+      return false;
+    }
+    rememberProject(id); if (history) updateLocation(id, replace); setHome(false); setDrawer(null);
+    if (intent === 'shot') setCreating('shot');
+    if (intent === 'chat') {
+      if (chatPort) setChatOpen(true); else setHomeMessage('Project chat is not available in this workspace.');
+    }
+    if (intent === 'library') setDrawer('library');
+    if (intent === 'takes') {
+      const take = opened.takes.find(item => item.projectId === id);
+      const takeShot = take && opened.shots.find(item => item.id === take.shotId);
+      if (takeShot) { controller.selectShot(takeShot.id); setStage({ shotId: takeShot.id, view: 'takes' }); }
+      else setHomeMessage(opened.shots.length ? 'This project has no takes to review yet.' : 'Create a shot before reviewing takes.');
+    }
+    return true;
+  }
+  function goHome(replace = false, history = true) {
+    navigate(() => {
+      ++navigationEpoch.current;
+      controller.cancelPendingNavigation();
+      setDrawer(null); setChatOpen(false); setHome(true); if (history) updateLocation(undefined, replace);
+    });
+  }
+  useEffect(() => {
+    if (!autoStart) return;
+    if (!historyTagged.current) {
+      historyTagged.current = true;
+      window.history.replaceState({ ...window.history.state, flume: { session: historySession.current, index: historyIndex.current } }, '', window.location.href);
+    }
+    const compensate = (targetIndex?: number) => {
+      if (typeof targetIndex === 'number') {
+        const delta = historyIndex.current - targetIndex;
+        if (delta) { suppressPop.current += 1; window.history.go(delta); }
+      } else {
+        // A legacy/unmarked destination cannot be indexed reliably. Preserve it
+        // and append the rendered location instead of overwriting that entry.
+        updateLocation(atHome ? undefined : project?.id);
+      }
+    };
+    const onPop = (event: PopStateEvent) => {
+      const marker = (event.state as { flume?: { session?: string; index?: number } } | null)?.flume;
+      if (suppressPop.current) { suppressPop.current -= 1; return; }
+      const targetIndex = marker && marker.session === historySession.current && typeof marker.index === 'number' ? marker.index : undefined;
+      const target = new URLSearchParams(window.location.search).get('projectId');
+      if (held) { compensate(targetIndex); setHomeMessage('Finish the current action before navigating.'); return; }
+      if (target && !state.projects.some(item => item.id === target)) {
+        compensate(targetIndex);
+        setHomeMessage('That project is not available.');
+        return;
+      }
+      const accept = () => {
+        if (!target) {
+          if (typeof targetIndex === 'number') historyIndex.current = targetIndex;
+          goHome(false, false);
+        } else {
+          const epoch = navigationEpoch.current + 1;
+          void openProject(target, 'workspace', false, false).then(opened => {
+            if (navigationEpoch.current !== epoch) return;
+            if (opened) { if (typeof targetIndex === 'number') historyIndex.current = targetIndex; }
+            else compensate(targetIndex);
+          }).catch(() => { if (navigationEpoch.current === epoch) compensate(targetIndex); });
+        }
+      };
+      if (shot && state.dirtyShotIds.has(shot.id)) {
+        compensate(targetIndex);
+        setLeaving(() => () => {
+          if (typeof targetIndex === 'number') window.history.go(targetIndex - historyIndex.current);
+          else accept();
+        });
+      } else accept();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  });
   const toggleDrawer = (kind: DrawerKind) => setDrawer(current => current === kind ? null : kind);
   const capability = workspace?.capabilities.find(item => item.modelId === shot?.controls.modelId);
   const blocker = capability?.availability === 'blocked' ? capability.blocker ?? 'This model is not available through the configured provider.' : null;
@@ -108,18 +224,22 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
     {previewLabel && <div className="fl-workspace__preview-label" role="note">{previewLabel}</div>}
     <header className="fl-workspace__top">
       <div className="fl-workspace__brand"><Brand /></div>
-      <button type="button" className="fl-workspace__project" aria-expanded={openDrawer === 'projects'} aria-controls={openDrawer === 'projects' ? drawerId : undefined} onClick={() => toggleDrawer('projects')}>
+      <nav className="fl-workspace__places" aria-label="Workspace location">
+        <button type="button" aria-current={atHome ? 'page' : undefined} disabled={held} onClick={() => goHome()}>Home</button>
+        <button type="button" aria-current={!atHome ? 'page' : undefined} disabled={!project || held} onClick={() => { if (project) navigate(() => run(() => openProject(project.id))); }}>Workspace</button>
+      </nav>
+      <button type="button" className="fl-workspace__project" disabled={atHome} aria-expanded={openDrawer === 'projects'} aria-controls={openDrawer === 'projects' ? drawerId : undefined} onClick={() => toggleDrawer('projects')}>
         <span className="fl-workspace__project-name">{project?.name ?? (dataState === 'loading' ? 'Opening…' : 'Choose a project')}</span>
         <span className="fl-workspace__project-meta" aria-label={dataState !== 'ready' ? 'Project count unavailable' : undefined}>{dataState === 'ready' ? `${projects.length} ${projects.length === 1 ? 'project' : 'projects'}` : '—'}</span>
         <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4.5l3 3 3-3" /></svg>
       </button>
       <div className="fl-workspace__top-r">
         <span className="fl-workspace__save-state" aria-live="polite">{saveLabel}</span>
-        <button type="button" className="fl-tbtn" disabled={busy || state.phase === 'loading'} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Refresh</button>
-        <button type="button" className="fl-tbtn fl-workspace__library-button" aria-expanded={openDrawer === 'library'} aria-controls={openDrawer === 'library' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('library')}><span>Library</span><span className="fl-tbtn__meta" aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
-        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'activity'} aria-controls={openDrawer === 'activity' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('activity')}>Activity{watching.length > 0 && <span className="fl-count" data-tone={watching.some(isUnknown) ? 'unknown' : 'running'}><span className="fl-vh">, </span>{watching.length}<span className="fl-vh"> to watch</span></span>}</button>
-        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'export'} aria-controls={openDrawer === 'export' ? drawerId : undefined} disabled={!project} onClick={() => toggleDrawer('export')}>Export</button>
-        {chatPort && <button type="button" className="fl-tbtn" aria-expanded={chatOpen} disabled={!project} onClick={() => setChatOpen(value => !value)}>Chat</button>}
+        <button type="button" className="fl-tbtn" disabled={busy || state.phase === 'loading'} onClick={() => run(() => atHome ? controller.refreshProjects() : state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Refresh</button>
+        <button type="button" className="fl-tbtn fl-workspace__library-button" aria-expanded={openDrawer === 'library'} aria-controls={openDrawer === 'library' ? drawerId : undefined} disabled={!project || atHome} onClick={() => toggleDrawer('library')}><span>Library</span><span className="fl-tbtn__meta" aria-label={!workspace ? 'Media count unavailable' : undefined}>{workspace?.assets.length ?? '—'}</span></button>
+        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'activity'} aria-controls={openDrawer === 'activity' ? drawerId : undefined} disabled={!project || atHome} onClick={() => toggleDrawer('activity')}>Activity{watching.length > 0 && <span className="fl-count" data-tone={watching.some(isUnknown) ? 'unknown' : 'running'}><span className="fl-vh">, </span>{watching.length}<span className="fl-vh"> to watch</span></span>}</button>
+        <button type="button" className="fl-tbtn" aria-expanded={openDrawer === 'export'} aria-controls={openDrawer === 'export' ? drawerId : undefined} disabled={!project || atHome} onClick={() => toggleDrawer('export')}>Export</button>
+        {chatPort && <button type="button" className="fl-tbtn" aria-expanded={chatOpen} disabled={!project || atHome} onClick={() => setChatOpen(value => !value)}>Chat</button>}
       </div>
     </header>
 
@@ -129,11 +249,11 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
         {state.error.currentRevision !== undefined && <p>Your draft is still here. Saved revision is {state.error.currentRevision}. Refresh, then compare or discard the draft in the editor; nothing is overwritten automatically.</p>}
         {state.uncertainCommand && <p>New actions are on hold. Check the saved state, or retry the original request with the same identity. Do not start another generation.</p>}
       </div>
-      <button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={busy} onClick={() => run(() => state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Check saved state</button>
+      <button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={busy} onClick={() => run(() => atHome ? controller.refreshProjects() : state.phase === 'error' ? controller.start(initialProjectId) : controller.refresh())}>Check saved state</button>
       {state.uncertainCommand && <button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={busy} onClick={() => run(() => controller.retryUncertain())}>Retry original request</button>}
     </div>}
 
-    <div className="fl-workspace__app" data-slate={!!(project && shot) || undefined}>
+    {atHome ? <WorkspaceHome projects={state.projects} phase={state.phase} query={projectQuery} message={homeMessage} held={held} onQuery={setProjectQuery} onCreate={() => setCreating('project')} onOpen={(id, intent) => navigate(() => run(() => openProject(id, intent)))} /> : <div className="fl-workspace__app" data-slate={!!(project && shot) || undefined}>
       <main id="fl-canvas" className="fl-workspace__stage" tabIndex={-1} aria-label="Stage" data-drawer={openDrawer ? true : undefined}>
         {shot && workspace && project && <div className="fl-workspace__stagebar">
           <div className="fl-seg" role="group" aria-label="Stage view">
@@ -145,7 +265,7 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
         </div>}
         <div className="fl-workspace__stagebody">
           {openDrawer && <Drawer key={openDrawer} id={drawerId} title={drawerTitles[openDrawer]} meta={openDrawer === 'library' && workspace ? `${workspace.assets.length} files` : undefined} onClose={() => setDrawer(null)}>
-            {openDrawer === 'projects' ? <ProjectsDrawer projects={projects} activeProjectId={project?.id ?? null} dataState={dataState} disabled={held || state.phase === 'loading'} onOpen={id => navigate(() => { setDrawer(null); run(() => controller.openProject(id)); })} onCreate={() => navigate(() => setCreating('project'))} />
+            {openDrawer === 'projects' ? <ProjectsDrawer projects={projects} activeProjectId={project?.id ?? null} dataState={dataState} disabled={held || state.phase === 'loading'} onOpen={id => navigate(() => run(() => openProject(id)))} onCreate={() => navigate(() => setCreating('project'))} />
               : !workspace ? null
               : openDrawer === 'library' ? <LibraryDrawer workspace={workspace} shots={shots} held={held} onImport={file => run(() => controller.uploadAsset(file))} />
               : openDrawer === 'activity' ? <ActivityDrawer workspace={workspace} shots={shots} held={held} ActivityPanel={ActivityPanel} onResume={id => notify(() => controller.resume(id))} onOpenShot={id => openShot(id)} />
@@ -180,14 +300,39 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
       {(project || dataState !== 'ready') && <Reel project={project ?? null} shots={shots} workspace={workspace} dataState={dataState} activeShotId={state.activeShotId} disabled={held || state.phase === 'loading'}
         status={state.notice ?? 'Original media stays in your project. No generation starts automatically.'}
         onShotActivate={id => openShot(id)} onCreateShot={() => navigate(() => setCreating('shot'))} />}
-    </div>
-    {!project && <p className="fl-workspace__footer" role="status">{state.notice ?? 'Create something worth keeping.'}</p>}
+    </div>}
+    {atHome && <p className="fl-workspace__footer" role="status">{homeMessage ?? state.notice ?? 'Nothing is created or sent until you choose an action.'}</p>}
+    {!atHome && homeMessage && <p className="fl-workspace__intent-note" role="status">{homeMessage}</p>}
 
-    {review && shot && workspace && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
-    {creating && <CreateDialog kind={creating} busy={held} onDismiss={() => setCreating(null)} onCreate={async (name, detail) => { await notify(() => creating === 'project' ? controller.createProject(name, detail) : controller.createShot(name, detail)); setCreating(null); }} />}
+    {!atHome && review && shot && workspace && <div ref={reviewRef} tabIndex={-1} className="fl-workspace__review" aria-label="Generation review"><GenerationReview review={review} assets={workspace.assets} busy={held || state.dirtyShotIds.has(shot.id) || review.shotRevision !== shot.revision} onApprove={limits => notify(() => controller.approve(review.id, limits))} onSubmit={() => notify(() => controller.submit(review.id))} onDismiss={() => { restoreReviewFocus.current = true; controller.dismissReview(); }} /></div>}
+    {creating && <CreateDialog kind={creating} busy={held} onDismiss={() => setCreating(null)} onCreate={async (name, detail) => { const kind = creating; await notify(() => kind === 'project' ? controller.createProject(name, detail) : controller.createShot(name, detail)); setCreating(null); if (kind === 'project') { const id = controller.getSnapshot().workspace?.project?.id; if (id) { rememberProject(id); updateLocation(id); setHome(false); } } }} />}
     {leaving && <Modal label="Leave this shot?" onDismiss={() => setLeaving(null)}><h2>Keep your changes?</h2><p>This shot has unsaved edits. Stay to save them, or discard the draft before leaving. Saved media is not removed.</p><div className="fl-workspace__dialog-actions"><button className="fl-btn fl-btn--ghost" onClick={() => setLeaving(null)}>Stay here</button><button className="fl-btn fl-btn--ghost" onClick={finishNavigation}>Discard and continue</button></div></Modal>}
-    {chatOpen && chatPort && project && <section className="fl-chat-shell" role="dialog" aria-modal="false" aria-label="Project chat"><div className="fl-chat-shell__head"><strong>Project assistant</strong><button className="fl-drawer__close" aria-label="Close project chat" onClick={() => setChatOpen(false)}>×</button></div><ChatPanel key={project.id} port={chatPort} project={project} shot={shot} dirty={!!shot && state.dirtyShotIds.has(shot.id)} blocked={!!state.busy || !!state.uncertainCommand || (!!shot && state.dirtyShotIds.has(shot.id))} assets={workspace?.assets ?? []} onApplied={async () => { await controller.refresh(); if (controller.getSnapshot().error) throw new Error('Applied proposal readback failed.'); }} /></section>}
+    {chatOpen && chatPort && project && <section className="fl-chat-shell" role="dialog" aria-modal="false" aria-label="Project chat"><div className="fl-chat-shell__head"><strong>Project assistant</strong><button className="fl-drawer__close" aria-label="Close project chat" onClick={() => setChatOpen(false)}>×</button></div><ChatPanel key={project.id} port={chatPort} project={project} shot={shot} dirty={!!shot && state.dirtyShotIds.has(shot.id)} blocked={!!state.busy || !!state.uncertainCommand || (!!shot && state.dirtyShotIds.has(shot.id))} assets={workspace?.assets ?? []} onApplied={async () => { await controller.refresh(); if (controller.getSnapshot().error) throw new Error('Applied proposal readback failed.'); }} onWorkspaceRefresh={async () => { if (controller.getSnapshot().workspace?.project?.id !== project.id) return; await controller.refresh(); const refreshed = controller.getSnapshot(); if (refreshed.workspace?.project?.id !== project.id) return; if (refreshed.error) throw new Error('The project library could not be refreshed.'); }} onUseReferenceFrame={async input => { const key = input.frame === 'first' ? 'firstFrameAssetId' : 'lastFrameAssetId'; await controller.saveShot(input.shotId, input.expectedRevision, { bindings: { [key]: input.assetId } }); }} /></section>}
   </div>;
+}
+
+function WorkspaceHome({ projects, phase, query, message, held, onQuery, onCreate, onOpen }: { projects: Project[]; phase: WorkspaceState['phase']; query: string; message: string | null; held: boolean; onQuery(value: string): void; onCreate(): void; onOpen(id: string, intent?: 'workspace' | 'shot' | 'chat' | 'takes' | 'library'): void }) {
+  const normalized = query.trim().toLocaleLowerCase();
+  const shown = projects.filter(item => !normalized || `${item.name}\n${item.brief}`.toLocaleLowerCase().includes(normalized));
+  let resumeId: string | null = null;
+  try { resumeId = window.localStorage.getItem('flume.resumeProjectId'); } catch { /* Storage is optional. */ }
+  const resume = projects.find(item => item.id === resumeId);
+  return <main id="fl-canvas" className="fl-home" tabIndex={-1}>
+    <section className="fl-home__hero">
+      <div className="fl-home__hero-copy"><p className="fl-eyebrow">Workspace home</p><h1>Make room for the next scene.</h1><p>Open a project to shape its shots, references, takes, and assets, or start something new. Nothing is generated, uploaded, or sent from this page.</p><div className="fl-home__hero-actions"><button className="fl-btn fl-btn--primary" disabled={held} onClick={onCreate}>New project</button>{resume && <button className="fl-btn fl-btn--ghost" disabled={held} onClick={() => onOpen(resume.id)}>Continue editing <span>{resume.name}</span></button>}</div></div>
+      <HomeShowreel />
+    </section>
+    <section className="fl-home__projects" aria-labelledby="fl-home-projects">
+      <div className="fl-home__section-head"><div><p className="fl-eyebrow">In this workspace</p><h2 id="fl-home-projects">Your projects</h2></div><button className="fl-btn fl-btn--ghost fl-btn--sm" disabled={held} onClick={onCreate}>Create project</button></div>
+      <label className="fl-home__search"><span className="fl-vh">Search your projects</span><input type="search" aria-label="Search your projects" value={query} onChange={event => onQuery(event.currentTarget.value)} placeholder="Search names and briefs" /></label>
+      {phase === 'loading' || phase === 'idle' ? <div className="fl-home__state" role="status">Loading your projects…</div>
+        : phase === 'error' ? <div className="fl-home__state" role="alert">Projects could not be loaded. Use Refresh to try again.</div>
+        : projects.length === 0 ? <div className="fl-home__state"><h3>No projects yet</h3><p>Create a project to start shaping a shot.</p></div>
+        : shown.length === 0 ? <div className="fl-home__state" role="status">No projects match “{query.trim()}”.</div>
+        : <div className="fl-home__grid">{shown.map(project => <article className="fl-home-card" key={project.id}><button type="button" className="fl-home-card__open" disabled={held} aria-label={`Open ${project.name}`} onClick={() => onOpen(project.id)}><span className="fl-home-card__mark" aria-hidden="true">{project.name.trim().slice(0, 1).toLocaleUpperCase() || '·'}</span><span><strong>{project.name}</strong>{project.brief && <small>{project.brief}</small>}</span><span aria-hidden="true">→</span></button><div className="fl-home-card__actions" role="group" aria-label={`${project.name} actions`}><button type="button" aria-label={`Build a shot in ${project.name}`} disabled={held} onClick={() => onOpen(project.id, 'shot')}>Build a shot</button><button type="button" aria-label={`Analyze references in ${project.name}`} disabled={held} onClick={() => onOpen(project.id, 'chat')}>Analyze references</button><button type="button" aria-label={`Review takes in ${project.name}`} disabled={held} onClick={() => onOpen(project.id, 'takes')}>Review takes</button><button type="button" aria-label={`Browse assets in ${project.name}`} disabled={held} onClick={() => onOpen(project.id, 'library')}>Browse assets</button></div></article>)}</div>}
+      {message && <p className="fl-home__message" role="status">{message}</p>}
+    </section>
+  </main>;
 }
 
 function EditorBoundary({ shot, workspace, state, controller, components, onPrepare }: { shot: Shot; workspace: Workspace; state: WorkspaceState; controller: WorkspaceController; components: WorkspaceComponents; onPrepare(revision: number, opener: HTMLElement | null): Promise<void> }) {

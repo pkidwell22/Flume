@@ -12,12 +12,12 @@ async function send(){await React.act(async()=>fireEvent.change(document.querySe
 
 test('in-progress replay shows saved partial text without a fake working Stop control',async()=>{
  const ui=await mount({stream:async(_i:any,_s:any,emit:any)=>emit({event:'in_progress',data:{assistantMessageId:'server-assistant',status:'in_progress',content:'Already running partial',usage:null}})});
- try{await send();assert.equal(Boolean(button('Stop')),false);assert.equal(document.querySelector('[data-role="assistant"] p')?.textContent,'Already running partial');assert.match(document.body.textContent??'',/running on the server/i);assert.equal(button('Send').disabled,true);}finally{await ui.close();}
+ try{await send();assert.equal(Boolean(button('Stop')),false);assert.equal(document.querySelector('[data-role="assistant"] p')?.textContent,'Already running partial');assert.equal((document.querySelector('[data-role="assistant"]') as HTMLElement).dataset.messageId,'server-assistant');assert.match(document.body.textContent??'',/running on the server/i);assert.equal(button('Send').disabled,true);}finally{await ui.close();}
 });
 
 for(const event of ['done','stopped','error']) test(`${event} replay restores authoritative saved text`,async()=>{
  const ui=await mount({stream:async(_i:any,_s:any,emit:any)=>emit({event,data:{assistantMessageId:'saved-assistant',content:'Saved server text',usage:null,message:event==='error'?'Fixture provider error':null}})});
- try{await send();assert.equal(document.querySelector('[data-role="assistant"] p')?.textContent,'Saved server text');assert.equal(Boolean(button('Stop')),false);}finally{await ui.close();}
+ try{await send();assert.equal(document.querySelector('[data-role="assistant"] p')?.textContent,'Saved server text');assert.equal((document.querySelector('[data-role="assistant"]') as HTMLElement).dataset.messageId,'saved-assistant');assert.equal(Boolean(button('Stop')),false);}finally{await ui.close();}
 });
 
 test('an owned stream holds rename and new-chat controls',async()=>{
