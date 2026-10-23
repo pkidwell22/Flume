@@ -133,9 +133,16 @@ export async function inspectFile(s: Storage, path: string, claimedMime?: string
   }
   const durationSeconds = extent.seconds(s.limits.maxDurationSeconds);
   const jpeg = format.mimeType === 'image/jpeg';
+  // FFmpeg 7 arm64 has no accelerated yuv420p->rgb24 colorspace conversion, so the RGB hash pass
+  // logs one known swscale notice. Prove the same native decode is clean under the strict policy
+  // first; only then may that single notice be tolerated on the conversion pass.
+  const softwareRgb = !jpeg && format.kind === 'video' && v.pix_fmt === 'yuv420p';
   if (jpeg) await run(s.ffmpeg, [...ffBase, ...inputArgs(path, format, s, true), '-f', 'null', '-'], s.limits, cwd);
+  else if (softwareRgb) await run(s.ffmpeg, [...ffBase, ...inputArgs(path, format, s, true), '-map', `0:${v.index}`,
+    '-an', '-sn', '-dn', '-f', 'null', '-'], s.limits, cwd);
   const decoded = parseHashes((await run(s.ffmpeg, [...ffBase, '-copyts', ...inputArgs(path, format, s, true), '-map', `0:${v.index}`, '-an', '-sn', '-dn',
-    ...(jpeg ? ['-vf', 'scale=in_range=full:out_range=full'] : []), '-fps_mode', 'passthrough', '-enc_time_base', 'demux', '-c:v', 'rawvideo', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'framehash', '-hash', 'sha256', '-'], s.limits, cwd, jpeg ? 'full-range-jpeg-conversion' : 'strict')).toString());
+    ...(jpeg ? ['-vf', 'scale=in_range=full:out_range=full'] : []), '-fps_mode', 'passthrough', '-enc_time_base', 'demux', '-c:v', 'rawvideo', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'framehash', '-hash', 'sha256', '-'], s.limits, cwd,
+    jpeg ? 'full-range-jpeg-conversion' : softwareRgb ? 'software-rgb-conversion' : 'strict')).toString());
   check(decoded.timeBase === v.time_base && decoded.rows.length === probed.length && probed.every((f: any, i: number) => String(f.pts) === decoded.rows[i][2]), 'DECODE_PROBE_MISMATCH');
   // Video framehash and the optional sample-clock audio framehash both ran to clean EOF.
   const after = await regular(path, s.limits.maxBytes);

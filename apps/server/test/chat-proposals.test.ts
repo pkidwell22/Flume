@@ -39,6 +39,17 @@ test('proposal freezes server-owned shot identity and applies immutable edits on
   assert.equal(duplicate.status, 'applied'); assert.equal(x.commands.length, 1);
 });
 
+test('proposal freezes completed assistant analysis and visual provenance from the same conversation',async()=>{
+ const x=await setup(),sourceRequestId=randomUUID();
+ const reference={assetId:randomUUID(),sourceSha256:'a'.repeat(64),kind:'video' as const,durationSeconds:2,totalFrames:3,sampling:'uniform-frame-index-v1' as const,frames:[{index:0,timestampSeconds:0,sha256:'b'.repeat(64)}],audio:'not-analyzed' as const};
+ const turn=await x.store.beginTurn({actorId:x.actor.id,projectId:x.projectId,conversationId:x.conversation.id,requestId:sourceRequestId,content:'Analyze',fingerprint:'source',recordedContext:{project:{id:x.projectId,name:'Film',brief:''},shot:null,assets:[],references:[reference],disclosure:[]}});
+ await x.store.finishTurn({actorId:x.actor.id,projectId:x.projectId,conversationId:x.conversation.id,assistantMessageId:turn.assistantMessageId,content:'A figure crosses left to right.',usage:null});
+ let received:any;
+ const service=createChatService({store:x.store,provider:{async *stream(){},async propose(input){received=input;return{title:'Crossing',prompt:'Track the crossing.',rationale:'Uses analysis.'};}},getWorkspace:async()=>({project:{id:x.projectId,name:'Film',brief:'',revision:1},shots:[x.getShot()],assets:[]})});
+ const proposal=await service.propose(x.actor,{projectId:x.projectId,conversationId:x.conversation.id,requestId:randomUUID(),modelId,shotId:x.shotId,instruction:'Use the analysis.',sourceMessageId:turn.assistantMessageId});
+ assert.deepEqual(proposal.referenceSource,{messageId:turn.assistantMessageId,content:'A figure crosses left to right.',references:[reference]});assert.deepEqual(received.referenceSource,proposal.referenceSource);
+});
+
 test('proposal apply requires an operator even for an otherwise authorized actor', async () => {
   const x = await setup();
   const proposal = await x.service.propose(x.actor, { projectId:x.projectId, conversationId:x.conversation.id, requestId:randomUUID(), modelId, shotId:x.shotId, instruction:'Reviewed edit' });

@@ -12,6 +12,15 @@ docker compose -f compose.yaml -f compose.chat.yaml up -d --build --wait
 
 The secret is mounted into the server only; the private `chat_data` volume survives container replacement. Do not put a credential in Compose YAML, a command-line argument, a `VITE_*` variable or the build context. Text chat can incur provider charges only when a message or an explicit shot-edit proposal request is sent. Apply, reconcile, and dismiss do not invoke the model. This override does not enable media workers or grant generation/approval tools to chat. Opening/reading conversations does not request model inference. Configured model IDs are not a guarantee of account entitlement.
 
+For Ollama Cloud only, use the separate overlay (which also declares the durable chat volume):
+
+```sh
+export FLUME_OLLAMA_API_KEY_FILE=/absolute/private/path/ollama-key
+docker compose -f compose.yaml -f compose.ollama.yaml up -d --build --wait
+```
+
+To configure both providers, include both overlays. `compose.chat.yaml` intentionally retains the existing OpenRouter secret mount; `compose.ollama.yaml` adds Ollama without changing worker credentials. The model list exposes only models whose provider credential is configured. New conversations default to Ollama when Ollama is configured, otherwise to the first legacy OpenRouter model. Existing saved conversations remain listable/readable even if their provider is currently disabled; sending or proposing with a disabled model is rejected without fallback.
+
 ### Runtime compatibility
 
 The Node image uses Debian Trixie so its packaged FFmpeg supports the application's `-enc_time_base demux` media inspection. Debian Bookworm's FFmpeg 5.1 rejects that option even though the application health check succeeds. Verify a real owned-image import and byte-identical download after image changes; version output and HTTP health alone are insufficient.

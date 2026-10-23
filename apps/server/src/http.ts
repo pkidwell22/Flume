@@ -75,6 +75,12 @@ export async function buildServer({service,chat,security={mode:'protected',allow
   if(!file||!projectId)throw new ServiceError('INVALID_UPLOAD','Both projectId and file are required.',400);
   return reply.code(201).send(await service.uploadAsset(actor(request),{...file,projectId}));
  });
+ app.post('/api/assets/:assetId/frames',async request=>{
+  const {assetId}=z.strictObject({assetId:uuid}).parse(request.params),input=z.strictObject({projectId:uuid,frame:z.enum(['first','last'])}).parse(request.body);
+  const extraction=(service as unknown as {extractReferenceFrame(actor:Actor,input:{projectId:string;assetId:string;frame:'first'|'last'}):Promise<unknown>}).extractReferenceFrame;
+  if(typeof extraction!=='function')throw new ServiceError('REFERENCE_FRAME_UNAVAILABLE','Reference frame extraction is not configured.',503);
+  return extraction.call(service,actor(request),{...input,assetId});
+ });
  app.get('/api/media/:assetId',async(request,reply)=>{
   const {assetId}=z.strictObject({assetId:uuid}).parse(request.params);
   const media=await service.readMedia(actor(request),assetId),size=media.bytes.length,etag=`"${media.sha256}"`;

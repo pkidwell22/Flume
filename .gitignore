@@ -36,6 +36,10 @@ coverage/
 /docs/COMFY-CAPABILITY-FINDINGS.md
 /docs/STUDIO-INTEGRATION-FINDINGS.md
 
+# Private coordination and local evidence
+/development/
+**/.evidence/
+
 # Private parallel-build handoffs (not product documentation)
 /apps/*/HANDOFF.md
 /packages/*/HANDOFF.md

@@ -72,6 +72,24 @@ export class WorkspaceController {
     this.update({ notice: 'Original request checked. Review the saved state before continuing.' });
   }
   private pendingRefresh: Promise<void> | null = null;
+  private pendingProjectRefresh: Promise<void> | null = null;
+  refreshProjects(): Promise<void> {
+    if (this.state.busy || this.state.phase === 'loading') return Promise.resolve();
+    if (this.pendingProjectRefresh) return this.pendingProjectRefresh;
+    const pending = this.readProjects().finally(() => { if (this.pendingProjectRefresh === pending) this.pendingProjectRefresh = null; });
+    this.pendingProjectRefresh = pending;
+    return pending;
+  }
+  private async readProjects() {
+    const navigation = this.navigation;
+    try {
+      const projects = await this.api.listProjects();
+      if (navigation !== this.navigation) return;
+      this.update(this.state.uncertainCommand ? { projects } : { projects, error: null, phase: 'ready' });
+    } catch (error) {
+      if (navigation === this.navigation && !this.state.uncertainCommand) this.update({ error: this.errorOf(error), phase: 'error' });
+    }
+  }
   refresh(): Promise<void> {
     if (this.state.busy || this.state.phase === 'loading') return Promise.resolve();
     if (this.pendingRefresh) return this.pendingRefresh;
@@ -226,7 +244,9 @@ export class WorkspaceController {
       const projects = await this.api.listProjects();
       if (navigation !== this.navigation) return;
       this.update({ projects });
-      await this.openProject(projectId ?? projects[0]?.id);
+      if (projectId) await this.openProject(projectId);
+      else if (projects.length === 0) await this.openProject();
+      else this.update({ phase: 'ready', workspace: null, activeShotId: null, reviewId: null });
     } catch (error) { if (navigation === this.navigation) this.update({ phase: 'error', error: this.errorOf(error) }); }
   }
   async createProject(name: string, brief: string) {
@@ -255,14 +275,28 @@ export class WorkspaceController {
     await this.execute({ type: 'attempt.resume', projectId: attempt.projectId, attemptId });
   }
   reportError(error: unknown) { this.update({ error: this.errorOf(error) }); }
+  cancelPendingNavigation() {
+    ++this.navigation;
+    ++this.readVersion;
+    if (this.state.phase === 'loading') this.update({ phase: 'ready', error: null });
+  }
   async openProject(projectId?: string) {
     const navigation = ++this.navigation;
-    this.update({ phase: 'loading', workspace: null, error: null, activeShotId: null, reviewId: null });
+    const previousProjectId = this.state.workspace?.project?.id;
+    const previousReviewId = this.state.reviewId;
+    // Keep the current readback visible until its replacement is authoritative.
+    // This also preserves review and draft context if the new read fails.
+    this.update({ phase: 'loading', error: null });
     try {
       const workspace = await this.api.getWorkspace(projectId);
       if (navigation !== this.navigation) return;
       this.pruneInspections(workspace);
-      this.update({ workspace, activeShotId: workspace.shots[0]?.id ?? null, phase: 'ready' });
+      const retainedReview = previousProjectId === workspace.project?.id
+        ? workspace.reviews.find(review => review.id === previousReviewId
+          && review.projectId === workspace.project?.id
+          && workspace.shots.some(shot => shot.id === review.shotId && shot.projectId === review.projectId && shot.revision === review.shotRevision))
+        : undefined;
+      this.update({ workspace, activeShotId: retainedReview?.shotId ?? workspace.shots[0]?.id ?? null, reviewId: retainedReview?.id ?? null, phase: 'ready' });
     } catch (error) {
       if (navigation === this.navigation) this.update({ phase: 'error', error: { code: 'LOAD_FAILED', message: error instanceof Error ? error.message : 'Could not open this project.' } });
     }

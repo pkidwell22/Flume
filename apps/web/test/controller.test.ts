@@ -13,6 +13,27 @@ function workspace(p = project) { return { project: p, shots: [{ ...shot, projec
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function client(overrides = {}) { return { listProjects: async () => [project], getWorkspace: async () => workspace(), command: async () => ({}), uploadAsset: async () => { throw new Error('Unexpected upload'); }, ...overrides }; }
 
+test('list refresh replaces only projects and preserves workspace review and draft state', async () => {
+  const external = { ...project, id: 'project-external', name: 'External project' };
+  let listed = [project]; let workspaceReads = 0;
+  const store = new WorkspaceController(client({
+    listProjects: async () => listed,
+    getWorkspace: async () => { workspaceReads++; return workspace(); },
+  }) as never);
+  await store.start(project.id);
+  (store as any).update({ reviewId: 'review-a' });
+  store.markDirty(shot.id);
+  listed = [external];
+
+  await store.refreshProjects();
+
+  assert.deepEqual(store.getSnapshot().projects, [external]);
+  assert.equal(workspaceReads, 1);
+  assert.equal(store.getSnapshot().workspace?.project?.id, project.id);
+  assert.equal(store.getSnapshot().reviewId, 'review-a');
+  assert.equal(store.getSnapshot().dirtyShotIds.has(shot.id), true);
+});
+
 test('opens a real workspace and ignores an obsolete project response', async () => {
   const old = deferred<ReturnType<typeof workspace>>();
   const other = { ...project, id: 'project-b', name: 'Second project' };
@@ -304,6 +325,21 @@ test('dirty navigation is blocked until a deliberate discard; resume is explicit
   assert.equal(commands.length, 0);
   await store.resume('attempt-a');
   assert.equal(commands[0].type, 'attempt.resume');
+});
+
+test('fresh startup lists projects without automatically opening the first project', async () => {
+  let workspaceReads = 0;
+  const store = new WorkspaceController(client({
+    listProjects: async () => [project],
+    getWorkspace: async () => { workspaceReads++; return workspace(); },
+  }) as never);
+
+  await store.start();
+
+  assert.equal(workspaceReads, 0);
+  assert.equal(store.getSnapshot().phase, 'ready');
+  assert.equal(store.getSnapshot().workspace, null);
+  assert.deepEqual(store.getSnapshot().projects, [project]);
 });
 
 test('concurrent status refreshes share a read and cannot replace a newer saved snapshot', async () => {

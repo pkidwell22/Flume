@@ -33,18 +33,24 @@ export async function createMediaBridge(root:string,toolPaths:MediaToolPaths={})
  const options:StoreOptions={root,...resolveMediaToolPaths(toolPaths),limits:{maxBytes:256*1024*1024,processTimeoutMs:20000,ingestTimeoutMs:25000}};
  const local=await createMediaStore(options);
  const active=new Set<Promise<Asset>>();
+ let running=0;const queued:Array<()=>void>=[];
  const resultSchema=z.discriminatedUnion('ok',[
   z.object({ok:z.literal(true),asset:AssetSchema.extend({size:z.number().int().positive(),mimeType:z.string()})}).strict(),
   z.object({ok:z.literal(false),code:z.string().regex(/^[A-Z_]+$/)}).strict(),
  ]);
  function runJob(job:MediaJob):Promise<Asset>{
+  if(running>=1&&queued.length>=4)return Promise.reject(new MediaError('MEDIA_BUSY'));
   const promise=new Promise<Asset>((resolve,reject)=>{
+   const start=()=>{
+   running++;
    const worker=new Worker(new URL('./media-job.ts',import.meta.url),{workerData:{options,job},execArgv:[]});
-   let result:z.infer<typeof resultSchema>|undefined;
-   worker.once('message',raw=>{try{result=resultSchema.parse(raw);}catch(error){reject(error);}});
-   worker.once('error',reject);
+   let result:z.infer<typeof resultSchema>|undefined,workerError:unknown;
+   worker.once('message',raw=>{try{result=resultSchema.parse(raw);}catch(error){workerError=error;}});
+   worker.once('error',error=>{workerError=error;});
    // Wait for actual worker exit, not merely an early message, before allowing shutdown/cleanup.
-   worker.once('exit',code=>{if(code!==0||!result)reject(new MediaError('MEDIA_JOB_FAILED'));else if(result.ok)resolve(result.asset);else reject(new MediaError(result.code));});
+   worker.once('exit',code=>{running--;queued.shift()?.();if(workerError)reject(workerError);else if(code!==0||!result)reject(new MediaError('MEDIA_JOB_FAILED'));else if(result.ok)resolve(result.asset);else reject(new MediaError(result.code));});
+   };
+   if(running<1)start();else queued.push(start);
   });
   active.add(promise);void promise.finally(()=>active.delete(promise)).catch(()=>{});return promise;
  }
@@ -60,10 +66,11 @@ export async function createMediaBridge(root:string,toolPaths:MediaToolPaths={})
     if(opened.asset.sha256!==a.sha256||opened.size!==a.byteSize||opened.mimeType!==a.mimeType||opened.asset.origin!==a.origin||opened.asset.width!==a.width||opened.asset.height!==a.height)throw new Error('MEDIA_INTEGRITY');
    }finally{await opened.file.close();}
   },
-  async readOwned(a){
+ async readOwned(a){
    const opened=await store.openAsset({projectId:a.projectId,assetId:a.id});
    try{return await opened.file.readFile();}finally{await opened.file.close();}
   },
+  async extractFrame(input){return toOwnedAsset(await runJob({kind:'extract',request:{assetId:input.id,projectId:input.projectId,sourceAssetId:input.sourceAssetId,frame:input.frame}}));},
  };
  return {store,media,drain:async()=>{await Promise.allSettled([...active]);}};
 }

@@ -1,4 +1,4 @@
-# Opt-in text chat only. Media generation workers remain disabled.
+# Backward-compatible optional OpenRouter text chat. Media generation workers remain disabled.
 services:
   app:
     environment:

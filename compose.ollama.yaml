@@ -1,0 +1,15 @@
+# Add Ollama Cloud chat to the base stack, or combine with compose.chat.yaml for both providers.
+services:
+  app:
+    environment:
+      FLUME_CHAT_STORE_ROOT: /data/chat
+      FLUME_OLLAMA_API_KEY_FILE: /run/secrets/chat_ollama
+    secrets:
+      - chat_ollama
+    volumes:
+      - chat_data:/data/chat
+secrets:
+  chat_ollama:
+    file: ${FLUME_OLLAMA_API_KEY_FILE:?Set an absolute private Ollama Cloud key file path}
+volumes:
+  chat_data:

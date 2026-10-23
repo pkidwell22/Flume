@@ -7,6 +7,13 @@ import { test } from 'node:test';
 import { buildServer, createChatService, createFileChatStore, ServiceError } from '../src/index.ts';
 
 const headers = { host: '127.0.0.1:4310', origin: 'http://127.0.0.1:4310' };
+test('reference frame endpoint accepts only project and first/last selection',async()=>{
+ const projectId=randomUUID(),assetId=randomUUID();let received:any;
+ const service={health:async()=>({}),extractReferenceFrame:async(_actor:any,input:any)=>{received=input;return{id:randomUUID(),...input};}} as any;
+ const app=await buildServer({service,security:{mode:'local-operator',allowedHosts:[headers.host],allowedOrigins:[headers.origin]}});
+ const response=await app.inject({method:'POST',url:`/api/assets/${assetId}/frames`,headers,payload:{projectId,frame:'last'}});assert.equal(response.statusCode,200);assert.deepEqual(received,{projectId,assetId,frame:'last'});
+ const invalid=await app.inject({method:'POST',url:`/api/assets/${assetId}/frames`,headers,payload:{projectId,frame:'middle'}});assert.equal(invalid.statusCode,400);await app.close();
+});
 test('chat routes enforce project ownership, stream real provider events, and do not call provider when opened', async () => {
   const projectId = randomUUID(), shotId = randomUUID(), assetId = randomUUID();
   let calls = 0, cancelled = false;
