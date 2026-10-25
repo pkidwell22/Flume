@@ -3,6 +3,7 @@
 import type { AuthoringCapabilities } from './authoring-api.ts';
 import type { ComposerProposal } from './storyboard-types.ts';
 import type { ContinuationRecovery } from './continue-shot-types.ts';
+import type { ReferenceReadState } from './reference-provenance.ts';
 export interface Project { id: string; name: string; brief: string; revision: number }
 export interface Controls { modelId: string; durationSeconds: number; resolution: string; aspectRatio: string; generateAudio: boolean; seed?: number }
 export interface Bindings { firstFrameAssetId: string | null; lastFrameAssetId: string | null }
@@ -41,6 +42,8 @@ export interface WorkspaceState {
   notice: string | null; reviewId: string | null; uncertainCommand: Command | null;
   dirtyShotIds: ReadonlySet<string>;
   authoring: AuthoringState;
+  /** Recorded-input reads keyed by project + attempt. Absence means "never asked". */
+  references?: Readonly<Record<string, ReferenceReadState>>;
 }
 /** Server-reported authoring capabilities. Absence is unknown, never "available". */
 export interface AuthoringState {

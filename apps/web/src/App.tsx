@@ -10,6 +10,7 @@ import { ownedMediaUrl, restoreOpener } from './shell.ts';
 import { frameState, isUnknown, needsWatching, shotNumber, shotPhase, shotTakes } from './shot-status.ts';
 import type { FrameKey } from './shot-status.ts';
 import { ChatPanel, type ChatPort } from './ChatPanel.tsx';
+import { recordedInputsFor, referenceReadKey } from './reference-provenance.ts';
 import { HomeShowreel } from './HomeShowreel.tsx';
 import { AuthoringStoryboard, FrameAuthoringSurface } from './AuthoringWorkspace.tsx';
 import { PROVIDER_SETUP_DOC } from '@flume/activity-review';
@@ -325,7 +326,7 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
               <RunCard shot={shot} number={shotNumber(shotIndex)} workspace={workspace} onOpenActivity={() => setDrawer('activity')} />
               {view === 'frames' ? <FramePair key={shot.id} shot={shot} workspace={workspace} draft={draftForShot} onSaveDraft={() => draftSaveAction.current?.()} />
                 : view === 'author' ? <FrameAuthoringSurface controller={controller} state={state} shot={shot} workspace={workspace} />
-                : <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={shotTakes(shot, workspace.takes)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} /></section>}
+                : <section className="fl-workspace__takes" aria-label="Takes"><TakeReview shot={shot} takes={shotTakes(shot, workspace.takes)} assets={workspace.assets} exports={workspace.exports.filter(item => item.shotId === shot.id)} busy={held || state.dirtyShotIds.has(shot.id)} onInspect={id => notify(() => controller.inspectTake(id))} onSelect={(id, inspectionId) => notify(() => controller.selectTake(shot.id, id, shot.revision, shot.selectionRevision, inspectionId))} onExport={() => notify(() => controller.exportShot(shot.id, shot.revision, shot.selectionRevision))} recordedInputs={take => recordedInputsFor(state.references?.[referenceReadKey(take.projectId, take.attemptId)])} onReadRecordedInputs={take => { void controller.readReferenceReceipt(take.projectId, take.attemptId); }} /></section>}
             </>}
           </div>
         </div>

@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Asset, Attempt, Capability, Export, Review, Shot, ShotPatch, Take, WorkspaceError } from './types.ts';
+import type { RecordedInputsState } from './reference-provenance.ts';
 
 export interface ShotEditorProps {
   shot: Shot; assets: Asset[]; capabilities: Capability[]; busy: boolean; error?: WorkspaceError | null;
@@ -24,6 +25,10 @@ export interface TakeReviewProps {
   onInspect(takeId: string): Promise<{ inspectionId: string }>;
   onSelect(takeId: string, inspectionId?: string): Promise<void>;
   onExport(): Promise<void>;
+  /** Recorded review-time inputs for a take, or null before anything has been read. */
+  recordedInputs?(take: Take): RecordedInputsState | null;
+  /** Ask for that receipt. A read, never a command. */
+  onReadRecordedInputs?(take: Take): void;
 }
 export interface ActivityPanelProps { attempts: Attempt[]; busy: boolean; onResume(attemptId: string): Promise<void> }
 export interface GenerationReviewProps {

@@ -14,6 +14,7 @@ import './authoring-workspace.css';
 import { FlumeApp } from './App.tsx';
 import { WorkspaceController } from './controller.ts';
 import { createAuthoringApi } from './authoring-api.ts';
+import { createReferenceProvenanceApi } from './reference-provenance.ts';
 import { workspaceComponents } from './composition.ts';
 import type { FlumePort } from './types.ts';
 import { createHttpChatPort } from './ChatPanel.tsx';
@@ -52,7 +53,7 @@ const controller = new WorkspaceController(client, createAuthoringApi(), {
     if (operationId) window.localStorage.setItem(continuationKey(projectId), operationId);
     else window.localStorage.removeItem(continuationKey(projectId));
   },
-});
+}, createReferenceProvenanceApi());
 const root = document.getElementById('root');
 if (!root) throw new Error('Flume mount point is missing.');
 createRoot(root).render(<FlumeApp controller={controller} components={workspaceComponents} chatPort={createHttpChatPort()} initialProjectId={new URLSearchParams(window.location.search).get('projectId') ?? undefined} />);

@@ -63,6 +63,12 @@ export async function buildServer({service,chat,authoring,security={mode:'protec
   const query=z.strictObject({projectId:uuid.optional()}).parse(request.query);
   return service.getWorkspace(actor(request),query.projectId);
  });
+ // Read-only recorded reference history for one generation. No writes, locks or provider calls.
+ app.get('/api/attempts/:attemptId/provenance',async request=>{
+  const params=z.strictObject({attemptId:uuid}).safeParse(request.params),query=z.strictObject({projectId:uuid}).safeParse(request.query);
+  if(!params.success||!query.success)throw new ServiceError('INVALID_REQUEST','A valid attempt and project identifier are required.',400);
+  return service.readReferenceProvenance(actor(request),{attemptId:params.data.attemptId,projectId:query.data.projectId});
+ });
  app.post('/api/commands',async request=>service.command(actor(request),request.body));
  app.post('/api/assets',async(request,reply)=>{
   let projectId:string|undefined,file:{filename:string;mimeType:string;bytes:Uint8Array}|undefined;
