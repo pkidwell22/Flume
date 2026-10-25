@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { GenerationReviewProps } from './types.ts';
-import { blockerText } from './presentation.ts';
+import { blockerGuidance, formatUsd } from './presentation.ts';
 
 export function GenerationReview(props: GenerationReviewProps) {
   if (!props.review) return null;
@@ -97,11 +97,19 @@ function ReviewDrawer({ review, assets, busy = false, onApprove, onSubmit, onDis
     {!framesReady && <p className="fl-review__warning" role="status">Both assigned images must be visible before you can approve or generate. If an image is unavailable, return to the shot and prepare a new review.</p>}
     {review.blockers.length > 0 && <section className="fl-review__blockers" aria-label="Generation blocked">
       <h3>Generation is blocked</h3>
-      <ul>{review.blockers.map((blocker, index) => <li key={index}>{blockerText(blocker)}</li>)}</ul>
+      <ul>{review.blockers.map((blocker, index) => {
+        const guidance = blockerGuidance(blocker);
+        return <li key={index}>
+          <p className="fl-review__blocker-reason">{guidance.explanation}</p>
+          <p className="fl-review__blocker-next"><strong>What you can do next.</strong> {guidance.nextStep}</p>
+          {guidance.help && <p className="fl-review__blocker-help"><a href={guidance.help.href} target="_blank" rel="noopener noreferrer">{guidance.help.label}</a><span> (opens in a new tab)</span></p>}
+          <details className="fl-review__blocker-detail"><summary>Technical details</summary>{guidance.detail.code !== null && <code className="fl-review__blocker-code">{guidance.detail.code}</code>}<span className="fl-review__blocker-message">{guidance.detail.message}</span></details>
+        </li>;
+      })}</ul>
       <p>Close this review to keep editing. Address the listed blockers, then prepare a new review. Repeating this request will not fix a provider block.</p>
     </section>}
     <section className="fl-review__cost">
-      <h3>{review.estimatedCostUsd === null ? 'Cost not available' : `Estimated cost: $${review.estimatedCostUsd} USD`}</h3>
+      <h3>{review.estimatedCostUsd === null ? 'Cost not available' : `Estimated cost: $${formatUsd(review.estimatedCostUsd)} USD`}</h3>
       <p>{review.estimatedCostUsd === null ? 'The provider has not supplied an estimate. Unknown does not mean free.' : 'This is an estimate, not a final charge.'}</p>
       {review.estimatedCostUsd === null ? <p>Approval is on hold until a reliable estimate is available. No dollar limit can be checked for an unknown price.</p> : !review.approved ? <>
         <label htmlFor={limitId}>Spending limit (USD)</label>

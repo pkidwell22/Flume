@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 const films = [
   { title: 'Afternoon, unhurried', video: '/art/home-reel/afternoon-room.mp4', poster: '/art/home-reel/afternoon-room.webp' },
@@ -6,11 +6,19 @@ const films = [
   { title: 'Before the last bus', video: '/art/home-reel/last-bus.mp4', poster: '/art/home-reel/last-bus.webp' },
 ] as const;
 
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.(REDUCED_MOTION)?.matches === true;
+
 export function HomeShowreel() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playEpoch = useRef(0);
+  const failureId = useId();
+  const motionId = useId();
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(() => typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true);
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
+  // The preference only decides the first state: playback is never forced and a
+  // person can still ask for it on a device that prefers reduced motion.
+  const [paused, setPaused] = useState(() => prefersReducedMotion() || typeof window === 'undefined');
   const wantsPlayback = useRef(!paused);
   wantsPlayback.current = !paused;
   const [failed, setFailed] = useState<Record<number, boolean>>({});
@@ -23,6 +31,14 @@ export function HomeShowreel() {
     }).catch(rejected); }
     catch { rejected(); }
   };
+
+  useEffect(() => {
+    const query = typeof window === 'undefined' ? undefined : window.matchMedia?.(REDUCED_MOTION);
+    if (!query?.addEventListener) return;
+    const onChange = (event: MediaQueryListEvent) => setReducedMotion(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -48,17 +64,22 @@ export function HomeShowreel() {
   }, [paused]);
 
   const select = (index: number) => setActive((index + films.length) % films.length);
+  // A disabled control must say why: the failure status and, when it applies,
+  // the motion preference are its accessible description.
+  const disabledReason = failed[active] ? `${failureId}${reducedMotion ? ` ${motionId}` : ''}` : undefined;
   return <section className="fl-showreel" role="region" aria-label="Featured films">
     <div className="fl-showreel__media">
       {failed[active]
-        ? <div className="fl-showreel__error" role="status" aria-label={`${film.title} unavailable`} style={{ backgroundImage: `linear-gradient(rgb(5 8 8 / .72), rgb(5 8 8 / .9)), url(${film.poster})` }}><span>This film could not be played.</span></div>
+        ? <div id={failureId} className="fl-showreel__error" role="status" aria-label={`${film.title} unavailable`} style={{ backgroundImage: `linear-gradient(rgb(5 8 8 / .72), rgb(5 8 8 / .9)), url(${film.poster})` }}><span>This film could not be played.</span></div>
         : <video key={film.video} ref={videoRef} aria-label={film.title} src={film.video} poster={film.poster} muted playsInline preload="metadata" onEnded={() => { if (!paused && document.visibilityState !== 'hidden') select(active + 1); }} onError={() => setFailed(value => ({ ...value, [active]: true }))} />}
     </div>
     <div className="fl-showreel__caption">
-      <div><p className="fl-eyebrow">Featured film · {String(active + 1).padStart(2, '0')}</p><h2>{film.title}</h2></div>
+      <div><p className="fl-eyebrow">Featured film · {String(active + 1).padStart(2, '0')}</p><h2>{film.title}</h2>
+        {reducedMotion && <p id={motionId} className="fl-showreel__motion-note">{failed[active] ? 'Reduced motion is on, and this film could not be played.' : 'Reduced motion is on, so this film starts paused. Use Play to watch it.'}</p>}
+      </div>
       <div className="fl-showreel__controls">
         <button type="button" aria-label="Previous film" onClick={() => select(active - 1)}>←</button>
-        <button type="button" disabled={!!failed[active]} aria-label={paused ? 'Resume showreel' : 'Pause showreel'} onClick={() => setPaused(value => !value)}>{paused ? 'Play' : 'Pause'}</button>
+        <button type="button" disabled={!!failed[active]} aria-label={paused ? 'Resume showreel' : 'Pause showreel'} aria-describedby={disabledReason} onClick={() => setPaused(value => !value)}>{paused ? 'Play' : 'Pause'}</button>
         <button type="button" aria-label="Next film" onClick={() => select(active + 1)}>→</button>
       </div>
     </div>

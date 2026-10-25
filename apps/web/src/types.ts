@@ -1,5 +1,8 @@
 // Structural UI ports from BUILD-BRIEF. The production adapter is the only
 // boundary that needs alignment with the canonical @flume/domain/client exports.
+import type { AuthoringCapabilities } from './authoring-api.ts';
+import type { ComposerProposal } from './storyboard-types.ts';
+import type { ContinuationRecovery } from './continue-shot-types.ts';
 export interface Project { id: string; name: string; brief: string; revision: number }
 export interface Controls { modelId: string; durationSeconds: number; resolution: string; aspectRatio: string; generateAudio: boolean; seed?: number }
 export interface Bindings { firstFrameAssetId: string | null; lastFrameAssetId: string | null }
@@ -37,4 +40,15 @@ export interface WorkspaceState {
   activeShotId: string | null; busy: string | null; error: WorkspaceError | null;
   notice: string | null; reviewId: string | null; uncertainCommand: Command | null;
   dirtyShotIds: ReadonlySet<string>;
+  authoring: AuthoringState;
+}
+/** Server-reported authoring capabilities. Absence is unknown, never "available". */
+export interface AuthoringState {
+  phase: 'idle' | 'loading' | 'ready' | 'error';
+  capabilities: AuthoringCapabilities | null;
+  error: WorkspaceError | null;
+  proposal: ComposerProposal | null;
+  recovery?: { phase: 'loading' | 'restored' | 'error'; proposalId: string; message: string } | null;
+  /** Saved continue-shot identity plus the authoritative server view restored for this project. */
+  continuation?: ContinuationRecovery | null;
 }

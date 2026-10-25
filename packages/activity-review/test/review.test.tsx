@@ -121,7 +121,7 @@ test('drawer focuses its title, dismisses by button or Escape, and restores open
 
 test('an approved snapshot does not pretend its estimate was the granted allowance', () => {
   render(<moduleUnderTest.GenerationReview review={{ ...review, approved: true, estimatedCostUsd: '0.08750' }} assets={[]} {...callbacks} />);
-  assert.ok(screen.getByText('Estimated cost: $0.08750 USD'));
+  assert.ok(screen.getByText('Estimated cost: $0.0875 USD'));
   assert.ok(screen.queryByRole('textbox', { name: 'Spending limit (USD)' }) === null);
   assert.ok(screen.getByText(/approved spending limits are enforced by the workspace/i));
 });

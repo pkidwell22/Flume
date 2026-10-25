@@ -1,0 +1,21 @@
+/* Authoring surfaces mounted in the workspace stage and Storyboard drawer. */
+.fl-author { display: grid; gap: 14px; padding: 2px 0 8px; }
+.fl-author__note {
+  margin: 0; padding: 10px 12px; border-left: 2px solid var(--fl-line, #40403c);
+  background: var(--fl-panel-2, #1d1d1b); color: var(--fl-ink-dim, #b6b3aa);
+  font-size: 12.5px; line-height: 1.5;
+}
+.fl-author .fl-frame-authoring,
+.fl-author .storyboard-composer,
+.fl-author .continue-shot { max-width: 780px; }
+
+.fl-story { display: grid; gap: 22px; }
+.fl-story__reopen { border-top: 1px solid var(--fl-line, #33332f); padding-top: 14px; display: grid; gap: 6px; }
+.fl-story__reopen > label { font-family: var(--fl-mono, ui-monospace, monospace); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--fl-ink-dim, #b6b3aa); }
+.fl-story__reopen-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fl-story__reopen-row input {
+  flex: 1 1 220px; min-width: 0; padding: 7px 9px; font: inherit; font-size: 12.5px;
+  color: inherit; background: var(--fl-field, #131311); border: 1px solid var(--fl-line, #33332f); border-radius: 2px;
+}
+.fl-story__reopen-row input:focus-visible,
+.fl-author .fl-frame-authoring :focus-visible { outline: 2px solid var(--fl-focus, #d8b26a); outline-offset: 2px; }

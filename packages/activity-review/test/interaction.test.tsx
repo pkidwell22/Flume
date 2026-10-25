@@ -23,7 +23,7 @@ test('null review renders nothing and triggers no action', () => {
 test('zero known cost stays an estimate and a literal zero allowance is preserved', async () => {
   let allowance: unknown;
   render(<GenerationReview review={{ ...review, estimatedCostUsd: '0' }} assets={[]} {...callbacks} onApprove={(_id, limits) => { allowance = limits; }} />);
-  assert.ok(screen.getByText('Estimated cost: $0 USD'));
+  assert.ok(screen.getByText('Estimated cost: $0.00 USD'));
   await act(async () => fireEvent.click(button('Approve this generation')));
   assert.deepEqual(allowance, { maxAttempts: 1, maxCostUsd: '0' });
 });

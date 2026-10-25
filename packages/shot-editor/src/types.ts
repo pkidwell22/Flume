@@ -74,6 +74,18 @@ export interface PrepareShotInput {
   shotId: string;
   expectedRevision: number;
 }
+/** One draft frame reference as the editor currently holds it (not saved). */
+export interface DraftFrameRef {
+  assetId: string;
+  filename: string;
+  mediaUrl: string;
+}
+/** The editor's unsigned-in draft references; adjacent surfaces label them unsaved. */
+export interface DraftFrameReport {
+  shotId: string;
+  first: DraftFrameRef | null;
+  last: DraftFrameRef | null;
+}
 export interface ShotEditorProps {
   shot: ShotView | null;
   assets: readonly AssetView[];
@@ -86,5 +98,11 @@ export interface ShotEditorProps {
   onPrepare: (input: PrepareShotInput) => Promise<unknown>;
   /** Wire to review controls so unsaved input cannot approve a different snapshot. */
   onDirtyChange?: (dirty: boolean, shotId: string) => void;
+  /** Report the draft's frame references so an adjacent preview can show them as
+   * unsaved. Reporting never saves, reviews, approves or submits. */
+  onDraftChange?: (report: DraftFrameReport) => void;
+  /** Register this editor's own guarded save so an adjacent surface can offer the
+   * identical action instead of a second, unguarded write path. */
+  registerSave?: (save: (() => void) | null) => void;
 }
 export type ShotEditorComponent = (props: ShotEditorProps) => ReactElement;

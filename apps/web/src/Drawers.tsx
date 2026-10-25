@@ -5,7 +5,7 @@ import type { Asset, Project, Shot, Workspace } from './types.ts';
 import { originLabel, ownedMediaUrl, restoreOpener } from './shell.ts';
 import { needsWatching, shotNumber } from './shot-status.ts';
 
-export type DrawerKind = 'projects' | 'library' | 'activity' | 'export';
+export type DrawerKind = 'projects' | 'library' | 'activity' | 'export' | 'story';
 
 /** Non-modal: the slate and reel stay usable. Opening focuses the title; Esc or Close returns focus. */
 export function Drawer({ id, title, meta, onClose, children }: { id: string; title: string; meta?: string; onClose(): void; children: ReactNode }) {
@@ -67,7 +67,7 @@ export function LibraryDrawer({ workspace, shots, held, onImport }: { workspace:
   ]);
   const origins = (['all', 'imported', 'generated', 'sample'] as const).filter(item => item === 'all' || assets.some(asset => asset.origin === item));
   return <>
-    <p className="fl-hint">Looking at an image never changes a shot. To use one, choose it as the start or end frame in the slate.</p>
+    <p className="fl-hint">Looking at an image never changes a shot. To use one, choose it as the start or end frame in the shot editor.</p>
     <div className="fl-drawer__row">
       <button type="button" className="fl-btn fl-btn--ghost fl-btn--sm" disabled={held} onClick={() => upload.current?.click()}>Import image</button>
       <input ref={upload} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { const file = event.target.files?.[0]; if (file) onImport(file); event.currentTarget.value = ''; }} />

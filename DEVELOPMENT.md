@@ -145,6 +145,77 @@ blocked. Setting an API key in your shell does not by itself enable generation.
 injection, account scope, prior-job verification and the supported Wan pricing profile. Do not put
 credentials or real job identifiers in source, frontend settings or committed examples.
 
+## Authoring and planner configuration
+
+The unreleased authoring surface in this tree — frame reviews, storyboard proposals and shot
+continuation — is opt-in in the same way generation is. Both entry points (`npm run dev` and the
+Docker image) compose it through one shared seam, so the container serves the same endpoints as the
+launcher. The default is explicit and honest: no image model, no estimate, no submit path and no
+planner.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `FLUME_IMAGE_AUTHORING_MODE` | `blocked` | `blocked` or `openrouter`. `blocked` exposes no image models, no quotes and no dispatch path. |
+| `FLUME_OPENROUTER_SCOPE` | unset | Required before any provider route is enabled: an explicit `openrouter/<account>/<version>` identity. It is not a credential. |
+| `FLUME_IMAGE_AUTHORING_MODELS` | unset | JSON array of literal model declarations (`modelId`, `name`, optional `aspectRatios`, `availability`, `blocker`). No model is enabled by default. |
+| `FLUME_IMAGE_AUTHORING_ESTIMATES_USD` | unset | JSON map of literal model id to literal USD amount. A missing estimate stays unknown; it is never inferred. |
+| `FLUME_STORYBOARD_PLANNER_MODEL` | unset | Literal registered chat model id (`provider/model`). Absent means no planner and a blocked storyboard route. |
+| `FLUME_STORYBOARD_PLANNER_MAX_TOKENS`, `_TIMEOUT_MS`, `_MAX_RESPONSE_CHARS` | `1600`, `30000`, `48000` | Bounded planner limits. |
+| `FLUME_FRAME_STAGING_ROOT` | `$FLUME_DATA_DIR/frame-staging` locally, `$FLUME_STORAGE_ROOT/frame-staging` in the container | Absolute durable directory for accepted-but-unimported image bytes. |
+
+What configuration does **not** grant:
+
+- A configured image model is not an approval. Every submit needs an operator-approved cap above
+  the server's estimate, and estimates remain catalog-derived, not provider-enforced caps.
+- A configured planner can only propose. Proposals cannot create a shot or generate media; applying
+  one is a separate operator action through the same command path as any other edit.
+- Enabling image authoring does not require video generation. `FLUME_IMAGE_AUTHORING_MODE=openrouter`
+  works while `FLUME_PROVIDER_MODE` stays `edit-only`, and it never enables media workers.
+- Continuation extracts an owned frame and replays real `shot.create`/`shot.update` commands. It has
+  no provider or queue port, so it cannot spend; when media workers are not attached the API reports
+  that blocker instead of implying the work is running.
+
+**Credentials differ between local and container runs.** Locally the server process reads
+`OPENROUTER_API_KEY` from its own environment, and only after an explicit mode enables a provider. In
+the container, credentials are file-only: a bare `OPENROUTER_API_KEY` in the environment is never
+read, the video and image routes read `OPENROUTER_API_KEY_FILE`, and chat plus the storyboard planner
+read `FLUME_CHAT_API_KEY_FILE` or `FLUME_OLLAMA_API_KEY_FILE`. A declared but unreadable secret file
+is a startup error. Secret files must be absolute regular files no larger than 1024 bytes; symlinks
+are refused. Credentials stay inside closures and are never enumerated, serialized, logged or sent to
+the browser, and configuring a model proves nothing about account entitlement.
+
+**Staging is durable and is not media.** Accepted result bytes are written under the staging root
+(directories `0700`, files `0600`, created on first use) before a review reports success, and they are
+re-hashed when read. Staging paths derive only from validated UUIDs and the content hash, so a staged
+reference cannot escape its root. Nothing in staging is a project asset until it is imported. In the
+container the root filesystem is read-only and the media volume is the only durable writable path, so
+staging must stay beneath `FLUME_STORAGE_ROOT` (`/data/media/frame-staging` by default); a path outside
+it is refused at startup, and there is no temporary-directory fallback. Staged bytes are not
+garbage-collected automatically, and there is no staging inspector in the UI.
+
+**Unknowns are recorded, not hidden.** A provider call whose acceptance cannot be proven is stored as
+`acceptance unknown` — not as success and not as failure. Continuing a take whose frame extraction was
+dispatched but produced no visible frame reports `extraction unknown` and refuses to re-extract. There
+is no reconciliation UI: these states surface as status text and must be inspected before any paid
+retry, so source inspection is currently the only reconciliation path.
+
+## Database migrations
+
+Both entry points run `migrate()` before the API serves traffic. It takes an advisory lock, ensures
+the `flume.migrations` ledger, and compares the ordered list of migration files to the applied ledger.
+If the ledger is not an exact ordered prefix of the checked-in files — same names, same SHA-256, same
+order — startup fails with `MIGRATION_LEDGER_MISMATCH`. Each pending file is applied and recorded in
+one transaction, so a partial apply cannot become a ledger entry.
+
+Migration numbering is **append-only**:
+
+- A new migration must sort *after* the highest version in this tree (currently
+  `011_authoring_journals.sql`).
+- Do not fill the gap `006`–`009` after `010` and `011` have been applied. A store that already applied
+  `010`/`011` would no longer match the prefix and would refuse to start.
+- Never edit, renumber or rewrite an applied migration. Its checksum is frozen and every store that
+  recorded the old hash would fail the prefix check.
+
 ## Local data, security, and shutdown
 
 The database, media, and logs live under `.flume/` and survive normal shutdown. The root launcher
@@ -229,6 +300,7 @@ Flume is a TypeScript workspace on React, Vite, Fastify, PostgreSQL, Drizzle, pg
 ## Documentation
 
 - [Product spec](docs/SPEC.md) — product direction and architecture.
+- [Docker stack](docs/DOCKER.md) — container boundaries, secrets, worker enablement and cutover.
 - [Foundation blueprint](docs/FOUNDATION-BLUEPRINT.md) — ownership and recovery contracts.
 - [Verification plan](docs/VERIFICATION-PLAN.md) — proof obligations for each claim.
 - [Architecture transfer](docs/ARCHITECTURE-TRANSFER.md) — control acceptance checklist.

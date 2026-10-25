@@ -1,12 +1,14 @@
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join, resolve, sep } from 'node:path';
 import type { PoolConfig } from 'pg';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 export type ContainerConfiguration = {
   database: PoolConfig;
   mediaRoot: string;
+  /** Durable frame-result staging. Always beneath `mediaRoot`, the one durable writable root. */
+  frameStagingRoot: string;
   apiPort: number;
   gatewayPort: number;
   publicOrigin: string;
@@ -54,6 +56,17 @@ export async function readContainerConfiguration(env: Environment): Promise<Cont
   if (!['0', '1'].includes(workers)) throw new Error('FLUME_WORKERS_ENABLED must be 0 or 1.');
   if (workers === '1' && env.FLUME_QUEUE_AUDITED !== '1') throw new Error('Worker activation requires FLUME_QUEUE_AUDITED=1 after an explicit queue audit.');
   if (!env.FLUME_STORAGE_ROOT || !isAbsolute(env.FLUME_STORAGE_ROOT) || env.FLUME_STORAGE_ROOT === '/') throw new Error('FLUME_STORAGE_ROOT must be an absolute non-root path.');
+  // Frame-result staging must be durable. The container root filesystem is read-only and its only
+  // writable durable path is the media volume, so staging lives beneath it by default and an
+  // explicit path outside it (a temp directory, a second writable root) is refused at startup.
+  const durableRoot = resolve(env.FLUME_STORAGE_ROOT);
+  const configuredStaging = env.FLUME_FRAME_STAGING_ROOT;
+  const declaredStaging = configuredStaging === undefined ? join(durableRoot, 'frame-staging') : configuredStaging;
+  const frameStagingRoot = resolve(declaredStaging);
+  if (!isAbsolute(declaredStaging) || /[\x00-\x1f\x7f]/.test(declaredStaging)
+    || frameStagingRoot === durableRoot || !frameStagingRoot.startsWith(durableRoot + sep)) {
+    throw new Error('FLUME_FRAME_STAGING_ROOT must be an absolute path beneath FLUME_STORAGE_ROOT.');
+  }
   const database: PoolConfig = {
     host: exactName(env.POSTGRES_HOST, 'POSTGRES_HOST'), port: port(env.POSTGRES_PORT, 5432, 'POSTGRES_PORT'),
     database: exactName(env.POSTGRES_DB, 'POSTGRES_DB'), user: exactName(env.POSTGRES_USER, 'POSTGRES_USER'),
@@ -61,7 +74,7 @@ export async function readContainerConfiguration(env: Environment): Promise<Cont
   };
   Object.defineProperty(database, 'password', { value: password, enumerable: false, configurable: false, writable: false });
   return {
-    database, mediaRoot: env.FLUME_STORAGE_ROOT, apiPort: port(env.FLUME_INTERNAL_API_PORT, 4311, 'FLUME_INTERNAL_API_PORT'),
+    database, mediaRoot: env.FLUME_STORAGE_ROOT, frameStagingRoot, apiPort: port(env.FLUME_INTERNAL_API_PORT, 4311, 'FLUME_INTERNAL_API_PORT'),
     gatewayPort: port(env.FLUME_GATEWAY_PORT, 8080, 'FLUME_GATEWAY_PORT'), publicOrigin: publicOrigin.origin,
     allowedHosts: [publicOrigin.host], allowedOrigins: [publicOrigin.origin, ...(devOrigin ? [devOrigin.origin] : [])],
     autoStartWorkers: workers === '1',

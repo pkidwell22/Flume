@@ -10,6 +10,8 @@ function EditorAdapter(props: ShotEditorProps) {
   // Stable callback: the component reports dirty in an effect, so an inline
   // state-writing callback here would create an effect/render feedback loop.
   const dirty = useCallback((value: boolean) => props.onDirtyChange(value), [props.onDirtyChange]);
+  const draft = props.onDraftChange;
+  const register = props.registerSaveAction;
   return createElement(ShotEditor, {
     shot: props.shot, assets: props.assets, busy: props.busy,
     capabilities: props.capabilities.map(c => ({...c, frameRoles:c.frameRoles.map(role => role==='first'?'first_frame':role==='last'?'last_frame':role)})),
@@ -17,6 +19,8 @@ function EditorAdapter(props: ShotEditorProps) {
     onSave: input => props.onSave({...input.patch, controls:{...input.patch.controls,seed:input.patch.controls.seed??null}},input.expectedRevision),
     onUpload: input => props.onUpload(input.file),
     onPrepare: input => props.onPrepare(input.expectedRevision),
+    ...(draft ? { onDraftChange: draft } : {}),
+    ...(register ? { registerSave: register } : {}),
   });
 }
 export const workspaceComponents: WorkspaceComponents = {

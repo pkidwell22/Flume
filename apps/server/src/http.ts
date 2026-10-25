@@ -1,15 +1,17 @@
 import Fastify, { type FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import {MediaError} from '@flume/media';
+import {registerAuthoringRoutes} from './authoring-routes.ts';
+import type {AuthoringRuntime} from './authoring-runtime.ts';
 import { z } from 'zod';
 import { ServiceError,actorSchema,uuid,type Actor } from './contracts.ts';
 import type { createCommandService } from './service.ts';
 import { ChatError,CreateChatSchema,ProposalActionSchema,ProposeShotEditSchema,RenameChatSchema,SendChatSchema } from './chat-contracts.ts';
 import type { ChatService } from './chat-service.ts';
 export type SecurityOptions={mode:'protected'|'local-operator';allowedHosts:string[];allowedOrigins:string[]};
-export type ServerOptions={service:ReturnType<typeof createCommandService>;chat?:ChatService;security?:SecurityOptions;authenticate?:(request:FastifyRequest)=>Promise<Actor|null>};
+export type ServerOptions={service:ReturnType<typeof createCommandService>;chat?:ChatService;authoring?:AuthoringRuntime;security?:SecurityOptions;authenticate?:(request:FastifyRequest)=>Promise<Actor|null>};
 const operatorId='10000000-0000-4000-8000-000000000001',agentId='10000000-0000-4000-8000-000000000002';
-export async function buildServer({service,chat,security={mode:'protected',allowedHosts:['127.0.0.1:4310','localhost:4310'],allowedOrigins:['http://127.0.0.1:4310','http://localhost:4310']},authenticate}:ServerOptions){
+export async function buildServer({service,chat,authoring,security={mode:'protected',allowedHosts:['127.0.0.1:4310','localhost:4310'],allowedOrigins:['http://127.0.0.1:4310','http://localhost:4310']},authenticate}:ServerOptions){
  const app=Fastify({logger:false,trustProxy:false,bodyLimit:1_048_576,requestTimeout:30_000});
  const actors=new WeakMap<FastifyRequest,Actor>();
  await app.register(multipart,{limits:{fileSize:32*1024*1024,files:1,fields:1,parts:2,fieldSize:100}});
@@ -42,6 +44,8 @@ export async function buildServer({service,chat,security={mode:'protected',allow
   actors.set(request,actorSchema.parse(actor));
  });
  const actor=(r:FastifyRequest)=>actors.get(r)!;
+ // Authoring routes run after the same Host/Origin/actor hook; they never bypass it.
+ if(authoring)registerAuthoringRoutes(app,{getActor:actor,authoring});
  app.get('/api/health',async()=>({...await service.health(),authorityMode:security.mode}));
  app.get('/api/projects',async request=>service.listProjects(actor(request)));
  app.get('/api/chat/models',async()=>({models:chat?.models??[]}));

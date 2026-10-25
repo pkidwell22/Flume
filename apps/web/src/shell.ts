@@ -1,7 +1,9 @@
 import type { Asset } from './types.ts';
 
-export function ownedMediaUrl(asset: Asset, origin = typeof window === 'undefined' ? 'http://flume.local' : window.location.origin): string | undefined {
+export function ownedMediaUrl(asset: Pick<Asset, 'mediaUrl'>, origin = typeof window === 'undefined' ? 'http://flume.local' : window.location.origin): string | undefined {
   // Media comes from the owned API, never directly from a provider or arbitrary URL.
+  // Saved frames, staged draft frames and previews all pass through this one policy:
+  // same origin, no embedded credentials, and an /api/media/ path.
   try { const url = new URL(asset.mediaUrl, origin); return url.origin === origin && !url.username && !url.password && url.pathname.startsWith('/api/media/') ? `${url.pathname}${url.search}` : undefined; }
   catch { return undefined; }
 }

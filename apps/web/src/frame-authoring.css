@@ -1,0 +1,192 @@
+/* Flume · native frame authoring panel.
+   Uses the workspace Vision 02 tokens (warm screening-room dark, tungsten only for
+   focus and for "this sends work to a model"). Every token has a fallback so the panel
+   can be embedded outside .fl-workspace without inventing a second palette. */
+
+.fl-frame-authoring {
+  --fa-ink: var(--fl-ink, #eeebe3);
+  --fa-muted: var(--fl-muted, #a29d92);
+  --fa-line: var(--fl-line, #24231f);
+  --fa-line-soft: var(--fl-line-soft, #1c1b19);
+  --fa-surface: var(--fl-surface, #111110);
+  --fa-well: var(--fl-well, #0c0c0b);
+  --fa-tungsten: var(--fl-tungsten, #ebc57e);
+  --fa-rule: var(--fl-rule, #2e2d29);
+  --fa-danger: var(--fl-missing-text, #ffa397);
+  --fa-warning: var(--fl-unknown-text, #f5ae74);
+  --fa-font: var(--fl-font, "Archivo Variable", Archivo, system-ui, sans-serif);
+  --fa-mono: var(--fl-font-mono, "IBM Plex Mono", ui-monospace, monospace);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--fa-line);
+  border-radius: var(--fl-radius-panel, 12px);
+  background: var(--fa-surface);
+  color: var(--fa-ink);
+  font: 400 13px/1.5 var(--fa-font);
+  container: frame-authoring / inline-size;
+}
+
+.fl-frame-authoring *,
+.fl-frame-authoring *::before,
+.fl-frame-authoring *::after { box-sizing: border-box; }
+.fl-frame-authoring :where(h2, h3, h4, p, ul, dl, dd, figure) { margin: 0; }
+.fl-frame-authoring :where(ul) { padding: 0; list-style: none; }
+.fl-frame-authoring :focus-visible { outline: 3px solid var(--fl-focus, #ebc57e); outline-offset: 2px; }
+.fl-frame-authoring :where(button, select, input, textarea) { font: inherit; }
+
+.fl-fa__head { display: flex; flex-direction: column; gap: 6px; }
+.fl-fa__head h2 { font-size: 19px; font-weight: 600; font-stretch: 108%; letter-spacing: -0.01em; }
+.fl-fa__head .fl-hint { max-width: 62ch; }
+
+.fl-frame-authoring .fl-eyebrow {
+  font: 600 11px/1.2 var(--fa-font);
+  font-stretch: 112%;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fa-muted);
+}
+.fl-frame-authoring .fl-hint { color: var(--fa-muted); font-size: 12px; text-wrap: pretty; }
+.fl-frame-authoring .fl-mono { font-family: var(--fa-mono); font-size: 12px; word-break: break-word; }
+
+.fl-frame-authoring .fl-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.1;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.fl-frame-authoring .fl-btn--primary { background: var(--fl-accent, #eeebe3); color: var(--fl-on-accent, #121211); }
+.fl-frame-authoring .fl-btn--primary:hover:not(:disabled) { background: var(--fl-accent-hover, #ffffff); }
+.fl-frame-authoring .fl-btn--ghost { background: transparent; color: var(--fa-ink); border-color: var(--fl-ghost-line, #3a3833); }
+.fl-frame-authoring .fl-btn--ghost:hover:not(:disabled) { background: #1c1c1a; border-color: #55524b; }
+.fl-frame-authoring .fl-btn:disabled { background: #1a1a18; color: #7a766d; border-color: var(--fa-rule); cursor: not-allowed; }
+.fl-frame-authoring .fl-link {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fa-tungsten);
+  font: 600 12.5px/1.2 var(--fa-font);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.fl-fa__notice { min-height: 18px; color: var(--fa-muted); font-size: 12.5px; }
+.fl-fa__notice:empty { display: none; }
+
+.fl-fa__alert,
+.fl-fa__caution {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #4a2f2a;
+  border-left: 3px solid var(--fa-danger);
+  background: #1a1210;
+  color: #ffd8d1;
+  font-size: 12.5px;
+}
+.fl-fa__alert ul { display: flex; flex-direction: column; gap: 4px; list-style: disc; padding-left: 18px; }
+.fl-fa__caution { border-color: #4a3a22; border-left-color: var(--fa-warning); background: #1a150e; color: #f7d9b6; }
+
+.fl-fa__composer { display: flex; flex-direction: column; gap: 14px; }
+
+.fl-fa__roles { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fl-fa__roles legend { padding: 0; font-weight: 600; font-size: 12px; letter-spacing: 0.02em; color: var(--fa-muted); }
+.fl-fa__role-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.fl-fa__role {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--fl-ghost-line, #3a3833);
+  background: var(--fa-well);
+  color: var(--fl-text-2, #bab5aa);
+  font-weight: 500;
+  cursor: pointer;
+}
+.fl-fa__role input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.fl-fa__role[data-selected='true'] { border-color: var(--fa-tungsten); color: var(--fa-ink); background: var(--fl-surface-pressed, #2c2b27); }
+.fl-fa__role:has(input:focus-visible) { outline: 3px solid var(--fl-focus, #ebc57e); outline-offset: 2px; }
+.fl-fa__roles:disabled .fl-fa__role { cursor: not-allowed; color: #7a766d; border-color: var(--fa-rule); }
+
+.fl-fa__field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fl-fa__field > label,
+.fl-fa__spend > label { font-weight: 600; font-size: 12.5px; color: var(--fl-text-2, #bab5aa); }
+.fl-fa__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.fl-fa__field :is(textarea, select),
+.fl-fa__spend input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--fl-ghost-line, #3a3833);
+  background: var(--fa-well);
+  color: var(--fa-ink);
+}
+.fl-fa__field textarea { resize: vertical; line-height: 1.45; }
+.fl-fa__field :is(textarea, select):disabled,
+.fl-fa__spend input:disabled { color: #7a766d; border-color: var(--fa-rule); cursor: not-allowed; }
+.fl-fa__spend input[aria-invalid='true'] { border-color: var(--fa-danger); }
+
+.fl-fa__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.fl-fa__issues { display: flex; flex-direction: column; gap: 3px; color: var(--fa-warning); font-size: 12px; }
+.fl-fa__issues li::before { content: '· '; }
+
+.fl-fa__review { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--fa-line); }
+.fl-fa__section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fl-fa__section-head h3,
+.fl-fa__attempt h3 { font-size: 15px; font-weight: 600; font-stretch: 106%; }
+.fl-fa__attempt { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--fa-line); }
+
+.fl-fa__meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.fl-fa__meta > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fl-fa__meta dt { font: 600 10.5px/1.3 var(--fa-font); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fa-muted); }
+.fl-fa__meta dd { font-size: 12.5px; }
+.fl-fa__meta--tight { gap: 8px 16px; }
+.fl-fa__prompt { white-space: pre-wrap; word-break: break-word; }
+
+.fl-fa__spend { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 9px; background: var(--fa-well); border: 1px solid var(--fa-line-soft); }
+.fl-fa__spend input { max-width: 220px; }
+
+.fl-fa__progress {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--fa-rule);
+}
+.fl-fa__progress span { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--fa-tungsten); transition: width 240ms ease; }
+
+.fl-fa__result { display: flex; flex-direction: column; gap: 10px; }
+.fl-fa__result h4 { font: 600 11px/1.3 var(--fa-font); font-stretch: 112%; letter-spacing: 0.09em; text-transform: uppercase; color: var(--fa-muted); }
+.fl-fa__figure { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 9px; border: 1px solid var(--fa-line); background: var(--fa-well); }
+.fl-fa__figure img { display: block; width: 100%; height: auto; max-height: 320px; object-fit: contain; border-radius: 5px; background: #060606; }
+.fl-fa__figure figcaption { color: var(--fa-muted); }
+.fl-fa__attempt [data-frame-bound] { color: var(--fl-ok-text, #a9d9b3); font-size: 12.5px; }
+
+@container frame-authoring (max-width: 460px) {
+  .fl-fa__grid,
+  .fl-fa__meta { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-frame-authoring * { transition: none !important; }
+}

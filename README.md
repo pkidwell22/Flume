@@ -75,6 +75,7 @@ The full test suite is `npm test`. It uses disposable PostgreSQL clusters and FF
 
 - [Development, setup, and verification](DEVELOPMENT.md)
 - [Provider configuration](apps/server/PROVIDER-CONFIGURATION.md)
+- [Authoring and planner configuration](DEVELOPMENT.md#authoring-and-planner-configuration)
 - [Glossary](GLOSSARY.md)
 
 ## License
