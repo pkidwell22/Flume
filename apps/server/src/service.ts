@@ -8,6 +8,7 @@ import { generationCommand,preparedSchema,estimateMatchesEnvelope,type Prepared 
 import { blockedProvider,durableOutboxQueue,type ProviderPort,type TransactionalQueuePort,type MediaPort } from './ports.ts';
 import { selectionCommand,type PreparedInspection } from './selection.ts';
 import { getTakeAsset,ownedAsset,ownedAssetSchema,insertAsset } from './assets.ts';
+import { projectReferenceReceipt,type ReferenceProvenanceRow,type ReferenceReceipt } from './reference-provenance.ts';
 export type ServiceOptions={pool:Pool;provider?:ProviderPort;queue?:TransactionalQueuePort;workerAvailable?:boolean;media?:MediaPort};
 export function createCommandService({pool,provider=blockedProvider,queue=durableOutboxQueue,workerAvailable=false,media}:ServiceOptions) {
   async function listProjects(raw:Actor) {
@@ -129,6 +130,27 @@ export function createCommandService({pool,provider=blockedProvider,queue=durabl
     await media.verifyOwned(derived);
     return await transaction(pool,async c=>assetDto(await insertAsset(c,derived)));
   }
+  /**
+   * Read-only recorded reference history for one generation. One project-scoped SELECT, no
+   * write, lock, migration or provider call, and no read of current shots, assets or selection.
+   * The project grant is checked before the lookup, so an unwelcome actor learns nothing about
+   * whether the attempt exists: absent and cross-project attempts are the same typed 404.
+   */
+  async function readReferenceProvenance(rawActor:Actor,input:{projectId:string;attemptId:string}):Promise<ReferenceReceipt> {
+    const actor=actorSchema.parse(rawActor),projectId=uuid.parse(input.projectId),attemptId=uuid.parse(input.attemptId);
+    authorize(actor,projectId);
+    const row=(await pool.query(`SELECT a.id AS attempt_id,a.project_id AS attempt_project_id,a.shot_id AS attempt_shot_id,a.shot_revision AS attempt_shot_revision,
+      a.review_id,r.id AS review_id_row,r.project_id AS review_project_id,r.shot_id AS review_shot_id,r.shot_revision AS review_shot_revision,
+      r.request_hash,r.created_at AS recorded_at,r.snapshot
+      FROM flume.attempts a JOIN flume.reviews r ON r.id=a.review_id
+      WHERE a.id=$1 AND a.project_id=$2 AND r.project_id=$2`,[attemptId,projectId])).rows[0];
+    if(!row)throw new ServiceError('PROVENANCE_NOT_FOUND','No recorded reference history is available for this attempt.',404);
+    const receipt=projectReferenceReceipt(row as ReferenceProvenanceRow);
+    // The receipt must describe exactly the identity that was authorized.
+    if(receipt.projectId.toLowerCase()!==projectId.toLowerCase()||receipt.attemptId.toLowerCase()!==attemptId.toLowerCase())
+      throw new ServiceError('PROVENANCE_INCONSISTENT','The recorded review does not match this attempt.',409);
+    return receipt;
+  }
   async function health(){await pool.query('SELECT 1');return {ok:true,store:'postgresql',workerAvailable};}
-  return {command,listProjects,getWorkspace,uploadAsset,readMedia,extractReferenceFrame,health};
+  return {command,listProjects,getWorkspace,uploadAsset,readMedia,extractReferenceFrame,readReferenceProvenance,health};
 }

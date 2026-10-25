@@ -1,7 +1,7 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useId, useRef, useState} from 'react';
 import {getTakeMedia} from './model';
 import {ExportShelf} from './ExportShelf';
-import type {ReviewAsset, ReviewShot, ReviewTake, TakeReviewProps} from './types';
+import type {RecordedInputReference, RecordedInputsState, ReviewAsset, ReviewShot, ReviewTake, TakeReviewProps} from './types';
 
 /** Selection is controlled by shot.selectedTakeId, never by take arrival or playback. */
 export function TakeReview(props: TakeReviewProps) {
@@ -48,7 +48,7 @@ function ShotTakes(props: ShotProps) {
 }
 
 type CardProps = ShotProps & {take: ReviewTake; number: number; actions: Actions};
-function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions}: CardProps) {
+function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions,recordedInputs,onReadRecordedInputs}: CardProps) {
   const media = getTakeMedia(shot,take,assets);
   const asset = media.status === 'ready' ? media.asset : assets.find(item => item.id === take.assetId && item.projectId === shot.projectId);
   const [loaded,setLoaded] = useState(false);
@@ -148,6 +148,7 @@ function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions
         <button ref={selectButton} type="button" className="fl-tr-primary" aria-pressed={selected} onClick={select} disabled={!selected && (blocked || !canInspect || !validInspection || selectRequested)} aria-disabled={selected || undefined}>{selected ? 'Selected' : actions.active === `select:${take.id}` ? 'Selecting…' : 'Select take'}</button>
       </div>
       {message && <p role="status" className="fl-tr-feedback">{message}</p>}
+      <RecordedInputs take={take} state={recordedInputs?.(take) ?? null} onRead={onReadRecordedInputs}/>
       <details className="fl-tr-details"><summary>Take details</summary><dl>
         <dt>Take</dt><dd>{take.id}</dd><dt>Attempt</dt><dd>{take.attemptId}</dd><dt>Created</dt><dd>{take.createdAt}</dd>
         <dt>Asset</dt><dd>{take.assetId}</dd>
@@ -157,3 +158,58 @@ function TakeCard({shot,take,number,assets,busy=false,onInspect,onSelect,actions
   </article>;
 }
 function sourceLabel(asset: ReviewAsset) { return {sample:'Sample',imported:'Imported',generated:'Generated'}[asset.origin]; }
+
+const roleLabels: Record<RecordedInputReference['role'], string> = {first_frame:'First frame',last_frame:'Last frame'};
+
+/**
+ * "Recorded inputs" disclosure for one take.
+ *
+ * The package owns no fetch and no cache: it reports an explicit read intent, renders exactly the
+ * receipt it is given, and leaves inspect/select/export untouched. A null digest is shown as
+ * not recorded — it is never a verification that the current media is the one used, and history
+ * says nothing about whether that media still exists.
+ */
+function RecordedInputs({take,state,onRead}:{take:ReviewTake;state:RecordedInputsState|null;onRead?:((take:ReviewTake)=>void)}) {
+  const [open,setOpen] = useState(false);
+  const bodyId = useId();
+  // No receipt capability at all: an older consumer renders exactly as it did before.
+  if (!onRead && !state) return null;
+  const current:RecordedInputsState = state ?? {phase:'idle'};
+  const read = () => onRead?.(take);
+  return <div className="fl-tr-inputs">
+    <button type="button" className="fl-tr-inputs__toggle" aria-expanded={open} aria-controls={bodyId}
+      onClick={()=>{const next = !open;setOpen(next);if(next && onRead && (current.phase === 'idle' || current.phase === 'error')) read();}}>Recorded inputs</button>
+    {open && <div className="fl-tr-inputs__body" id={bodyId} role="region" aria-label="Recorded inputs">
+      {current.phase === 'error'
+        ? <><p role="status" className="fl-tr-inputs__note">{current.message}</p><button type="button" onClick={read}>Try again</button></>
+        : current.phase === 'ready' ? <RecordedInputsBody status={current.status} references={current.references}/>
+        : current.phase === 'loading'
+          ? <p role="status" className="fl-tr-inputs__note">Reading the recorded review…</p>
+          : <><p role="status" className="fl-tr-inputs__note">Not read yet. Reading shows only what this generation’s review recorded, as a historical record.</p>
+              {onRead && <button type="button" onClick={read}>Read recorded inputs</button>}</>}
+    </div>}
+  </div>;
+}
+
+function RecordedInputsBody({status,references}:{status:'recorded'|'partial'|'unknown';references:readonly RecordedInputReference[]}) {
+  return <>
+    {status === 'unknown'
+      ? <p role="status" className="fl-tr-inputs__note">Not recorded. This generation has no usable reference record, so the inputs it used are unknown.</p>
+      : status === 'partial'
+        ? <p role="status" className="fl-tr-inputs__note">{references.length === 0
+            ? 'Partly recorded. The stored review is incomplete about this generation’s reference inputs, and no usable reference or digest could be read from it.'
+            : 'Partly recorded. The stored review is incomplete about this generation’s reference inputs: only the details below could be read, and any field the record does not carry is left blank.'}</p>
+        : references.length === 0
+          ? <p role="status" className="fl-tr-inputs__note">No references were bound when this generation was reviewed.</p>
+          : null}
+    {references.length > 0 && <dl className="fl-tr-inputs__list">{references.map(reference => <div className="fl-tr-input-row" key={reference.role}>
+      <dt className="fl-tr-input-role">{roleLabels[reference.role]}</dt>
+      <dd>
+        <span className="fl-tr-input-asset">{reference.assetId ?? 'Asset ID not recorded'}</span>
+        <span className="fl-tr-input-digest-label">SHA-256</span>
+        <span className="fl-tr-input-digest">{reference.sha256 ?? 'Digest not recorded'}</span>
+      </dd>
+    </div>)}</dl>}
+    <p className="fl-tr-inputs__caveat">Recorded at review time. This is a historical record, not a new verification, and it does not check whether the media still exists.</p>
+  </>;
+}

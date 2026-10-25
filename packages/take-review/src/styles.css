@@ -40,6 +40,21 @@
 .fl-take-review button:disabled { cursor: not-allowed; color: var(--fl-muted, #635f55); background: var(--fl-bg, #efe8d6); border-color: var(--fl-border, #888274); border-style: dashed; }
 .fl-take-review button:focus-visible, .fl-take-review a:focus-visible, .fl-take-review summary:focus-visible, .fl-take-review video:focus-visible { outline: 3px solid var(--fl-focus, #111111); outline-offset: 3px; }
 .fl-take-review .fl-tr-feedback { margin-top: 12px; max-width: 65ch; font-size: 13px; color: var(--fl-ink, #111111); }
+/* Recorded inputs: an explicit, read-only disclosure. Same ruled history as the details block. */
+.fl-tr-inputs { margin-top: 12px; border-top: 1px solid var(--fl-rule, #d0c9b8); font-size: 12px; color: var(--fl-muted, #635f55); }
+.fl-take-review .fl-tr-inputs__toggle { min-height: var(--fl-control-height, 44px); padding: 12px 0; font-size: 13px; color: var(--fl-ink, #111111); background: none; border: 0; cursor: pointer; text-align: left; }
+.fl-take-review .fl-tr-inputs__toggle::after { content: " ›"; color: var(--fl-muted, #635f55); }
+.fl-take-review .fl-tr-inputs__toggle[aria-expanded="true"]::after { content: " ⌄"; }
+.fl-tr-inputs__body { padding-bottom: 12px; }
+.fl-take-review .fl-tr-inputs__note { max-width: 65ch; color: var(--fl-ink, #111111); margin-bottom: 8px; }
+.fl-take-review .fl-tr-inputs__body > button { font-size: 13px; margin-bottom: 8px; }
+.fl-tr-inputs__list { display: grid; gap: 10px; margin: 0 0 10px; }
+.fl-tr-input-row { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr); align-items: baseline; column-gap: 16px; }
+.fl-tr-input-role { color: var(--fl-muted, #635f55); }
+.fl-tr-input-row dd { min-width: 0; margin: 0; color: var(--fl-ink, #111111); overflow-wrap: anywhere; }
+.fl-tr-input-asset, .fl-tr-input-digest { display: block; font-family: var(--fl-font-mono, "IBM Plex Mono", ui-monospace, monospace); font-size: 12px; }
+.fl-tr-input-digest-label { display: block; margin-top: 2px; color: var(--fl-muted, #635f55); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.fl-take-review .fl-tr-inputs__caveat { max-width: 65ch; padding-top: 8px; border-top: 1px solid var(--fl-rule, #d0c9b8); }
 .fl-tr-details { margin-top: 12px; border-top: 1px solid var(--fl-rule, #d0c9b8); font-size: 12px; color: var(--fl-muted, #635f55); }
 .fl-take-review summary { cursor: pointer; width: fit-content; max-width: 100%; min-height: var(--fl-control-height, 44px); padding: 12px 0; font-size: 13px; }
 .fl-tr-details dl { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr); align-items: baseline; column-gap: 16px; row-gap: 8px; margin: 0 0 12px; }

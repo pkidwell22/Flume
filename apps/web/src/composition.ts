@@ -25,10 +25,13 @@ function EditorAdapter(props: ShotEditorProps) {
 }
 export const workspaceComponents: WorkspaceComponents = {
   Brand, ShotEditor: EditorAdapter,
-  TakeReview: props => createElement(TakeReview, {...props,
+  TakeReview: ({recordedInputs, onReadRecordedInputs, ...props}) => createElement(TakeReview, {...props,
     onInspect: input => props.onInspect(input.takeId),
     onSelect: input => props.onSelect(input.takeId,input.inspectionId),
     onExport: () => props.onExport(),
+    // The package renders data and reports intent; the controller owns the read and its guards.
+    recordedInputs: recordedInputs ? take => recordedInputs(take) : undefined,
+    onReadRecordedInputs: onReadRecordedInputs ? take => onReadRecordedInputs(take) : undefined,
   }),
   ActivityPanel: props => createElement(ActivityPanel, {...props, assets:[]}),
   GenerationReview: props => createElement(GenerationReview, {...props,

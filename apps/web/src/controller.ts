@@ -1,4 +1,6 @@
 import type { Command, CommandIntent, FlumePort, Receipt, ShotPatch, Workspace, WorkspaceError, WorkspaceState } from './types.ts';
+import type { ReferenceReadState, ReferenceProvenancePort } from './reference-provenance.ts';
+import { referenceReadKey, referenceReadMessage } from './reference-provenance.ts';
 import type { AuthoringPort } from './authoring-api.ts';
 import type { ComposerItemInput, ComposerProposal } from './StoryboardComposer.tsx';
 import type { ContinueShotOutcome, ContinueShotPublicView, ContinueShotRequest } from './ContinueShot.tsx';
@@ -17,13 +19,15 @@ export interface ContinuationBookmarks {
 
 export class WorkspaceController {
   private api: FlumePort;
-  private state: WorkspaceState = { phase: 'idle', projects: [], workspace: null, activeShotId: null, busy: null, error: null, notice: null, reviewId: null, uncertainCommand: null, dirtyShotIds: new Set(), authoring: { phase: 'idle', capabilities: null, error: null, proposal: null } };
+  private state: WorkspaceState = { phase: 'idle', projects: [], workspace: null, activeShotId: null, busy: null, error: null, notice: null, reviewId: null, uncertainCommand: null, dirtyShotIds: new Set(), authoring: { phase: 'idle', capabilities: null, error: null, proposal: null }, references: {} };
   private authoring: AuthoringPort | null = null;
   private proposalBookmarks: ProposalBookmarks | null;
   private continuationBookmarks: ContinuationBookmarks | null;
-  constructor(api: FlumePort, authoring: AuthoringPort | null = null, proposalBookmarks: ProposalBookmarks | null = null, continuationBookmarks: ContinuationBookmarks | null = null) {
+  private provenance: ReferenceProvenancePort | null;
+  constructor(api: FlumePort, authoring: AuthoringPort | null = null, proposalBookmarks: ProposalBookmarks | null = null, continuationBookmarks: ContinuationBookmarks | null = null, provenance: ReferenceProvenancePort | null = null) {
     this.api = api; this.authoring = authoring; this.proposalBookmarks = proposalBookmarks;
     this.continuationBookmarks = continuationBookmarks;
+    this.provenance = provenance;
   }
   getSnapshot = () => this.state;
   private navigation = 0;
@@ -276,6 +280,74 @@ export class WorkspaceController {
     await this.execute({ type: 'export.create', projectId: shot.projectId, shotId, expectedRevision, expectedSelectionRevision });
     this.update({ notice: 'Export requested. The download appears when the owned file is ready.' });
   }
+  // ---- Recorded reference history: one read, never a command ----
+  /** Monotonic request identity. It is never reset, so a pruned key cannot alias a later read. */
+  private referenceToken = 0;
+  private referenceRequests = new Map<string, number>();
+  private projectOpen(projectId: string) {
+    return (this.state.workspace?.project?.id ?? '').toLowerCase() === projectId.toLowerCase();
+  }
+  private setReference(key: string, value: ReferenceReadState | null) {
+    const references = { ...(this.state.references ?? {}) };
+    if (value === null) delete references[key]; else references[key] = value;
+    this.update({ references });
+  }
+  /**
+   * A new navigation retires every read still in flight: its answer can no longer be shown, so a
+   * `loading` label it wrote must not outlive the navigation. Settled receipts for the project
+   * being opened stay authoritative; every other project's state is dropped, which keeps this map
+   * bounded to the project the user is actually in.
+   */
+  private invalidateReferences(keepProjectId?: string) {
+    const prefix = keepProjectId ? `${keepProjectId.toLowerCase()}:` : null;
+    const references: Record<string, ReferenceReadState> = {};
+    let changed = false;
+    for (const [key, value] of Object.entries(this.state.references ?? {})) {
+      if (prefix !== null && key.startsWith(prefix) && value.phase !== 'loading') references[key] = value;
+      else changed = true;
+    }
+    for (const key of [...this.referenceRequests.keys()]) {
+      if (prefix === null || !key.startsWith(prefix)) this.referenceRequests.delete(key);
+    }
+    if (changed) this.update({ references });
+  }
+  /**
+   * Read the frozen review-time inputs recorded for one attempt.
+   *
+   * Guarded by project + attempt identity and by the navigation epoch: a superseded answer (another
+   * project, another take, an out-of-order reply) is discarded rather than shown. A failure is
+   * reported inside the disclosure only — this is not a workspace error and it retries nothing but
+   * the read. Reading never inspects, selects, exports or generates.
+   */
+  async readReferenceReceipt(projectId: string, attemptId: string): Promise<void> {
+    const key = referenceReadKey(projectId, attemptId);
+    const navigation = this.navigation;
+    const request = ++this.referenceToken;
+    this.referenceRequests.set(key, request);
+    if (!this.provenance) {
+      this.setReference(key, { phase: 'error', code: 'PROVENANCE_UNAVAILABLE', message: 'Recorded inputs are not available in this workspace.' });
+      return;
+    }
+    this.setReference(key, { phase: 'loading' });
+    try {
+      const receipt = await this.provenance.read(attemptId, projectId);
+      // Ownership first: only the newest read for this key may write — or delete — its state.
+      // A reply that lost its epoch has no authority over state a newer read already stored.
+      if (this.referenceRequests.get(key) !== request) return;
+      if (navigation !== this.navigation || !this.projectOpen(projectId)) { this.setReference(key, null); return; }
+      // The receipt must describe exactly the generation that was asked for.
+      if (receipt.projectId.toLowerCase() !== projectId.toLowerCase() || receipt.attemptId.toLowerCase() !== attemptId.toLowerCase()) {
+        this.setReference(key, { phase: 'error', code: 'RECEIPT_MISMATCH', message: 'The server returned recorded inputs for a different generation. Nothing was shown.' });
+        return;
+      }
+      this.setReference(key, { phase: 'ready', receipt });
+    } catch (error) {
+      if (this.referenceRequests.get(key) !== request) return;
+      if (navigation !== this.navigation || !this.projectOpen(projectId)) { this.setReference(key, null); return; }
+      const issue = this.errorOf(error);
+      this.setReference(key, { phase: 'error', code: issue.code, message: referenceReadMessage(issue.code, issue.message) });
+    }
+  }
   async start(projectId?: string) {
     const navigation = ++this.navigation;
     this.update({ phase: 'loading', error: null });
@@ -285,7 +357,7 @@ export class WorkspaceController {
       this.update({ projects });
       if (projectId) await this.openProject(projectId);
       else if (projects.length === 0) await this.openProject();
-      else this.update({ phase: 'ready', workspace: null, activeShotId: null, reviewId: null });
+      else { this.invalidateReferences(); this.update({ phase: 'ready', workspace: null, activeShotId: null, reviewId: null }); }
     } catch (error) { if (navigation === this.navigation) this.update({ phase: 'error', error: this.errorOf(error) }); }
   }
   async createProject(name: string, brief: string) {
@@ -621,6 +693,7 @@ export class WorkspaceController {
   cancelPendingNavigation() {
     ++this.navigation;
     ++this.readVersion;
+    this.invalidateReferences(this.state.workspace?.project?.id);
     if (this.state.busy === 'storyboard.restore') { this.busyNavigation = null; this.update({ busy: null, authoring: { ...this.state.authoring, recovery: null } }); }
     if (this.state.busy === 'continuation.restore') { this.busyNavigation = null; this.update({ busy: null, authoring: { ...this.state.authoring, continuation: null } }); }
     if (this.state.phase === 'loading') this.update({ phase: 'ready', error: null });
@@ -642,6 +715,7 @@ export class WorkspaceController {
     try {
       const workspace = await this.api.getWorkspace(projectId);
       if (navigation !== this.navigation) return;
+      this.invalidateReferences(workspace.project?.id);
       this.pruneInspections(workspace);
       const retainedReview = previousProjectId === workspace.project?.id
         ? workspace.reviews.find(review => review.id === previousReviewId

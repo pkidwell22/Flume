@@ -52,6 +52,14 @@ export async function readContainerConfiguration(env: Environment): Promise<Cont
   const password = await readSecretFile(env.POSTGRES_PASSWORD_FILE, 'POSTGRES_PASSWORD_FILE');
   const publicOrigin = loopbackOrigin(env.FLUME_PUBLIC_ORIGIN, 'FLUME_PUBLIC_ORIGIN');
   const devOrigin = !env.FLUME_DEV_ORIGIN ? undefined : loopbackOrigin(env.FLUME_DEV_ORIGIN, 'FLUME_DEV_ORIGIN');
+  const tailnetOrigin = env.FLUME_TAILNET_ORIGIN === undefined ? undefined : new URL(env.FLUME_TAILNET_ORIGIN);
+  // Opt-in additional origin for a loopback-bound gateway behind Tailscale Serve.
+  // Exact host matching is retained; this is not a wildcard or an authentication bypass.
+  if (tailnetOrigin && (tailnetOrigin.origin !== env.FLUME_TAILNET_ORIGIN
+    || tailnetOrigin.protocol !== 'https:' || tailnetOrigin.port !== ''
+    || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.ts\.net$/.test(tailnetOrigin.hostname))) {
+    throw new Error('FLUME_TAILNET_ORIGIN must be an exact HTTPS machine.tailnet.ts.net origin on port 443.');
+  }
   const workers = env.FLUME_WORKERS_ENABLED ?? '0';
   if (!['0', '1'].includes(workers)) throw new Error('FLUME_WORKERS_ENABLED must be 0 or 1.');
   if (workers === '1' && env.FLUME_QUEUE_AUDITED !== '1') throw new Error('Worker activation requires FLUME_QUEUE_AUDITED=1 after an explicit queue audit.');
@@ -76,7 +84,7 @@ export async function readContainerConfiguration(env: Environment): Promise<Cont
   return {
     database, mediaRoot: env.FLUME_STORAGE_ROOT, frameStagingRoot, apiPort: port(env.FLUME_INTERNAL_API_PORT, 4311, 'FLUME_INTERNAL_API_PORT'),
     gatewayPort: port(env.FLUME_GATEWAY_PORT, 8080, 'FLUME_GATEWAY_PORT'), publicOrigin: publicOrigin.origin,
-    allowedHosts: [publicOrigin.host], allowedOrigins: [publicOrigin.origin, ...(devOrigin ? [devOrigin.origin] : [])],
+    allowedHosts: [publicOrigin.host, ...(tailnetOrigin ? [tailnetOrigin.host] : [])], allowedOrigins: [publicOrigin.origin, ...(devOrigin ? [devOrigin.origin] : []), ...(tailnetOrigin ? [tailnetOrigin.origin] : [])],
     autoStartWorkers: workers === '1',
   };
 }
