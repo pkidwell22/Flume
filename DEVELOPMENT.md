@@ -1,6 +1,6 @@
 # Flume — development and verification
 
-[← Visual introduction](README.md)
+[← Project overview](README.md)
 
 **A local workspace for preparing image-to-video shots.**
 

@@ -1,26 +1,82 @@
-<p align="center">
-<img src="docs/landing/01-hero.png" width="100%" alt="Flume. Make the film you've always imagined. A matte-black slab in a misty forest introduces an open-source filmmaking workspace in active development.">
-<img src="docs/landing/02-what-its-for.png" width="100%" alt="A shot is a small world: its opening frame, closing frame, direction, takes and sound.">
-<img src="docs/landing/03-workflow.png" width="100%" alt="The designed workflow: direct the shot; review, then generate; choose the take; shape the sound; export the film. Parts remain prototypes.">
-<img src="docs/landing/04-detail.png" width="100%" alt="Get close. Then closer. Ferns, moss and the matte-black slab in a cinematic forest detail. AI-generated design-study imagery, not Flume output.">
-<img src="docs/landing/05-preview.png" width="100%" alt="Inside the workspace. A labelled prototype with fixture data: a soundstage house start frame, an honestly empty end-frame slot, shot direction and model settings.">
-<img src="docs/landing/06-showcase.png" width="100%" alt="Worlds, built and lit. Portrait and widescreen photographic studies of a timber house set on a soundstage.">
-<img src="docs/landing/07-open-source.png" width="100%" alt="Yours to run, read and change. Open source; your checkout and files; explicit model choices; active development.">
-<img src="docs/landing/08-footer.png" width="100%" alt="Flume. An open-source workspace for making films. Design-study photographs are AI-generated; interface views are prototypes with fixture data.">
-</p>
+# Flume
 
-## Build, run and verify
+Flume is a local filmmaking workspace for organizing projects, directing shots, managing image references, and reviewing AI-generated takes. The browser app, API, and command-line client share a PostgreSQL store and owned media files.
 
-[**Get started →**](DEVELOPMENT.md#run-locally) · [Current capabilities](DEVELOPMENT.md#at-a-glance) · [Verified live result](docs/results/wan-2.7/README.md) · [Mood film](readme-promos/README.md)
+**Status:** active development, not a production release. The default configuration is edit-only. Generation requires explicit provider configuration, review, and operator approval; configuring a key does not automatically enable a model or submit a job.
+
+## Features
+
+- Create projects and shots, and save prompts and model controls.
+- Import owned images and bind separate start and end frame references.
+- Review generation requests, estimated costs, and provider blockers before approval.
+- Inspect generated takes, explicitly select a take, and export it.
+- Work through the browser, API, or headless client.
+
+See the [development guide](DEVELOPMENT.md#at-a-glance) for the current implementation status, verification evidence, and known limitations. Unreleased branch work is not included in that status.
+
+## Requirements
+
+- **Node.js 26.8.1**, pinned in [`.node-version`](.node-version).
+- **npm 11.19.0**, declared in [`package.json`](package.json).
+- **PostgreSQL binaries:** `initdb`, `postgres`, `psql`, and `pg_ctl`.
+- **FFmpeg and ffprobe** for media inspection, previews, and export.
+
+The local workflow is currently exercised on macOS with the Homebrew layout. Other platforms and binary layouts need additional verification. See [requirements](DEVELOPMENT.md#requirements) for details.
+
+## Quick start
 
 ```sh
-git clone https://github.com/pkidwell22/Flume
+git clone https://github.com/pkidwell22/Flume.git
+cd Flume
+npm ci --ignore-scripts
+npm run dev:check
+npm run dev
 ```
 
-The visual introduction is a GitHub-specific adaptation of the landing-page design, without
-website navigation or decorative buttons. Its workspace illustration is a labelled **prototype**,
-not a screenshot of the current application. The [development guide](DEVELOPMENT.md) contains the
-current implementation status, requirements, setup, real application screenshots, verification
-results and known limitations. Audio work shown in the design is not part of the published checkpoint.
+Open <http://127.0.0.1:4310>. The API health endpoint is <http://127.0.0.1:4311/api/health>.
 
-[Visual introduction: text, provenance and export notes](docs/landing/README.md) · [MIT License](LICENSE)
+The root launcher builds the workspaces, starts its own local PostgreSQL cluster, applies migrations, and starts the API and web app. Worker phases run inside the API process. Do not start a separate database or worker for this workflow.
+
+`dev:check` checks the Node version, workspaces, and PostgreSQL binaries without starting services. It does not check every media or test prerequisite.
+
+## Configuration and local data
+
+- `FLUME_WEB_PORT` and `FLUME_API_PORT` override the default web and API ports.
+- `PG_BIN` points to PostgreSQL binaries when they are not found automatically.
+- `FLUME_FFMPEG_PATH` and `FLUME_FFPROBE_PATH` specify media executable paths.
+- Local database files, media, and logs live under `.flume/` and survive normal shutdown.
+
+Read [provider configuration](apps/server/PROVIDER-CONFIGURATION.md) before enabling generation. Keep credentials server-side and out of source control.
+
+The local app runs on loopback interfaces in local-operator mode, without production authentication. **Do not expose it publicly.** Do not delete an active store, its ownership markers, or its locks to work around a startup problem.
+
+## Development
+
+```sh
+npm run build
+npm run typecheck
+```
+
+The full test suite is `npm test`. It uses disposable PostgreSQL clusters and FFmpeg processes, so follow the [test prerequisites and scratch-directory setup](DEVELOPMENT.md#build-typecheck-and-test) before running it. `npm run test:tooling` covers tooling only, not the full application.
+
+### Repository layout
+
+| Directory | Purpose |
+| --- | --- |
+| `apps/web` | Browser workspace |
+| `apps/server` | API and runtime composition |
+| `apps/worker` | Generation and export worker logic |
+| `apps/cli` | Command-line client |
+| `packages` | Shared domain, database, provider, media, client, and UI packages |
+| `tools` | Local development, build, and verification tooling |
+| `docs` | Architecture, workflow documentation, and verification records |
+
+## Documentation
+
+- [Development, setup, and verification](DEVELOPMENT.md)
+- [Provider configuration](apps/server/PROVIDER-CONFIGURATION.md)
+- [Glossary](GLOSSARY.md)
+
+## License
+
+[MIT](LICENSE).
