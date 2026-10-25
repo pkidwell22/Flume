@@ -12,7 +12,7 @@ import {
   startSave,
 } from './editor-state.ts';
 import type { Draft, EditorState } from './editor-state.ts';
-import type { AssetView, FrameRole, ShotEditorProps, ShotView } from './types.ts';
+import type { AssetView, DraftFrameRef, DraftFrameReport, FrameRole, ShotEditorProps, ShotView } from './types.ts';
 import { modelIssues } from './compatibility.ts';
 import { ModelPicker } from './ModelPicker.tsx';
 import { GenerationSettings } from './GenerationSettings.tsx';
@@ -36,6 +36,20 @@ const frames = [
 function closeReference(reference: HTMLDetailsElement) {
   reference.open = false;
   reference.querySelector('summary')?.focus();
+}
+
+/** An import hint is only true while the frame it describes is still unsaved. */
+const IMPORT_HINT = /^Imported .+\. Save changes to keep this (?:start|end) frame\.$/;
+
+function retireImportNotes(
+  notes: Partial<Record<FrameRole, string>>,
+  revision: number,
+): Partial<Record<FrameRole, string>> {
+  const next: Partial<Record<FrameRole, string>> = {};
+  for (const [role, note] of Object.entries(notes) as Array<[FrameRole, string]>) {
+    next[role] = IMPORT_HINT.test(note) ? `Saved with the shot · revision ${revision}` : note;
+  }
+  return next;
 }
 
 export function ShotEditor(props: ShotEditorProps) {
@@ -64,6 +78,8 @@ function ShotEditorSession({
   onUpload,
   onPrepare,
   onDirtyChange,
+  onDraftChange,
+  registerSave,
 }: ShotEditorProps & { shot: ShotView }) {
   const id = useId();
   const [state, setState] = useState(() => createEditorState(shot));
@@ -131,6 +147,8 @@ function ShotEditorSession({
     try {
       const result = await onSave(request);
       if (mounted.current) update((current) => finishSave(current, token, result));
+      // The imported frame is persisted now; an instruction to save it would be stale.
+      if (mounted.current) setUploadNotes((current) => retireImportNotes(current, result.revision));
     } catch (cause) {
       if (!mounted.current) return;
       const failure =
@@ -165,6 +183,37 @@ function ShotEditorSession({
   const issues = modelIssues(draft, capabilities, images);
   const uploading = Object.keys(uploads).length > 0;
   const working = busy || !!state.saving || preparing;
+  // An adjacent surface gets the editor's own guarded save, never a second write
+  // path: the registered action runs the same dirty/upload/conflict/error checks.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    registerSave?.(() => {
+      void saveRef.current();
+    });
+    return () => registerSave?.(null);
+  }, [registerSave]);
+  // Publish draft references only when they actually change; the report is a
+  // presentation fact and never advances a save, review or approval.
+  const reportedDraft = useRef('');
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const describe = (key: 'firstFrameAssetId' | 'lastFrameAssetId'): DraftFrameRef | null => {
+      const assetId = draft.bindings[key];
+      if (!assetId) return null;
+      const asset = images.find((item) => item.id === assetId);
+      return { assetId, filename: asset?.filename ?? assetId, mediaUrl: asset?.mediaUrl ?? '' };
+    };
+    const report: DraftFrameReport = {
+      shotId: shot.id,
+      first: describe('firstFrameAssetId'),
+      last: describe('lastFrameAssetId'),
+    };
+    const key = JSON.stringify(report);
+    if (key === reportedDraft.current) return;
+    reportedDraft.current = key;
+    onDraftChange(report);
+  }, [draft.bindings, images, onDraftChange, shot.id]);
   async function upload(role: FrameRole, file: File) {
     if (busy || live.current.saving || preparingRef.current) return;
     const epoch = ++roleEpoch.current[role];

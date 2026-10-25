@@ -133,9 +133,39 @@ $DOCKER compose -p flume-stable -f compose.yaml -f compose.workers.yaml config
 $DOCKER compose -p flume-stable -f compose.yaml -f compose.workers.yaml up -d
 ```
 
+## Authoring endpoints in the image
+
+The image serves the same authoring surface as `npm run dev` — frame reviews, storyboard proposals and
+shot continuation — because both entry points compose it through one shared seam. The default stack is
+unchanged and stays honest: image authoring and storyboard planning are blocked, no provider
+credential is required, no provider call is made, and media workers remain disabled. Continuation has
+no provider or queue port, so it records and queues without spending; it does not progress until the
+worker override above is separately authorized.
+
+- **Staging** is durable and must stay beneath `FLUME_STORAGE_ROOT`. The default is
+  `/data/media/frame-staging`; the root filesystem is read-only and cannot hold it, and there is no
+  `/tmp` fallback, so an explicit `FLUME_FRAME_STAGING_ROOT` outside the media volume is refused at
+  startup.
+- **Image authoring** is enabled with `FLUME_IMAGE_AUTHORING_MODE=openrouter`, `FLUME_OPENROUTER_SCOPE`,
+  `FLUME_IMAGE_AUTHORING_MODELS` (plus optional `FLUME_IMAGE_AUTHORING_ESTIMATES_USD`) and
+  `OPENROUTER_API_KEY_FILE`. It does not enable video generation or workers.
+- **Storyboard proposals** are enabled with `FLUME_STORYBOARD_PLANNER_MODEL` plus
+  `FLUME_CHAT_API_KEY_FILE` (or `FLUME_OLLAMA_API_KEY_FILE`).
+
+Configuration is not approval: every submit still needs an operator-approved cap above the server
+estimate, applying a proposal is a separate operator action, and a configured model proves nothing
+about account entitlement. See
+[authoring and planner configuration](../DEVELOPMENT.md#authoring-and-planner-configuration).
+
 ## Backup, compatibility, staged cutover, and rollback
 
-Do not point this image at the current launcher-owned store or blindly import it. This checkout contains migrations `001` through `005`. A store containing the unpublished `006` is intentionally rejected by `MIGRATION_LEDGER_MISMATCH`; it is not compatible merely because its tables look similar.
+Do not point this image at the current launcher-owned store or blindly import it. This checkout
+contains migrations `001`–`005` plus the additive authoring migrations `010_frame_authoring.sql` and
+`011_authoring_journals.sql`; the `006`–`009` gap is intentional. Numbering is append-only, so a later
+migration must sort after `011` and the gap is never filled retroactively (see
+[migration ordering](../DEVELOPMENT.md#database-migrations)). A store whose ledger is not an exact
+ordered prefix of these files is rejected by `MIGRATION_LEDGER_MISMATCH`; it is not compatible merely
+because its tables look similar.
 
 For a future authorized migration:
 

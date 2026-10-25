@@ -38,7 +38,7 @@ test('an open shot composes the editor in the slate beside the saved frame pair,
   const state: Workspace = { ...empty, project: { id: 'p', name: 'Early light', brief: '', revision: 1 }, shots: [{ id: 's', projectId: 'p', title: 'The opening', prompt: '', revision: 1, selectionRevision: 0, selectedTakeId: null, controls: { modelId: 'blocked-model', durationSeconds: 5, resolution: '2K', aspectRatio: '16:9', generateAudio: false }, bindings: { firstFrameAssetId: null, lastFrameAssetId: null } }], capabilities: [{ modelId: 'blocked-model', name: 'Hailuo 3', durations: [5], resolutions: ['2K'], frameRoles: ['first_frame', 'last_frame'], seedSupported: false, availability: 'blocked', blocker: 'Account privacy policy excludes this route.' }] };
   const store = controller(state); await store.openProject('p');
   const html = renderToStaticMarkup(<FlumeApp controller={store} components={parts} autoStart={false} />);
-  for (const text of ['Editor contract probe', 'Start frame', 'End frame', 'No selected take', 'Your shot starts here.', 'Give the shot an ending.', 'Account privacy policy excludes this route.', 'Editing is still available.']) assert.ok(html.includes(text), text);
+  for (const text of ['Editor contract probe', 'Start frame', 'End frame', 'No selected take', 'Your shot starts here.', 'Give the shot an ending.', 'Account privacy policy excludes this route.', 'Generation is blocked in this build.', 'Editing and saving still work.']) assert.ok(html.includes(text), text);
   // Takes and Activity are explicit views (stage toggle, drawer); they are not pre-rendered.
   assert.doesNotMatch(html, /Take review contract probe|Activity contract probe/);
   assert.doesNotMatch(html, /<video|<img/);

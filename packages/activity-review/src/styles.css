@@ -83,6 +83,18 @@
 .fl-review__blockers:not(:first-child) { margin-top: 20px; }
 .fl-review__blockers ul { margin: 8px 0; padding-left: 18px; }
 .fl-review__blockers p { color: var(--fl-muted, #62625c); font-size: 13px; }
+/* Plain explanation first, the concrete next step second, server wording last. */
+.fl-review__blockers .fl-review__blocker-reason { color: var(--fl-ink, #20201f); }
+.fl-review__blockers .fl-review__blocker-next { margin-top: 6px; }
+.fl-review__blockers .fl-review__blocker-next strong { color: var(--fl-ink, #20201f); }
+.fl-review__blockers .fl-review__blocker-help { margin-top: 6px; }
+.fl-review__blockers .fl-review__blocker-help a { color: #7a5410; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.fl-review__blockers .fl-review__blocker-help span { color: var(--fl-muted, #62625c); }
+.fl-review__blockers .fl-review__blocker-detail { margin-top: 6px; }
+.fl-review__blockers .fl-review__blocker-detail summary { font-size: 12px; cursor: pointer; }
+.fl-review__blockers .fl-review__blocker-detail code { display: block; margin-top: 4px; font-size: 11.5px; overflow-wrap: anywhere; }
+.fl-review__blockers .fl-review__blocker-detail .fl-review__blocker-message { display: block; margin-top: 2px; font-size: 11.5px; overflow-wrap: anywhere; }
+.fl-review__blockers li + li { margin-top: 10px; }
 .fl-review .fl-review__warning { color: var(--fl-danger, #a32c28); font-size: 13px; }
 .fl-review__footer { padding: 18px 30px 24px; border-top: 1px solid var(--fl-border, #d5d5d0); flex-shrink: 0; background: var(--fl-surface, #fff); }
 .fl-review__footer > p { font-size: 13px; color: var(--fl-muted, #62625c); }

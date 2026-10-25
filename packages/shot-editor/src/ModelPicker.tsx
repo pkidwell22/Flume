@@ -17,6 +17,13 @@ function routeLabel(model: CapabilityView): string {
   return 'Route available';
 }
 
+function routeNote(model: CapabilityView): string {
+  if (model.blocker) return model.blocker;
+  if (model.availability === 'unknown')
+    return 'Access has not been verified. Review before generation. Choose a route that reads Route available, or ask whoever runs this Flume build to confirm provider access. This only sets intent; nothing is sent.';
+  return 'This route is currently unavailable. You can keep editing this draft.';
+}
+
 function frameLabel(role: string): string {
   if (role === 'first_frame') return 'Start frame';
   if (role === 'last_frame') return 'End frame';
@@ -274,11 +281,7 @@ export function ModelPicker({ value, capabilities, disabled = false, onChange }:
                     <div><dt>Seed</dt><dd>{model.seedSupported ? 'Seed supported' : 'Seed not supported'}</dd></div>
                   </dl>
                   {(model.blocker || model.availability !== 'available') && (
-                    <p>
-                      {model.blocker || (model.availability === 'unknown'
-                        ? 'Access has not been verified. Review before generation.'
-                        : 'This route is currently unavailable. You can keep editing this draft.')}
-                    </p>
+                    <p>{routeNote(model)}</p>
                   )}
                 </div>
               </div>

@@ -62,6 +62,8 @@
 .fl-workspace *, .fl-workspace *::before, .fl-workspace *::after { box-sizing: border-box; }
 .fl-workspace :where(button, select, input, textarea) { font: inherit; }
 .fl-workspace button { cursor: pointer; }
+/* A disabled control must not advertise itself as clickable. */
+.fl-workspace button:disabled { cursor: not-allowed; }
 .fl-workspace :focus-visible { outline: 3px solid var(--fl-focus, #ebc57e); outline-offset: 2px; }
 .fl-workspace :where(h1, h2, h3, p, figure, ul, ol, dl) { margin: 0; }
 .fl-workspace :where(ul, ol) { padding: 0; list-style: none; }
@@ -152,9 +154,12 @@
 .fl-showreel__error { display: grid; place-items: center; padding: 24px; background-position: center; background-size: cover; color: #f4eee3; text-align: center; }
 .fl-showreel__caption { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding-top: 13px; }
 .fl-showreel__caption h2 { margin-top: 3px; font-size: clamp(22px, 2vw, 31px); }
-.fl-showreel__controls { display: flex; gap: 7px; }
+/* Reduced motion is a preference, not a fault: say so where the control is. */
+.fl-showreel__motion-note { margin-top: 6px; color: var(--fl-muted); font-size: 12px; line-height: 1.45; }
+.fl-showreel__controls { display: flex; flex-wrap: nowrap; gap: 7px; }
 .fl-showreel__controls button, .fl-showreel__dots button { border: 1px solid #6e746e; background: #151817; color: #fff; }
-.fl-showreel__controls button { min-width: 42px; min-height: 42px; padding: 0 11px; border-radius: 999px; }
+/* Keep the intrinsic label width: a squeezed pill must never break mid-word. */
+.fl-showreel__controls button { flex: 0 0 auto; white-space: nowrap; min-width: 42px; min-height: 42px; padding: 0 11px; border-radius: 999px; }
 .fl-showreel__dots { display: flex; gap: 8px; margin-top: 11px; }
 .fl-showreel__dots button { width: 34px; min-height: 28px; padding: 10px 4px; border-color: transparent; border-radius: 8px; background: transparent; }
 .fl-showreel__dots span { display: block; height: 3px; border-radius: 3px; background: #7d847f; }
@@ -172,21 +177,29 @@
 .fl-home-card__open strong, .fl-home-card__open small { overflow-wrap: anywhere; }
 .fl-home-card__open strong { font-size: 16px; }
 .fl-home-card__open small { color: var(--fl-muted); font-size: 12px; }
+/* The card's primary entry names itself; the quick actions below stay secondary. */
+.fl-home-card__open-label { display: inline-flex; align-items: center; gap: 6px; color: var(--fl-ink); font-weight: 700; font-size: 13px; white-space: nowrap; }
+.fl-home-card__open:hover:not(:disabled) .fl-home-card__open-label { color: var(--fl-tungsten); }
 .fl-home-card__mark { display: grid; place-items: center; width: 44px; aspect-ratio: 1; border: 1px dashed #4b5f59; border-radius: 10px; color: #cfe0da; font-size: 18px; font-weight: 700; }
 .fl-home-card__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--fl-line); }
 .fl-home-card__actions button { min-height: 39px; padding: 7px 9px; border: 0; border-right: 1px solid var(--fl-line); border-bottom: 1px solid var(--fl-line); background: transparent; color: var(--fl-text-2); font-size: 11.5px; }
 .fl-home-card__actions button:nth-child(even) { border-right: 0; }
 .fl-home-card__actions button:nth-last-child(-n+2) { border-bottom: 0; }
 .fl-home-card__actions button:hover:not(:disabled) { background: #1b1b18; color: var(--fl-ink); }
+/* Quick actions are shortcuts, not rivals to the card's entry action. */
+.fl-home-card__actions .fl-home-card__subaction { color: var(--fl-muted); font-size: 11px; font-weight: 500; }
+.fl-home-card__actions .fl-home-card__subaction:hover:not(:disabled) { color: var(--fl-ink); }
 .fl-home__state { padding: 32px; border: 1px dashed var(--fl-ghost-line); border-radius: 13px; color: var(--fl-text-2); text-align: center; }
 .fl-home__message { color: var(--fl-info-text); }
+/* The project selector's list opens over Home without moving the page content. */
+.fl-home__selector .fl-drawer { position: fixed; inset: 56px 0 0 auto; z-index: 60; max-width: min(var(--fl-drawer-w), 100vw); }
 
 @media (max-width: 600px) {
   .fl-home { padding: 12px; }
   .fl-home__hero { grid-template-columns: 1fr; padding: 20px; }
   .fl-home__hero-copy h1 { font-size: 40px; }
   .fl-showreel { min-width: 0; }
-  .fl-showreel__caption { align-items: center; }
+  .fl-showreel__caption { align-items: center; flex-wrap: wrap; }
   .fl-home__hero-actions, .fl-home__hero-actions .fl-btn { width: 100%; }
   .fl-home__projects { margin-top: 30px; }
   .fl-home__search input { width: 100%; }
@@ -237,6 +250,8 @@
 .fl-chat__empty { margin: auto; text-align: center; }.fl-chat__empty button { margin-top: 12px; }
 @media (max-width: 640px) { .fl-chat { grid-template-columns: 1fr; }.fl-chat__rail { max-height: 120px; border-right: 0; border-bottom: 1px solid var(--fl-line); }.fl-chat-shell { inset: 58px 6px 6px; width: auto; }.fl-chat__main { padding: 10px; }.fl-chat__messages article { max-width: 96%; }.fl-chat__reference-actions .fl-btn,.fl-chat__video-actions .fl-btn { min-height: 40px; } }
 .fl-workspace__status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fl-unknown); }
+.fl-workspace__provider-help { grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.fl-workspace__provider-help .fl-link { min-height: 0; }
 .fl-workspace__composer { min-width: 0; padding-top: 4px; }
 
 /* The real ShotEditor, set into the slate. Its state, fences and copy are unchanged. */
@@ -265,7 +280,7 @@
 .fl-workspace__slate .fl-shot-editor__reference-toggle { position: absolute; top: 0; right: 0; font-size: 14px; }
 .fl-workspace__slate .fl-shot-editor__frame-controls { margin-top: 10px; padding: 12px; border: 1px solid var(--fl-rule); border-radius: 11px; background: var(--fl-chrome); }
 .fl-workspace__slate .fl-shot-editor__intent { margin: 0; padding: 16px 0; gap: 16px; }
-.fl-workspace__slate .fl-shot-editor__footer { flex-direction: column; align-items: stretch; gap: 9px; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--fl-line); }
+.fl-workspace__slate .fl-shot-editor__footer { position: sticky; bottom: 0; z-index: 3; flex-direction: column; align-items: stretch; gap: 9px; margin: 0; padding: 14px 0 12px; border-top: 1px solid var(--fl-line); background: var(--fl-surface); box-shadow: 0 -16px 18px -16px rgb(0 0 0 / .85); }
 .fl-workspace__slate .fl-shot-editor__footer > p { order: 2; font-size: 12px; }
 .fl-workspace__slate .fl-shot-editor__footer-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); width: 100%; }
 .fl-workspace__slate .fl-shot-editor__footer-actions button { min-height: 42px; border: 1px solid var(--fl-ghost-line); border-radius: 10px; background: transparent; color: var(--fl-ink); font-weight: 600; font-size: 14px; }
@@ -289,6 +304,8 @@
 .fl-workspace__stagebody { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; }
 .fl-workspace__stagescroll { container: fl-stage / size; flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 18px; padding: 24px 40px; background: radial-gradient(ellipse 70% 60% at 50% 45%, #141412 0%, #0a0a09 100%); }
 .fl-workspace__stage[data-drawer] .fl-workspace__stagescroll { padding-right: calc(var(--fl-drawer-w) + 40px); }
+/* Shown only when the slate stacks below the stage (see the container rule). */
+.fl-workspace__jump { display: none; }
 
 .fl-pair-wrap { display: flex; flex-direction: column; align-items: center; width: 100%; flex: none; }
 .fl-pair { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 76px; width: min(100%, 1060px, calc((100cqh - 250px) * 3.556 + 76px)); min-width: min(100%, 420px); }
@@ -312,6 +329,12 @@
 .fl-cn--br { bottom: 9px; right: 9px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
 .fl-frame__file { display: flex; justify-content: space-between; gap: 8px; min-width: 0; color: var(--fl-muted); font: 11.5px var(--fl-font-mono); }
 .fl-frame__file span { white-space: nowrap; overflow: clip; text-overflow: ellipsis; }
+/* A staged reference is a draft: it is labelled and never presented as saved. */
+.fl-frame__draft { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.fl-frame__draft-note { color: var(--fl-tungsten); font: 11.5px var(--fl-font-mono); }
+.fl-chip[data-kind='draft'] { color: var(--fl-tungsten); border-color: rgb(235 197 126 / .7); border-style: dashed; }
+.fl-gate[data-kind='draft'] { outline: 1px dashed rgb(235 197 126 / .7); outline-offset: -1px; }
+.fl-workspace__composer-label { margin-bottom: 8px; }
 .fl-pair__conn { position: absolute; left: 50%; top: calc(50% + 2px); transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; color: var(--fl-muted); pointer-events: none; }
 .fl-script { width: min(100%, 780px); margin-top: 30px !important; color: #d2cdc3; font-size: 18px; line-height: 1.55; text-align: center; text-wrap: pretty; overflow-wrap: anywhere; white-space: pre-line; }
 .fl-script .fl-eyebrow { display: block; margin-bottom: 8px; white-space: normal; }
@@ -497,6 +520,9 @@
 @container fl (max-width: 880px) {
   .fl-workspace__app, .fl-workspace__app[data-slate] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "stage" "slate" "reel"; }
   .fl-workspace__top { flex-wrap: wrap; row-gap: 8px; padding: 10px 14px; }
+  /* The slate (and its sticky footer) now sits below the stage, so the first
+     viewport carries a labelled, non-covering way to reach Save and Review. */
+  .fl-workspace__jump { display: inline-flex; align-items: center; min-height: 40px; padding: 0 13px; border: 1px solid var(--fl-ghost-line); border-radius: 9px; background: transparent; color: var(--fl-ink); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
   .fl-workspace__slate { overflow: visible; border-right: 0; border-top: 1px solid var(--fl-line); }
   .fl-workspace__stagescroll { container-type: normal; overflow: visible; min-height: 440px; }
   .fl-workspace__stage[data-drawer] .fl-workspace__stagescroll { padding-right: 24px; }
@@ -517,6 +543,14 @@
   .fl-workspace__stagebar { padding-inline: 16px; gap: 10px; }
   .fl-workspace__stagebar-mid { flex-basis: 100%; order: 3; text-align: left; }
   .fl-workspace__slate { padding-inline: 16px; }
+  /* Stacked layouts: identity → frame references → save/review, so the action
+     that advances the work is reachable without scrolling past the prompt. */
+  .fl-workspace__slate .fl-shot-editor { display: flex; flex-direction: column; }
+  .fl-workspace__slate .fl-shot-editor__header { order: 0; }
+  .fl-workspace__slate .fl-shot-editor__frames { order: 1; }
+  .fl-workspace__slate .fl-shot-editor__footer { order: 2; margin-top: 14px; }
+  .fl-workspace__slate .fl-shot-editor__intent { order: 3; }
+  .fl-workspace__slate .fl-shot-editor__compatibility { order: 4; }
   .fl-tbtn { padding: 0 10px; min-height: 44px; }
   .fl-seg button { min-height: 40px; }
   .fl-clip { min-width: 112px; }

@@ -40,7 +40,7 @@ test('image-first review groups exact intent separately from cost and readiness'
     ['Model', 'fixture/model'], ['Length', '5 seconds'], ['Resolution', '2K'],
     ['Frame shape', '16:9'], ['Audio', 'Off'], ['Seed', '0'],
   ]);
-  assert.ok(within(decision).getByText('Estimated cost: $0.087500 USD'));
+  assert.ok(within(decision).getByText('Estimated cost: $0.0875 USD'));
   assert.equal((within(decision).getByRole('textbox', { name: 'Spending limit (USD)' }) as HTMLInputElement).value, '0.087500');
   assert.match(decision.textContent ?? '', /not a provider-enforced billing cap/);
   assert.doesNotMatch(screen.getByRole('dialog').querySelector('header')?.textContent ?? '', /will be sent/);

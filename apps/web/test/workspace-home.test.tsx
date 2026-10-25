@@ -356,7 +356,7 @@ test('missing resume identity and storage failures leave the home usable', async
   Object.defineProperty(window.localStorage, 'getItem', { configurable: true, value: () => { throw new Error('denied'); } });
   const view = render(<FlumeApp controller={controller} components={parts} autoStart={false} initialView="home" />);
   assert.equal(view.queryByRole('button', { name: /Continue editing/ }), null);
-  assert.ok(view.getByRole('button', { name: 'New project' }));
+  assert.equal(view.getAllByRole('button', { name: 'Create project' }).length, 2);
   Object.defineProperty(window.localStorage, 'getItem', { configurable: true, value: original });
 });
 
