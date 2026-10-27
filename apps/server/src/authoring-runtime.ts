@@ -76,7 +76,7 @@ export type ImageAuthoringConfiguration =
   };
 
 export interface AuthoringCapabilities {
-  imageModels: FrameCapability[];
+  imageModels: Array<FrameCapability & { frameRoles: FrameRole[] }>;
   storyboard: { available: boolean; blocker: string | null };
 }
 
@@ -324,7 +324,7 @@ export async function createConfiguredStoryboardRuntime(input: {
 export interface AuthoringRuntimeOptions {
   service: FrameAuthoringService;
   /** Availability facts for the capability route; defaults to the service's provider capabilities. */
-  capabilities?: () => Promise<AuthoringCapabilities>;
+  capabilities?: () => Promise<Omit<AuthoringCapabilities, 'imageModels'> & { imageModels: FrameCapability[] }>;
   storyboard?: StoryboardProposalService | null;
   storyboardBlocker?: string;
   continueShot?: AuthoringRuntime['continueShot'];
@@ -338,10 +338,21 @@ export function createAuthoringRuntime(options: AuthoringRuntimeOptions): Author
   const continueShot = options.continueShot ?? null;
   const storyboardBlocker = options.storyboardBlocker ?? BLOCKED_STORYBOARD_MESSAGE;
   const continueShotBlocker = options.continueShotBlocker ?? BLOCKED_CONTINUATION_MESSAGE;
-  const capabilities = options.capabilities ?? (async () => ({
+  const readCapabilities = options.capabilities ?? (async () => ({
     imageModels: await service.capabilities(),
     storyboard: { available: storyboard !== null, blocker: storyboard === null ? storyboardBlocker : null },
   }));
+  const capabilities = async (): Promise<AuthoringCapabilities> => {
+    const reported = await readCapabilities();
+    return {
+      ...reported,
+      // Application output binding targets, not video-provider reference-input capabilities.
+      // Preserve availability and spend checks, including for injected capability sources.
+      imageModels: reported.imageModels.map(model => ({
+        ...model, frameRoles: ['first_frame', 'last_frame'],
+      })),
+    };
+  };
   return {
     capabilities,
     createReview: (actor, draft) => service.createReview({ actor, draft }),
