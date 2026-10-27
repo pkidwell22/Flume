@@ -1,5 +1,6 @@
 /* Authoring surfaces mounted in the workspace stage and Storyboard drawer. */
-.fl-author { display: grid; gap: 14px; padding: 2px 0 8px; }
+/* A centered flex parent plus an inline-size-contained child cannot supply intrinsic width. */
+.fl-author { display: grid; width: min(100%, 780px); min-width: 0; flex: 0 0 auto; gap: 14px; padding: 2px 0 8px; }
 .fl-author__note {
   margin: 0; padding: 10px 12px; border-left: 2px solid var(--fl-line, #40403c);
   background: var(--fl-panel-2, #1d1d1b); color: var(--fl-ink-dim, #b6b3aa);
