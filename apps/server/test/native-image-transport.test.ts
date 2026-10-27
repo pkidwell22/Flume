@@ -22,6 +22,31 @@ const baseEnv = {
   OPENROUTER_API_KEY: 'synthetic-native-transport-key',
 };
 
+test('real capability route survives the browser parser with both application frame roles', async () => {
+  const {createAuthoringRuntime} = await import('../src/authoring-runtime.ts');
+  const {registerAuthoringRoutes} = await import('../src/authoring-routes.ts');
+  const {default: Fastify} = await import('fastify');
+  const {createAuthoringApi} = await import(new URL('../../web/src/authoring-api.ts', import.meta.url).href);
+  const h = harness({transport: 'images'});
+  for (const useOverride of [false, true]) {
+  const app = Fastify();
+  const capabilities = useOverride ? async () => ({imageModels: await h.service.capabilities(), storyboard: {available: false, blocker: 'fixture'}}) : undefined;
+  registerAuthoringRoutes(app, {authoring: createAuthoringRuntime({service: h.service, capabilities}), getActor: () => OPERATOR});
+  try {
+    const api = createAuthoringApi(async (path: string) => {
+      assert.equal(path, '/api/authoring/capabilities');
+      const response = await app.inject({method: 'GET', url: path});
+      return new Response(response.body, {status: response.statusCode, headers: {'content-type': 'application/json'}});
+    });
+    const capabilities = await api.capabilities();
+    assert.equal(capabilities.imageModels.length, 1);
+    assert.deepEqual(capabilities.imageModels[0].frameRoles, ['first_frame', 'last_frame']);
+    assert.equal(capabilities.imageModels[0].availability, 'available');
+    assert.equal(h.calls.length, 0, 'application target roles do not dispatch or approve generation');
+  } finally { await app.close(); }
+  }
+});
+
 test('the native transport is opt-in and defaults to the legacy chat route', () => {
   assert.equal(readAuthoringConfiguration(baseEnv).image.mode, 'openrouter');
   const legacy = readAuthoringConfiguration(baseEnv).image;

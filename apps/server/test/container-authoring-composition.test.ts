@@ -87,7 +87,7 @@ test('a configured image route composes from injected models, estimates and cred
     const capabilities = await runtime.capabilities();
     assert.equal(capabilities.imageModels.length, 1);
     assert.deepEqual({ ...capabilities.imageModels[0] },
-      { modelId: 'vendor/image-one', name: 'Image One', availability: 'available', blocker: null });
+      { modelId: 'vendor/image-one', name: 'Image One', availability: 'available', blocker: null, frameRoles: ['first_frame', 'last_frame'] });
     assert.equal(capabilities.storyboard.available, false);
     assert.deepEqual(touched, [], 'a configured image route still composes without a provider or database call');
   } finally { await rm(root, { recursive: true, force: true }); }
