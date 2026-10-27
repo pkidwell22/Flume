@@ -158,6 +158,7 @@ planner.
 | `FLUME_IMAGE_AUTHORING_MODE` | `blocked` | `blocked` or `openrouter`. `blocked` exposes no image models, no quotes and no dispatch path. |
 | `FLUME_OPENROUTER_SCOPE` | unset | Required before any provider route is enabled: an explicit `openrouter/<account>/<version>` identity. It is not a credential. |
 | `FLUME_IMAGE_AUTHORING_MODELS` | unset | JSON array of literal model declarations (`modelId`, `name`, optional `aspectRatios`, `availability`, `blocker`). No model is enabled by default. |
+| `FLUME_IMAGE_AUTHORING_TRANSPORT` | `chat-completions` | `chat-completions` (historical body) or `images` (native OpenRouter Image API, `POST /api/v1/images`). It only chooses the wire route for newly compiled requests: `images` pins `n: 1`, PNG output and an optional single inline owned reference, and carries no passthrough fields. Reviewed envelopes are routed by their own frozen body, so changing this never re-routes an existing review, and it grants no model, price or spend approval. |
 | `FLUME_IMAGE_AUTHORING_ESTIMATES_USD` | unset | JSON map of literal model id to literal USD amount. A missing estimate stays unknown; it is never inferred. |
 | `FLUME_STORYBOARD_PLANNER_MODEL` | unset | Literal registered chat model id (`provider/model`). Absent means no planner and a blocked storyboard route. |
 | `FLUME_STORYBOARD_PLANNER_MAX_TOKENS`, `_TIMEOUT_MS`, `_MAX_RESPONSE_CHARS` | `1600`, `30000`, `48000` | Bounded planner limits. |

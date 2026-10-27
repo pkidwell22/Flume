@@ -41,6 +41,7 @@ import type { AuthoringSqlExecutor } from './authoring-operation-lock.ts';
 import type { Command, Receipt } from './contracts.ts';
 // The providers package index is coordinator-owned; import the first-wave image modules directly.
 import { createOpenRouterImageProvider } from '../../../packages/providers/src/image-generation-openrouter.ts';
+import { isImageAuthoringTransport, type ImageAuthoringTransport } from '../../../packages/providers/src/image-generation.ts';
 
 export const BLOCKED_IMAGE_MESSAGE = 'Image generation is not configured on this server. No image models are enabled and no cost estimate is available.';
 export const BLOCKED_STORYBOARD_MESSAGE = 'Storyboard proposals are not configured on this server.';
@@ -64,6 +65,12 @@ export type ImageAuthoringConfiguration =
     mode: 'openrouter';
     models: readonly FrameModelConfiguration[];
     estimatesUsd?: Readonly<Record<string, string>>;
+    /**
+     * Wire route for newly compiled requests. Defaults to the historical chat-completions body;
+     * `images` opts into the native OpenRouter Image API. Routing of already frozen envelopes is
+     * derived from their own body, so changing this never re-routes reviewed work.
+     */
+    transport?: ImageAuthoringTransport;
     /** Server-only credential accessor; never logged or serialized. */
     getApiKey: () => string | undefined;
   };
@@ -131,10 +138,13 @@ export function createFrameProvider(configuration: ImageAuthoringConfiguration, 
   }
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new TypeError('A fetch implementation is required for OpenRouter image authoring.');
+  const transport = configuration.transport === undefined ? 'chat-completions' : configuration.transport;
+  if (!isImageAuthoringTransport(transport)) throw new TypeError('Image authoring transport must be chat-completions or images.');
 
   const inner = createOpenRouterImageProvider({
     getApiKey: configuration.getApiKey,
     fetch: fetchImpl,
+    transport,
     models: models.map(model => ({
       modelId: model.modelId, name: model.name,
       ...(model.aspectRatios ? { aspectRatios: [...model.aspectRatios] } : {}),

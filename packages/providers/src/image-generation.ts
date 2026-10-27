@@ -7,10 +7,22 @@ import { createHash } from 'node:crypto';
 
 export const IMAGE_MIME_TYPES = Object.freeze(['image/png', 'image/jpeg', 'image/webp'] as const);
 export type ImageMime = typeof IMAGE_MIME_TYPES[number];
+/**
+ * Wire routes for image authoring. `chat-completions` is the historical default and keeps its exact
+ * body; `images` is the opt-in native OpenRouter Image API (`POST /api/v1/images`). The transport is
+ * compile-time only: a frozen envelope is routed by its own body, never by current configuration.
+ */
+export const IMAGE_AUTHORING_TRANSPORTS = Object.freeze(['chat-completions', 'images'] as const);
+export type ImageAuthoringTransport = typeof IMAGE_AUTHORING_TRANSPORTS[number];
+export function isImageAuthoringTransport(value: unknown): value is ImageAuthoringTransport {
+  return value === 'chat-completions' || value === 'images';
+}
 export const MAX_IMAGE_PROMPT_CHARS = 8000;
 export const MAX_IMAGE_REFERENCE_BYTES = 10 * 1024 * 1024;
 export const MAX_IMAGE_RESULT_BYTES = 12 * 1024 * 1024;
 export const MAX_IMAGE_RESULT_PIXELS = 40_000_000;
+/** A frozen body can carry one inline reference plus the prompt; anything larger is not one of ours. */
+export const MAX_FROZEN_IMAGE_BODY_CHARS = Math.ceil(MAX_IMAGE_REFERENCE_BYTES * 4 / 3) + 65536;
 
 const MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._:-]{0,127}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -58,6 +70,34 @@ export interface CompiledImageRequest {
   }>;
   bodyJson: string;
   bodySha256: string;
+}
+/**
+ * Native OpenRouter Image API request (`POST /api/v1/images`). The body is intentionally narrow:
+ * exactly one output image is requested (`n: 1`), PNG is the only encoding, and the only optional
+ * field is the single owned reference passed as an inline base64 data URL. There is no passthrough
+ * surface (no quality/resolution/size/seed/provider/stream).
+ */
+export interface CompiledNativeImageRequest {
+  provider: 'openrouter';
+  modelId: string;
+  body: Readonly<{
+    model: string;
+    prompt: string;
+    aspect_ratio: string;
+    n: 1;
+    output_format: 'png';
+    input_references?: readonly [Readonly<{ type: 'image_url'; image_url: Readonly<{ url: string }> }>];
+  }>;
+  bodyJson: string;
+  bodySha256: string;
+}
+/** The transport a frozen envelope was compiled for, re-derived from the frozen bytes themselves. */
+export interface FrozenImageBody {
+  transport: ImageAuthoringTransport;
+  /** Model id as compiled into the frozen body; the persisted envelope must agree. */
+  model: string;
+  body: string;
+  referenceCount: 0 | 1;
 }
 export interface ImageCapability {
   modelId: string;
@@ -156,6 +196,128 @@ export function compileImageRequest(intent: ImageIntent): CompiledImageRequest {
   });
   const bodyJson = JSON.stringify(body);
   return Object.freeze({ provider: 'openrouter' as const, modelId: intent.modelId, body, bodyJson, bodySha256: sha256Bytes(Buffer.from(bodyJson, 'utf8')) });
+}
+
+/**
+ * Compile the opt-in native Image API body. `n` is pinned to exactly one image so a per-image
+ * estimate remains an upper bound for the request; the user never controls it and no provider
+ * passthrough field is accepted. Prompt, model, aspect ratio and owned reference bytes are kept
+ * exactly as supplied.
+ */
+export function compileNativeImageRequest(intent: ImageIntent): CompiledNativeImageRequest {
+  const issues = validateImageIntent(intent);
+  if (issues.length > 0) throw issues[0]!;
+  const reference = intent.reference;
+  const body: {
+    model: string; prompt: string; aspect_ratio: string; n: 1; output_format: 'png';
+    input_references?: readonly [Readonly<{ type: 'image_url'; image_url: Readonly<{ url: string }> }>];
+  } = {
+    model: intent.modelId,
+    prompt: intent.prompt,
+    aspect_ratio: intent.aspectRatio,
+    n: 1,
+    output_format: 'png',
+  };
+  if (reference) {
+    const url = `data:${reference.mimeType};base64,${Buffer.from(reference.bytes).toString('base64')}`;
+    body.input_references = Object.freeze([Object.freeze({
+      type: 'image_url' as const,
+      image_url: Object.freeze({ url }),
+    })]);
+  }
+  Object.freeze(body);
+  const bodyJson = JSON.stringify(body);
+  return Object.freeze({ provider: 'openrouter' as const, modelId: intent.modelId, body: Object.freeze(body), bodyJson, bodySha256: sha256Bytes(Buffer.from(bodyJson, 'utf8')) });
+}
+
+const isImagePart = (part: unknown): part is { type: 'image_url'; image_url: { url: string } } => {
+  // Request parts are the exact compiler shape. Only provider RESPONSE items may omit type.
+  if (!isRecord(part) || part.type !== 'image_url' || !exactKeys(part, ['type', 'image_url'])
+    || !isRecord(part.image_url) || !exactKeys(part.image_url, ['url'])) return false;
+  try {
+    const decoded = decodeInlineImage(part.image_url.url);
+    if (decoded.bytes.byteLength > MAX_IMAGE_REFERENCE_BYTES) return false;
+    inspectImageBytes(decoded.bytes, decoded.mimeType);
+    return true;
+  } catch { return false; }
+};
+
+function readFrozenChatImageBody(body: Record<string, unknown>, frozen: string): FrozenImageBody {
+  if (!exactKeys(body, ['model', 'messages', 'modalities', 'image_config'])) throw new ImageValidationError('invalid_request_body');
+  if (typeof body.model !== 'string' || !MODEL_ID.test(body.model)) throw new ImageValidationError('invalid_request_body');
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length !== 1 || !isRecord(messages[0])) throw new ImageValidationError('invalid_request_body');
+  if (!exactKeys(messages[0], ['role', 'content']) || messages[0].role !== 'user') throw new ImageValidationError('invalid_request_body');
+  const content = messages[0].content;
+  if (!Array.isArray(content) || content.length < 1 || content.length > 2) throw new ImageValidationError('invalid_request_body');
+  const [first, second] = content;
+  if (!isRecord(first) || !exactKeys(first, ['type', 'text']) || first.type !== 'text'
+    || typeof first.text !== 'string' || first.text.length === 0 || first.text.length > MAX_IMAGE_PROMPT_CHARS) {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  const referenceCount: 0 | 1 = second === undefined ? 0 : 1;
+  if (second !== undefined && !isImagePart(second)) throw new ImageValidationError('invalid_request_body');
+  const modalities = body.modalities;
+  if (!Array.isArray(modalities) || modalities.length !== 2 || modalities[0] !== 'image' || modalities[1] !== 'text') {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  const imageConfig = body.image_config;
+  if (!isRecord(imageConfig) || !exactKeys(imageConfig, ['aspect_ratio'])
+    || typeof imageConfig.aspect_ratio !== 'string' || !ASPECT.test(imageConfig.aspect_ratio)) {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  return { transport: 'chat-completions', model: body.model, body: frozen, referenceCount };
+}
+
+function readFrozenNativeImageBody(body: Record<string, unknown>, frozen: string): FrozenImageBody {
+  const required = ['model', 'prompt', 'aspect_ratio', 'n', 'output_format'] as const;
+  if (!required.every(key => Object.hasOwn(body, key))) throw new ImageValidationError('invalid_request_body');
+  if (Object.keys(body).some(key => !required.includes(key as typeof required[number]) && key !== 'input_references')) {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  if (typeof body.model !== 'string' || !MODEL_ID.test(body.model)) throw new ImageValidationError('invalid_request_body');
+  if (typeof body.prompt !== 'string' || body.prompt.length === 0 || body.prompt.length > MAX_IMAGE_PROMPT_CHARS || body.prompt.trim().length === 0) {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  if (typeof body.aspect_ratio !== 'string' || !ASPECT.test(body.aspect_ratio)) throw new ImageValidationError('invalid_request_body');
+  if (body.n !== 1) throw new ImageValidationError('invalid_request_body');
+  if (body.output_format !== 'png') throw new ImageValidationError('invalid_request_body');
+  let referenceCount: 0 | 1 = 0;
+  if (Object.hasOwn(body, 'input_references')) {
+    const references = body.input_references;
+    if (!Array.isArray(references) || references.length !== 1 || !isImagePart(references[0])) throw new ImageValidationError('invalid_request_body');
+    if (!exactKeys(references[0] as object, ['type', 'image_url'])) throw new ImageValidationError('invalid_request_body');
+    referenceCount = 1;
+  }
+  return { transport: 'images', model: body.model, body: frozen, referenceCount };
+}
+
+/**
+ * Re-derive the wire route from the frozen body itself. Historical chat envelopes stay on
+ * `/chat/completions` even when the current configuration selects the native route, and native
+ * envelopes stay on `/images` under a legacy configuration. Anything that is not exactly one of
+ * the two compiled shapes is refused before dispatch.
+ */
+export function readFrozenImageBody(body: unknown): FrozenImageBody {
+  if (typeof body !== 'string' || body.length === 0 || body.length > MAX_FROZEN_IMAGE_BODY_CHARS) {
+    throw new ImageValidationError('invalid_request_body');
+  }
+  let parsed: unknown;
+  try { parsed = JSON.parse(body); } catch { throw new ImageValidationError('invalid_request_body'); }
+  if (!isRecord(parsed)) throw new ImageValidationError('invalid_request_body');
+  return Object.hasOwn(parsed, 'messages') ? readFrozenChatImageBody(parsed, body) : readFrozenNativeImageBody(parsed, body);
+}
+
+/** Bounded, magic-validated base64 image decoding for the native response (`b64_json`). */
+export function decodeBase64Image(value: unknown, expectedMime?: ImageMime): { mimeType: ImageMime; bytes: Uint8Array } {
+  if (typeof value !== 'string' || value.length === 0) throw new ImageValidationError('missing_inline_image');
+  if (value.length > Math.ceil(MAX_IMAGE_RESULT_BYTES * 4 / 3) + 256) throw new ImageValidationError('image_too_large');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) throw new ImageValidationError('invalid_inline_image');
+  const bytes = new Uint8Array(Buffer.from(value, 'base64'));
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_RESULT_BYTES) throw new ImageValidationError('image_too_large');
+  if (expectedMime !== undefined && !IMAGE_MIME_TYPES.includes(expectedMime)) throw new ImageValidationError('unsupported_image_format');
+  const inspected = inspectImageBytes(bytes, expectedMime);
+  return { mimeType: inspected.mimeType, bytes };
 }
 
 /** Structural identity + integrity check for a persisted envelope. Never repairs bytes or hashes. */

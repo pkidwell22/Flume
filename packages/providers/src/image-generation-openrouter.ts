@@ -4,9 +4,11 @@
  * every returned image is inspected (magic, mime, dimensions, sha256) before acceptance.
  */
 import {
-  IMAGE_MIME_TYPES, MAX_IMAGE_RESULT_BYTES, compileImageRequest, decodeInlineImage, inspectImageBytes,
-  isCompiledImageRequest, normalizeImageProviderError, problem, sha256Bytes,
-  type AcceptedImage, type ImageCapability, type ImageIntent, type ImageProviderProblem, type ImageProviderPort,
+  IMAGE_MIME_TYPES, MAX_IMAGE_RESULT_BYTES, compileImageRequest, compileNativeImageRequest, decodeBase64Image, decodeInlineImage,
+  inspectImageBytes, isCompiledImageRequest, isImageAuthoringTransport, normalizeImageProviderError, problem,
+  readFrozenImageBody, sha256Bytes,
+  type AcceptedImage, type ImageAuthoringTransport, type ImageCapability, type ImageIntent, type ImageMime,
+  type ImageProviderProblem, type ImageProviderPort,
 } from './image-generation.ts';
 
 const OFFICIAL_BASE = 'https://openrouter.ai/api/v1';
@@ -25,9 +27,20 @@ export interface OpenRouterImageOptions {
   models?: readonly ImageCapability[];
   /** Optional server-supplied estimate in USD. Absence means unknown (null), never zero. */
   estimateUsd?: (intent: ImageIntent) => string | null;
+  /**
+   * Compile-time wire route. Defaults to the historical chat-completions body. `images` selects the
+   * native OpenRouter Image API. This only decides how new requests are compiled; submitted
+   * envelopes are routed by their own frozen body.
+   */
+  transport?: ImageAuthoringTransport;
   timeoutMs?: number;
   maxResponseBytes?: number;
 }
+
+const ENDPOINTS = Object.freeze({ 'chat-completions': '/chat/completions', images: '/images' } as const);
+const NATIVE_ITEM_KEYS = ['b64_json', 'media_type'] as const;
+const itemKeysAreNative = (value: object) =>
+  Object.keys(value).every(key => (NATIVE_ITEM_KEYS as readonly string[]).includes(key)) && Object.hasOwn(value, 'b64_json');
 
 function limit(value: number | undefined, fallback: number, max: number, name: string): number {
   const chosen = value ?? fallback;
@@ -71,9 +84,11 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
   }
   const timeoutMs = limit(options.timeoutMs, 60000, 120000, 'timeoutMs');
   const maxResponseBytes = limit(options.maxResponseBytes, 48 * 1024 * 1024, 64 * 1024 * 1024, 'maxResponseBytes');
+  const transport = options.transport === undefined ? 'chat-completions' : options.transport;
+  if (!isImageAuthoringTransport(transport)) throw new TypeError('transport must be chat-completions or images.');
   const frozenModels = Object.freeze(models.map(model => Object.freeze({ ...model })));
 
-  async function post(bodyJson: string, call: { signal?: AbortSignal } = {}): Promise<
+  async function post(path: (typeof ENDPOINTS)[ImageAuthoringTransport], bodyJson: string, call: { signal?: AbortSignal } = {}): Promise<
     | { ok: true; status: number; data: unknown }
     | { ok: false; dispatched: boolean; error: ImageProviderProblem }
   > {
@@ -97,7 +112,7 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
     const race = <T>(work: Promise<T>): Promise<T> => Promise.race([work, stopped]);
     try {
       dispatched = true;
-      const response = await race(Promise.resolve(options.fetch(`${baseUrl}/chat/completions`, {
+      const response = await race(Promise.resolve(options.fetch(`${baseUrl}${path}`, {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json', authorization: `Bearer ${key}` },
         body: bodyJson, redirect: 'error', credentials: 'omit', cache: 'no-store', signal: controller.signal,
@@ -139,6 +154,12 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
     }
   }
 
+  function receiptOf(data: Record<string, any>, modelId: string, bodySha256: string) {
+    const receiptId = typeof data.id === 'string' && RECEIPT.test(data.id) ? data.id : null;
+    const cost = isRecord(data.usage) ? normalizeMoney(data.usage.cost) : null;
+    return { provider: 'openrouter' as const, providerModelId: modelId, providerReceiptId: receiptId, bodySha256, costUsd: cost };
+  }
+
   function extractImage(data: unknown, modelId: string, bodySha256: string): { status: 'accepted'; receipt: { provider: 'openrouter'; providerModelId: string; providerReceiptId: string | null; bodySha256: string; costUsd: string | null }; image: AcceptedImage } | { status: 'failed'; error: ImageProviderProblem } {
     if (!isRecord(data)) return { status: 'failed', error: problem('provider_invalid_response', 'OpenRouter responded without a readable image result. No image was accepted.', 'hold') };
     if (data.model !== undefined && data.model !== null && data.model !== modelId) {
@@ -153,21 +174,54 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
       return { status: 'failed', error: problem(images && images.length > 1 ? 'provider_ambiguous_output' : 'provider_invalid_output', 'OpenRouter did not return exactly one inline image. No image was accepted or auto-selected.', 'hold') };
     }
     const part = images[0];
-    const url = isRecord(part) && part.type === 'image_url' && isRecord(part.image_url) ? part.image_url.url : undefined;
+    // The documented ChatAssistantImages item is `{image_url: {url}}` with no `type`. A missing type
+    // is accepted; an explicitly different type is not.
+    const url = isRecord(part) && (part.type === undefined || part.type === 'image_url') && isRecord(part.image_url) ? part.image_url.url : undefined;
     let decoded: { mimeType: typeof IMAGE_MIME_TYPES[number]; bytes: Uint8Array };
     try { decoded = decodeInlineImage(url); } catch { return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned an image outside the accepted inline PNG/JPEG/WebP bounds. No image was accepted.', 'hold') }; }
     let inspected: AcceptedImage;
     try { inspected = { ...inspectImageBytes(decoded.bytes, decoded.mimeType), bytes: decoded.bytes }; }
     catch { return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned image bytes that failed integrity inspection. No image was accepted.', 'hold') }; }
-    const receiptId = typeof data.id === 'string' && RECEIPT.test(data.id) ? data.id : null;
-    const cost = isRecord(data.usage) ? normalizeMoney(data.usage.cost) : null;
-    return { status: 'accepted', receipt: { provider: 'openrouter', providerModelId: modelId, providerReceiptId: receiptId, bodySha256, costUsd: cost }, image: inspected };
+    return { status: 'accepted', receipt: receiptOf(data, modelId, bodySha256), image: inspected };
+  }
+
+  /**
+   * Native Image API response: `{created, data: [{b64_json, media_type?}], usage: {cost?}}`.
+   * Exactly one PNG is accepted, matching the frozen output_format; multiple outputs are never
+   * auto-selected. Magic bytes must identify PNG even when media_type is absent, and a present
+   * media_type must also be image/png. A response without id
+   * yields a null receipt id rather than an invented one.
+   */
+  function extractNativeImage(data: unknown, modelId: string, bodySha256: string): { status: 'accepted'; receipt: { provider: 'openrouter'; providerModelId: string; providerReceiptId: string | null; bodySha256: string; costUsd: string | null }; image: AcceptedImage } | { status: 'failed'; error: ImageProviderProblem } {
+    if (!isRecord(data)) return { status: 'failed', error: problem('provider_invalid_response', 'OpenRouter responded without a readable image result. No image was accepted.', 'hold') };
+    if (data.model !== undefined && data.model !== null && data.model !== modelId) {
+      return { status: 'failed', error: problem('provider_model_mismatch', 'The provider reported a different model than the reviewed request. No image was accepted; hold for investigation.', 'hold') };
+    }
+    const items = data.data;
+    if (!Array.isArray(items) || items.length !== 1) {
+      return { status: 'failed', error: problem(items && items.length > 1 ? 'provider_ambiguous_output' : 'provider_invalid_output', 'OpenRouter did not return exactly one inline image. No image was accepted or auto-selected.', 'hold') };
+    }
+    const item = items[0];
+    if (!isRecord(item) || !itemKeysAreNative(item)) {
+      return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned an image outside the accepted inline PNG/JPEG/WebP bounds. No image was accepted.', 'hold') };
+    }
+    const mediaType = item.media_type;
+    if (mediaType !== undefined && mediaType !== 'image/png') {
+      return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned an image outside the accepted inline PNG/JPEG/WebP bounds. No image was accepted.', 'hold') };
+    }
+    let decoded: { mimeType: ImageMime; bytes: Uint8Array };
+    try { decoded = decodeBase64Image(item.b64_json, 'image/png'); }
+    catch { return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned an image outside the accepted inline PNG/JPEG/WebP bounds. No image was accepted.', 'hold') }; }
+    let inspected: AcceptedImage;
+    try { inspected = { ...inspectImageBytes(decoded.bytes, decoded.mimeType), bytes: decoded.bytes }; }
+    catch { return { status: 'failed', error: problem('provider_output_invalid', 'OpenRouter returned image bytes that failed integrity inspection. No image was accepted.', 'hold') }; }
+    return { status: 'accepted', receipt: receiptOf(data, modelId, bodySha256), image: inspected };
   }
 
   return {
     async capabilities() { return frozenModels.map(model => ({ ...model })); },
     async prepare(intent: ImageIntent) {
-      const compiled = compileImageRequest(intent);
+      const compiled = transport === 'images' ? compileNativeImageRequest(intent) : compileImageRequest(intent);
       const blockers = capabilityBlockers(intent, frozenModels);
       let estimateUsd: string | null = null;
       if (blockers.length === 0 && options.estimateUsd) {
@@ -188,7 +242,15 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
       const modelId = request.modelId;
       const body = request.body;
       const bodySha256 = request.bodySha256;
-      const response = await post(body, call);
+      // Route by the frozen body, never by the current configuration: a historical envelope keeps
+      // its historical endpoint after an operator switches the server to another transport.
+      let frozen: ReturnType<typeof readFrozenImageBody>;
+      try { frozen = readFrozenImageBody(body); }
+      catch { return { status: 'failed', error: problem('request_shape_invalid', 'The persisted request is not a recognized image request. Prepare and review again.', 'edit_request') }; }
+      if (frozen.model !== modelId) {
+        return { status: 'failed', error: problem('request_model_mismatch', 'The persisted request names a different model than the reviewed request. Prepare and review again.', 'edit_request') };
+      }
+      const response = await post(ENDPOINTS[frozen.transport], body, call);
       if (!response.ok) {
         return { status: response.dispatched ? 'acceptance_unknown' : 'blocked', error: response.error };
       }
@@ -199,7 +261,9 @@ export function createOpenRouterImageProvider(options: OpenRouterImageOptions): 
       if (response.data === undefined) {
         return { status: 'acceptance_unknown', error: problem('provider_invalid_response', 'OpenRouter accepted the request but returned unreadable JSON. Hold this review; do not automatically resubmit.', 'hold', response.status) };
       }
-      const extracted = extractImage(response.data, modelId, bodySha256);
+      const extracted = frozen.transport === 'images'
+        ? extractNativeImage(response.data, modelId, bodySha256)
+        : extractImage(response.data, modelId, bodySha256);
       if (extracted.status !== 'accepted') return extracted;
       return { status: 'accepted', receipt: { ...extracted.receipt, bodySha256 }, image: extracted.image };
     },
