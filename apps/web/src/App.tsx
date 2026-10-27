@@ -316,7 +316,7 @@ export function FlumeApp({ controller, components, chatPort, autoStart = true, i
               : openDrawer === 'library' ? <LibraryDrawer workspace={workspace} shots={shots} held={held} onImport={file => run(() => controller.uploadAsset(file))} />
               : openDrawer === 'activity' ? <ActivityDrawer workspace={workspace} shots={shots} held={held} ActivityPanel={ActivityPanel} onResume={id => notify(() => controller.resume(id))} onOpenShot={id => openShot(id)} />
               : openDrawer === 'story' ? <AuthoringStoryboard controller={controller} state={state} workspace={workspace} />
-              : <ExportDrawer workspace={workspace} shots={shots} held={held} onOpenTakes={id => openShot(id, 'takes')} />}
+              : <ExportDrawer workspace={workspace} shots={shots} held={held} unsavedEdits={shots.some(item => state.dirtyShotIds.has(item.id))} onOpenTakes={id => openShot(id, 'takes')} />}
           </Drawer>}
           <div className="fl-workspace__stagescroll">
           {(state.phase === 'loading' || state.phase === 'idle') ? <div className="fl-empty" role="status"><div className="fl-workspace__loading-frame" aria-hidden="true" /><h1>Opening your workspace…</h1><p>Loading saved projects, shots and media.</p></div>
