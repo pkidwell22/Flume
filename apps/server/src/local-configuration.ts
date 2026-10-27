@@ -58,6 +58,11 @@ export function readAuthoringConfiguration(env:Readonly<Record<string,string|und
  const stagingRoot=env.FLUME_FRAME_STAGING_ROOT??(env.FLUME_DATA_DIR?join(env.FLUME_DATA_DIR,'frame-staging'):undefined);
  if(stagingRoot!==undefined&&(!isAbsolute(stagingRoot)||/[\x00-\x1f\x7f]/.test(stagingRoot)))
   throw new Error('FLUME_FRAME_STAGING_ROOT must be an absolute server-owned path without control characters.');
+ // Opt-in wire route for newly compiled image requests. It selects no model, holds no price and
+ // changes no spend guard; historical envelopes keep the endpoint they were compiled for.
+ const transport=env.FLUME_IMAGE_AUTHORING_TRANSPORT??'chat-completions';
+ if(transport!=='chat-completions'&&transport!=='images')
+  throw new Error('FLUME_IMAGE_AUTHORING_TRANSPORT must be chat-completions or images.');
  const mode=env.FLUME_IMAGE_AUTHORING_MODE??'blocked';
  if(mode==='blocked')return {stagingRoot:stagingRoot??null,image:{mode:'blocked'}};
  if(mode!=='openrouter')throw new Error('FLUME_IMAGE_AUTHORING_MODE must be blocked or openrouter.');
@@ -107,7 +112,7 @@ export function readAuthoringConfiguration(env:Readonly<Record<string,string|und
   }
  }
  const key=env.OPENROUTER_API_KEY;
- return {stagingRoot:stagingRoot??null,image:{mode:'openrouter',models,...(estimatesUsd?{estimatesUsd}:{}),getApiKey:()=>key}};
+ return {stagingRoot:stagingRoot??null,image:{mode:'openrouter',transport,models,...(estimatesUsd?{estimatesUsd}:{}),getApiKey:()=>key}};
 }
 
 const PLANNER_MODEL_ID = /^[a-z0-9][a-z0-9._-]{0,63}\/[a-z0-9][a-z0-9._:-]{0,127}$/;

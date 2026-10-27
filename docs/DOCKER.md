@@ -148,7 +148,10 @@ worker override above is separately authorized.
   startup.
 - **Image authoring** is enabled with `FLUME_IMAGE_AUTHORING_MODE=openrouter`, `FLUME_OPENROUTER_SCOPE`,
   `FLUME_IMAGE_AUTHORING_MODELS` (plus optional `FLUME_IMAGE_AUTHORING_ESTIMATES_USD`) and
-  `OPENROUTER_API_KEY_FILE`. It does not enable video generation or workers.
+  `OPENROUTER_API_KEY_FILE`. `FLUME_IMAGE_AUTHORING_TRANSPORT=images` selects the native OpenRouter
+  Image API (single pinned image, PNG, optional inline owned reference) instead of the historical
+  chat-completions body; it changes no estimate, cap or entitlement, and already reviewed requests
+  keep the route they were compiled for. It does not enable video generation or workers.
 - **Storyboard proposals** are enabled with `FLUME_STORYBOARD_PLANNER_MODEL` plus
   `FLUME_CHAT_API_KEY_FILE` (or `FLUME_OLLAMA_API_KEY_FILE`).
 
