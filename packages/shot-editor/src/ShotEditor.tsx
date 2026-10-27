@@ -14,6 +14,7 @@ import {
 import type { Draft, EditorState } from './editor-state.ts';
 import type { AssetView, DraftFrameRef, DraftFrameReport, FrameRole, ShotEditorProps, ShotView } from './types.ts';
 import { modelIssues } from './compatibility.ts';
+import { ownedThumbnailUrl } from './media-url.ts';
 import { ModelPicker } from './ModelPicker.tsx';
 import { GenerationSettings } from './GenerationSettings.tsx';
 import { PromptComposer } from './PromptComposer.tsx';
@@ -342,6 +343,9 @@ function ShotEditorSession({
       <div className="fl-shot-editor__frames" role="group" aria-label="Frame references">
         {frames.map((frame) => {
           const asset = images.find((item) => item.id === draft.bindings[frame.key]);
+          // Only owned media may become a thumbnail request; a refused URL is never
+          // handed to <img src>, and the binding, filename and saved state survive.
+          const thumbnailUrl = asset ? ownedThumbnailUrl(asset.mediaUrl) : undefined;
           return (
             <section
               className="fl-shot-editor__frame"
@@ -359,8 +363,16 @@ function ShotEditorSession({
               >
                 <summary className="fl-shot-editor__reference-summary" aria-label={`${frame.label} reference`}>
                   <div className="fl-shot-editor__image">
-                    {asset ? (
-                      <img src={asset.mediaUrl} alt={`${frame.label}: ${asset.filename}`} />
+                    {asset && thumbnailUrl ? (
+                      <img src={thumbnailUrl} alt={`${frame.label}: ${asset.filename}`} />
+                    ) : asset ? (
+                      <span
+                        className="fl-shot-editor__image-empty"
+                        role="img"
+                        aria-label={`Reference preview unavailable: ${asset.filename}`}
+                      >
+                        ⊘
+                      </span>
                     ) : (
                       <span className="fl-shot-editor__image-empty" aria-hidden="true">＋</span>
                     )}
@@ -371,7 +383,9 @@ function ShotEditorSession({
                       {asset ? asset.filename : draft.bindings[frame.key]
                         ? `Unavailable image: ${draft.bindings[frame.key]}` : frame.hint}
                     </span>
-                    <small>{draft.bindings[frame.key] ? 'Edit reference' : 'Choose or upload an image'}</small>
+                    <small>{asset && !thumbnailUrl
+                      ? 'Preview unavailable · not shown'
+                      : draft.bindings[frame.key] ? 'Edit reference' : 'Choose or upload an image'}</small>
                   </div>
                   <span className="fl-shot-editor__reference-toggle" aria-hidden="true">⌄</span>
                 </summary>

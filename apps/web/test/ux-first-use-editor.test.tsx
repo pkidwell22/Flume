@@ -227,3 +227,29 @@ test('a saved frame whose preview fails keeps the existing saved-shot wording', 
   assert.doesNotMatch(msg, /Removed in your draft/i);
   assert.equal(Boolean(screen.queryByText('Unsaved draft')), false);
 });
+
+// --- thumbnail-boundary-01: a saved asset outside the owned media path is never rendered ---
+
+const savedArtworkAsset = {
+  id: 'asset-saved-artwork', projectId: 'p', filename: 'alpine-forest-wide.webp', kind: 'image' as const,
+  origin: 'sample' as const, sha256: 'a'.repeat(64), mediaUrl: '/art/alpine-forest-wide.webp', width: 1584, height: 672,
+};
+
+test('a saved reference outside the owned media path is unavailable, never an editor thumbnail', async () => {
+  const { controller, commands, workspace } = await fixture({
+    assets: [savedArtworkAsset],
+    firstFrameAssetId: savedArtworkAsset.id,
+  });
+  render(<FlumeApp controller={controller} components={workspaceComponents} autoStart={false} />);
+
+  // Ingress from this finding: apps/web mounts the editor with workspace.assets, so a
+  // persisted same-origin URL outside /api/media/ used to become the reference <img>.
+  const strip = document.querySelector('.fl-shot-editor__frames')!;
+  assert.equal(strip.querySelectorAll('img[src="/art/alpine-forest-wide.webp"]').length, 0, 'the editor never requests unowned media');
+  assert.ok(strip.querySelector('[aria-label="Reference preview unavailable: alpine-forest-wide.webp"]'), 'the editor strip says the preview is unavailable');
+  assert.equal((screen.getByLabelText('Start frame image') as HTMLSelectElement).value, 'asset-saved-artwork', 'the saved binding is intact');
+  assert.equal(workspace.shots[0]!.bindings.firstFrameAssetId, 'asset-saved-artwork', 'the saved shot is untouched');
+  assert.equal(commands.length, 0, 'refusing to render writes nothing');
+  assert.match(startFrameFigure().querySelector('.fl-gate__msg')!.textContent ?? '', /This preview could not load/i, 'the preview pair keeps its own owned-media refusal copy');
+  assert.equal(Boolean(screen.queryByText(/Save changes to keep this start frame/)), false, 'nothing is staged as a draft');
+});

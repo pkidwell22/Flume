@@ -4,6 +4,8 @@ import type { WorkspaceComponents } from './ports.ts';
 import type { Asset, Project, Shot, Workspace } from './types.ts';
 import { originLabel, ownedMediaUrl, restoreOpener } from './shell.ts';
 import { needsWatching, shotNumber } from './shot-status.ts';
+import { saveShotList, shotListFile } from './shot-list-export.ts';
+import type { ShotListFile, ShotListKind } from './shot-list-export.ts';
 
 export type DrawerKind = 'projects' | 'library' | 'activity' | 'export' | 'story';
 
@@ -119,8 +121,30 @@ export function ActivityDrawer({ workspace, shots, held, ActivityPanel, onResume
   </section>)}</>;
 }
 
-export function ExportDrawer({ workspace, shots, held, onOpenTakes }: { workspace: Workspace; shots: readonly Shot[]; held: boolean; onOpenTakes(id: string): void }) {
+export function ExportDrawer({ workspace, shots, held, onOpenTakes, unsavedEdits = false }: { workspace: Workspace; shots: readonly Shot[]; held: boolean; onOpenTakes(id: string): void; unsavedEdits?: boolean }) {
   const gaps = shots.filter(shot => !shot.selectedTakeId).length;
+  const project = workspace.project;
+  const projectId = project?.id ?? null;
+  const [download, setDownload] = useState<{ projectId: string | null; tone: 'ok' | 'err'; message: string } | null>(null);
+  // Feedback describes one project's click: a drawer rerendered onto another project shows that
+  // project's own state, never the previous project's download line, without remounting.
+  const feedback = download && download.projectId === projectId ? download : null;
+  // A saved shot list needs a saved project and saved shots; a held workspace starts nothing.
+  const shotListReady = !!project && shots.length > 0 && !held;
+  function saveShotListFile(kind: ShotListKind) {
+    if (!project || !shotListReady) return;
+    let file: ShotListFile;
+    try {
+      file = shotListFile({ project, shots, assets: workspace.assets }, kind);
+    } catch {
+      // Malformed saved state cannot become a document. Say so in bounded terms and start
+      // nothing: no blob, no object URL, no anchor, and no uncaught click-handler exception.
+      setDownload({ projectId, tone: 'err', message: 'The shot list could not be prepared from the saved shots. Nothing was downloaded.' });
+      return;
+    }
+    const result = saveShotList(file);
+    setDownload({ projectId, tone: result.ok ? 'ok' : 'err', message: result.message });
+  }
   return <>
     <p className="fl-hint">An export is a frozen copy of one shot’s selected take. Later edits never change it. Exports start from each shot’s Takes view.</p>
     <div className="fl-drawer__unavailable" role="note"><strong>Whole-film export isn’t available in this build.</strong> Flume can’t join shots or mix sound into one file yet.</div>
@@ -138,5 +162,19 @@ export function ExportDrawer({ workspace, shots, held, onOpenTakes }: { workspac
           <button type="button" className="fl-link" aria-disabled={held || undefined} onClick={() => { if (!held) onOpenTakes(shot.id); }}>Open takes</button></span>
       </li>;
     })}</ul>
+    <section className="fl-drawer__group" aria-label="Shot list">
+      <div className="fl-drawer__group-head"><h3>Shot list</h3><span className="fl-mono fl-dim">Planning document</span></div>
+      <p className="fl-hint">Saved shot values only. This is a planning document, not rendered video and not a generation receipt; unsaved edits are not included. Start and end frames are saved planned inputs, not proof of the current files or rights.</p>
+      {!project || !shots.length
+        ? <p className="fl-drawer__empty">No saved shots yet. A shot list is built from saved shots, so save one first.</p>
+        : <>
+          {unsavedEdits && <p className="fl-hint">This project has unsaved edits. The shot list uses the last saved values and leaves your drafts alone.</p>}
+          <div className="fl-drawer__row">
+            <button type="button" className="fl-btn fl-btn--ghost fl-btn--sm" aria-disabled={!shotListReady || undefined} onClick={() => saveShotListFile('markdown')}>Download shot list (Markdown)</button>
+            <button type="button" className="fl-btn fl-btn--ghost fl-btn--sm" aria-disabled={!shotListReady || undefined} onClick={() => saveShotListFile('json')}>Download shot list (JSON)</button>
+          </div>
+          <p className={`fl-mono fl-tone--${feedback?.tone ?? 'dim'}`} role="status">{feedback?.message ?? (shotListReady ? 'Both formats stay local. Nothing is uploaded or generated.' : 'Finish the current action before downloading the shot list.')}</p>
+        </>}
+    </section>
   </>;
 }
